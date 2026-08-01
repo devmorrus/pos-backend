@@ -2,7 +2,7 @@
 
 Backend POS berbasis ASP.NET Core dengan pola Clean Architecture.
 
-README ini ditulis untuk orang yang baru menerima project dalam bentuk `.zip` dan ingin menjalankannya dari nol sampai API hidup dengan `dotnet run`.
+README ini ditulis untuk orang yang baru clone project dari GitHub dan ingin menjalankannya dari nol sampai API hidup dengan `dotnet run`.
 
 ## Stack
 
@@ -43,12 +43,18 @@ dotnet --version
 psql --version
 ```
 
-## 1. Extract dan buka project
+## 1. Clone dan buka project
 
-Setelah file `.zip` diextract:
+Clone repository dari GitHub:
 
 ```bash
-cd /path/ke/MorrusPOS
+git clone <URL_REPOSITORY_GITHUB>
+```
+
+Masuk ke folder project:
+
+```bash
+cd MorrusPOS
 ```
 
 Opsional, cek isi folder:
@@ -239,7 +245,8 @@ Controller yang saat ini ada:
 Kalau kamu cuma butuh urutan super singkat:
 
 ```bash
-cd /path/ke/MorrusPOS
+git clone <URL_REPOSITORY_GITHUB>
+cd MorrusPOS
 dotnet restore
 dotnet build
 
@@ -347,4 +354,3 @@ Bagian yang masih perlu dilanjutkan:
 - [src/MorrusPOS.Api/appsettings.json](/Users/hilmi/Downloads/MorrusPOS/src/MorrusPOS.Api/appsettings.json:1)
 - [src/MorrusPOS.Infrastructure/Persistence/AppDbContext.cs](/Users/hilmi/Downloads/MorrusPOS/src/MorrusPOS.Infrastructure/Persistence/AppDbContext.cs:1)
 - [src/MorrusPOS.Infrastructure/Persistence/Migrations/StockLedgerTrigger.sql](/Users/hilmi/Downloads/MorrusPOS/src/MorrusPOS.Infrastructure/Persistence/Migrations/StockLedgerTrigger.sql:1)
-
