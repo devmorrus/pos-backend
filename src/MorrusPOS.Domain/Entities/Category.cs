@@ -2,7 +2,7 @@ using MorrusPOS.Domain.Common;
 
 namespace MorrusPOS.Domain.Entities;
 
-public class Category : BaseEntity
+public class Category : AuditableEntity
 {
     public string Name { get; set; } = default!;
 

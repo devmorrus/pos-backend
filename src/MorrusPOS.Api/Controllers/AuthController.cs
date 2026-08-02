@@ -14,10 +14,26 @@ public class AuthController : ControllerBase
         _authService = authService;
     }
 
+
+
     [HttpPost("login")]
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request, CancellationToken ct)
     {
         var result = await _authService.LoginAsync(request, ct);
         return Ok(result);
+    }
+
+    [HttpPost("refresh")]
+    public async Task<ActionResult<LoginResponse>> Refresh(RefreshTokenRequest request, CancellationToken ct)
+    {
+        var result = await _authService.RefreshTokenAsync(request, ct);
+        return Ok(result);
+    }
+
+    [HttpPost("revoke")]
+    public async Task<IActionResult> Revoke(RevokeTokenRequest request, CancellationToken ct)
+    {
+        await _authService.RevokeTokenAsync(request, ct);
+        return NoContent();
     }
 }

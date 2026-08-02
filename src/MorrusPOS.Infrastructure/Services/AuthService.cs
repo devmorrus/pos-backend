@@ -32,15 +32,78 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync(ct);
 
         var accessToken = _jwt.GenerateAccessToken(user.Id, user.OutletId, user.Role.Name);
-        var refreshToken = _jwt.GenerateRefreshToken();
+        var refreshTokenString = _jwt.GenerateRefreshToken();
+
+        var refreshToken = new RefreshToken
+        {
+            UserId = user.Id,
+            Token = refreshTokenString,
+            ExpiresAt = DateTime.UtcNow.AddDays(7)
+        };
+
+        _context.RefreshTokens.Add(refreshToken);
+        await _context.SaveChangesAsync(ct);
 
         return new LoginResponse(
             accessToken,
-            refreshToken,
+            refreshTokenString,
             user.Id,
             user.Name,
             user.Role.Name,
             user.OutletId
         );
+    }
+
+    public async Task<LoginResponse> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken ct = default)
+    {
+        var storedToken = await _context.RefreshTokens
+            .Include(t => t.User)
+            .ThenInclude(u => u.Role)
+            .FirstOrDefaultAsync(t => t.Token == request.RefreshToken, ct);
+
+        if (storedToken is null || !storedToken.IsActive)
+            throw new UnauthorizedAccessException("Refresh token tidak valid atau telah kedaluwarsa.");
+
+        // Revoke current token
+        storedToken.RevokedAt = DateTime.UtcNow;
+
+        // Generate new tokens (Rotation)
+        var user = storedToken.User;
+        var newAccessToken = _jwt.GenerateAccessToken(user.Id, user.OutletId, user.Role.Name);
+        var newRefreshTokenString = _jwt.GenerateRefreshToken();
+
+        var newRefreshToken = new RefreshToken
+        {
+            UserId = user.Id,
+            Token = newRefreshTokenString,
+            ExpiresAt = DateTime.UtcNow.AddDays(7)
+        };
+
+        _context.RefreshTokens.Add(newRefreshToken);
+        await _context.SaveChangesAsync(ct);
+
+        return new LoginResponse(
+            newAccessToken,
+            newRefreshTokenString,
+            user.Id,
+            user.Name,
+            user.Role.Name,
+            user.OutletId
+        );
+    }
+
+    public async Task RevokeTokenAsync(RevokeTokenRequest request, CancellationToken ct = default)
+    {
+        var storedToken = await _context.RefreshTokens
+            .FirstOrDefaultAsync(t => t.Token == request.RefreshToken, ct);
+
+        if (storedToken is null)
+            throw new KeyNotFoundException("Token tidak ditemukan.");
+
+        if (storedToken.IsActive)
+        {
+            storedToken.RevokedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync(ct);
+        }
     }
 }

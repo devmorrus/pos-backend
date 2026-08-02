@@ -11,7 +11,12 @@ public record LoginResponse(
     Guid? OutletId
 );
 
+public record RefreshTokenRequest(string RefreshToken);
+public record RevokeTokenRequest(string RefreshToken);
+
 public interface IAuthService
 {
     Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken ct = default);
+    Task<LoginResponse> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken ct = default);
+    Task RevokeTokenAsync(RevokeTokenRequest request, CancellationToken ct = default);
 }
