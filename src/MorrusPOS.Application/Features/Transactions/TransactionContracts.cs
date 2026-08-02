@@ -1,33 +1,70 @@
 namespace MorrusPOS.Application.Features.Transactions;
 
-public record CreateTransactionItemRequest(Guid ProductId, decimal Qty, decimal DiscountAmount);
-
-public record CreateTransactionPaymentRequest(string Method, decimal Amount, string? ReferenceNumber);
-
-public record CreateTransactionRequest(
-    List<CreateTransactionItemRequest> Items,
-    List<CreateTransactionPaymentRequest> Payments,
-    decimal DiscountTotal,
-    decimal TaxTotal
-);
-
 public record TransactionDto(
     Guid Id,
     string TransactionNumber,
+    Guid OutletId,
+    string OutletName,
+    Guid UserId,
+    string UserName,
+    Guid? CashierSessionId,
+    string Channel,
     string Status,
+    decimal Subtotal,
+    decimal DiscountTotal,
+    decimal TaxTotal,
     decimal GrandTotal,
+    DateTime CreatedAt,
+    IReadOnlyList<TransactionItemDto> Items,
+    IReadOnlyList<PaymentDto> Payments
+);
+
+public record TransactionItemDto(
+    Guid ProductId,
+    string ProductName,
+    string Sku,
+    decimal Qty,
+    decimal UnitPrice,
+    decimal UnitCost,
+    decimal DiscountAmount,
+    decimal LineTotal
+);
+
+public record PaymentDto(
+    string Method,
+    decimal Amount,
+    string? ReferenceNumber,
     DateTime CreatedAt
+);
+
+public record CheckoutItemRequest(
+    Guid ProductId,
+    decimal Qty,
+    decimal UnitPrice,
+    decimal DiscountAmount
+);
+
+public record PaymentRequest(
+    string Method,
+    decimal Amount,
+    string? ReferenceNumber
+);
+
+public record CheckoutRequest(
+    Guid Id,
+    Guid OutletId,
+    Guid CashierSessionId,
+    string Channel,
+    decimal Subtotal,
+    decimal DiscountTotal,
+    decimal TaxTotal,
+    decimal GrandTotal,
+    List<CheckoutItemRequest> Items,
+    List<PaymentRequest> Payments
 );
 
 public interface ITransactionService
 {
-    /// <summary>
-    /// Validasi stok cukup, hitung total, insert Transaction + TransactionItems + Payments,
-    /// lalu insert StockLedger (movement_type = sale) untuk tiap item — yang otomatis
-    /// memicu trigger database untuk update InventoryStock.QtyOnHand.
-    /// Wajib dijalankan dalam satu database transaction (atomicity).
-    /// </summary>
-    Task<TransactionDto> CreateAsync(Guid outletId, Guid userId, CreateTransactionRequest request, CancellationToken ct = default);
-
-    Task<TransactionDto> VoidAsync(Guid transactionId, Guid voidedBy, string reason, CancellationToken ct = default);
+    Task<TransactionDto> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<TransactionDto> CheckoutAsync(CheckoutRequest request, CancellationToken ct = default);
 }

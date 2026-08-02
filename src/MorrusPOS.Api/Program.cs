@@ -5,6 +5,8 @@ using Microsoft.OpenApi;
 using Microsoft.IdentityModel.Tokens;
 using MorrusPOS.Api.Middleware;
 using MorrusPOS.Api.Security;
+using MorrusPOS.Api.Hubs;
+using MorrusPOS.Api.Services;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Infrastructure;
 
@@ -18,6 +20,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<IPosNotificationService, PosNotificationService>();
 
 // ---- JWT Auth ----
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -45,6 +48,7 @@ builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler
 
 // ---- Controllers & Swagger ----
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
 // Swashbuckle.AspNetCore v10+ (dipakai untuk .NET 10) pindah ke Microsoft.OpenApi v2,
 // yang mengubah cara mendaftarkan security requirement — OpenApiSecurityScheme.Reference
@@ -99,6 +103,7 @@ app.UseAuthorization();
 app.UseMiddleware<OutletTenantMiddleware>();
 
 app.MapControllers();
+app.MapHub<NotificationHub>("/hub/notifications");
 
 app.Run();
 

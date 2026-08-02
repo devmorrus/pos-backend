@@ -5,6 +5,7 @@ using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Auth;
 using MorrusPOS.Application.Features.Users;
 using MorrusPOS.Application.Features.Products;
+using MorrusPOS.Application.Features.Transactions;
 using MorrusPOS.Infrastructure.Persistence;
 using MorrusPOS.Infrastructure.Services;
 
@@ -26,6 +27,9 @@ public static class DependencyInjection
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IProductService, ProductService>();
+        services.AddScoped<IStockService, StockService>();
+        services.AddScoped<ICashierSessionService, CashierSessionService>();
+        services.AddScoped<ITransactionService, TransactionService>();
 
         return services;
     }
