@@ -23,8 +23,23 @@ public record CreateProductRequest(
     bool IsConsignment
 );
 
+public record UpdateProductRequest(
+    Guid CategoryId,
+    string Sku,
+    string Name,
+    string? Barcode,
+    decimal BasePrice,
+    decimal CostPrice,
+    string Unit,
+    bool IsConsignment,
+    bool IsActive
+);
+
 public interface IProductService
 {
+    Task<ProductDto> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<ProductDto>> GetByOutletAsync(Guid outletId, CancellationToken ct = default);
     Task<ProductDto> CreateAsync(CreateProductRequest request, CancellationToken ct = default);
+    Task<ProductDto> UpdateAsync(Guid id, UpdateProductRequest request, CancellationToken ct = default);
+    Task DeleteAsync(Guid id, CancellationToken ct = default);
 }

@@ -15,6 +15,7 @@ public class Product : AuditableEntity
     public string Unit { get; set; } = default!; // pcs, kg, dus, dll
     public bool IsConsignment { get; set; } = false;
     public bool IsActive { get; set; } = true;
+    public uint Version { get; set; }
 
     public ICollection<TransactionItem> TransactionItems { get; set; } = new List<TransactionItem>();
     public ICollection<InventoryStock> InventoryStocks { get; set; } = new List<InventoryStock>();

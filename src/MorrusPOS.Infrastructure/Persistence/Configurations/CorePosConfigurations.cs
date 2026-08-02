@@ -33,6 +33,7 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(x => x.BasePrice).HasColumnType("decimal(14,2)");
         builder.Property(x => x.CostPrice).HasColumnType("decimal(14,2)");
         builder.Property(x => x.Unit).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.Version).IsRowVersion();
 
         builder.HasOne(x => x.Category)
             .WithMany(c => c.Products)
