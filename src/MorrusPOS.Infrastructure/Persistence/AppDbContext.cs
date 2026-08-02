@@ -42,8 +42,17 @@ public class AppDbContext : DbContext
     public DbSet<SupplierReturn> SupplierReturns => Set<SupplierReturn>();
     public DbSet<SupplierReturnItem> SupplierReturnItems => Set<SupplierReturnItem>();
 
-    // TODO Fase 5-7: Consignment, ChannelAccount, dst. Tambahkan entity class di
-    // Domain/Entities, lalu daftarkan DbSet + konfigurasinya di sini mengikuti pola yang sama.
+    // Fase 5 — Konsinyasi
+    public DbSet<Consignment> Consignments => Set<Consignment>();
+    public DbSet<ConsignmentItem> ConsignmentItems => Set<ConsignmentItem>();
+    public DbSet<ConsignmentSale> ConsignmentSales => Set<ConsignmentSale>();
+    public DbSet<ConsignmentSettlement> ConsignmentSettlements => Set<ConsignmentSettlement>();
+
+    // Fase 6 — Integrasi Channel Online
+    public DbSet<ChannelAccount> ChannelAccounts => Set<ChannelAccount>();
+    public DbSet<ChannelSettlement> ChannelSettlements => Set<ChannelSettlement>();
+    public DbSet<ChannelSettlementItem> ChannelSettlementItems => Set<ChannelSettlementItem>();
+    public DbSet<IntegrationLog> IntegrationLogs => Set<IntegrationLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MorrusPOS.Infrastructure.Persistence;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MorrusPOS.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260802145407_AddConsignmentModule")]
+    partial class AddConsignmentModule
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -140,127 +143,6 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasIndex("ParentId");
 
                     b.ToTable("categories", (string)null);
-                });
-
-            modelBuilder.Entity("MorrusPOS.Domain.Entities.ChannelAccount", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ApiKey")
-                        .HasMaxLength(250)
-                        .HasColumnType("character varying(250)");
-
-                    b.Property<string>("ChannelName")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("MerchantId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<Guid>("OutletId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OutletId");
-
-                    b.ToTable("channel_accounts", (string)null);
-                });
-
-            modelBuilder.Entity("MorrusPOS.Domain.Entities.ChannelSettlement", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ChannelAccountId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("CommissionAmount")
-                        .HasColumnType("decimal(14,2)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("CreatedBy")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("GrossAmount")
-                        .HasColumnType("decimal(14,2)");
-
-                    b.Property<decimal>("NetAmount")
-                        .HasColumnType("decimal(14,2)");
-
-                    b.Property<DateTime>("SettlementDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("SettlementNumber")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ChannelAccountId");
-
-                    b.HasIndex("CreatedBy");
-
-                    b.HasIndex("SettlementNumber")
-                        .IsUnique();
-
-                    b.ToTable("channel_settlements", (string)null);
-                });
-
-            modelBuilder.Entity("MorrusPOS.Domain.Entities.ChannelSettlementItem", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ChannelSettlementId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("CommissionAmount")
-                        .HasColumnType("decimal(14,2)");
-
-                    b.Property<decimal>("GrossAmount")
-                        .HasColumnType("decimal(14,2)");
-
-                    b.Property<decimal>("NetAmount")
-                        .HasColumnType("decimal(14,2)");
-
-                    b.Property<Guid>("TransactionId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ChannelSettlementId");
-
-                    b.HasIndex("TransactionId");
-
-                    b.ToTable("channel_settlement_items", (string)null);
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.Consignment", b =>
@@ -428,41 +310,6 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasIndex("SupplierId");
 
                     b.ToTable("consignment_settlements", (string)null);
-                });
-
-            modelBuilder.Entity("MorrusPOS.Domain.Entities.IntegrationLog", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsSuccess")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("RequestPayload")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ResponsePayload")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ServiceName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("StatusCode")
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("integration_logs", (string)null);
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.InventoryStock", b =>
@@ -1642,55 +1489,6 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("Parent");
                 });
 
-            modelBuilder.Entity("MorrusPOS.Domain.Entities.ChannelAccount", b =>
-                {
-                    b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
-                        .WithMany()
-                        .HasForeignKey("OutletId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Outlet");
-                });
-
-            modelBuilder.Entity("MorrusPOS.Domain.Entities.ChannelSettlement", b =>
-                {
-                    b.HasOne("MorrusPOS.Domain.Entities.ChannelAccount", "ChannelAccount")
-                        .WithMany()
-                        .HasForeignKey("ChannelAccountId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("MorrusPOS.Domain.Entities.User", "CreatedByUser")
-                        .WithMany()
-                        .HasForeignKey("CreatedBy")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("ChannelAccount");
-
-                    b.Navigation("CreatedByUser");
-                });
-
-            modelBuilder.Entity("MorrusPOS.Domain.Entities.ChannelSettlementItem", b =>
-                {
-                    b.HasOne("MorrusPOS.Domain.Entities.ChannelSettlement", "ChannelSettlement")
-                        .WithMany("Items")
-                        .HasForeignKey("ChannelSettlementId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("MorrusPOS.Domain.Entities.Transaction", "Transaction")
-                        .WithMany()
-                        .HasForeignKey("TransactionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("ChannelSettlement");
-
-                    b.Navigation("Transaction");
-                });
-
             modelBuilder.Entity("MorrusPOS.Domain.Entities.Consignment", b =>
                 {
                     b.HasOne("MorrusPOS.Domain.Entities.User", "CreatedByUser")
@@ -2216,11 +2014,6 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("Children");
 
                     b.Navigation("Products");
-                });
-
-            modelBuilder.Entity("MorrusPOS.Domain.Entities.ChannelSettlement", b =>
-                {
-                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.Consignment", b =>
