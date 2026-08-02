@@ -6,6 +6,7 @@ using MorrusPOS.Application.Features.Auth;
 using MorrusPOS.Application.Features.Users;
 using MorrusPOS.Application.Features.Products;
 using MorrusPOS.Application.Features.Transactions;
+using MorrusPOS.Application.Features.Stock;
 using MorrusPOS.Infrastructure.Persistence;
 using MorrusPOS.Infrastructure.Services;
 
@@ -30,6 +31,8 @@ public static class DependencyInjection
         services.AddScoped<IStockService, StockService>();
         services.AddScoped<ICashierSessionService, CashierSessionService>();
         services.AddScoped<ITransactionService, TransactionService>();
+        services.AddScoped<IStockOpnameService, StockOpnameService>();
+        services.AddScoped<IStockTransferService, StockTransferService>();
 
         return services;
     }
