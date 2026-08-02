@@ -75,6 +75,11 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
             .WithMany()
             .HasForeignKey(x => x.VoidedBy)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.CashierSession)
+            .WithMany(c => c.Transactions)
+            .HasForeignKey(x => x.CashierSessionId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
 
@@ -141,6 +146,30 @@ public class ReturnConfiguration : IEntityTypeConfiguration<Return>
         builder.HasOne(x => x.ProcessedByUser)
             .WithMany()
             .HasForeignKey(x => x.ProcessedBy)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class CashierSessionConfiguration : IEntityTypeConfiguration<CashierSession>
+{
+    public void Configure(EntityTypeBuilder<CashierSession> builder)
+    {
+        builder.ToTable("cashier_sessions");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.OpeningCash).HasColumnType("decimal(14,2)");
+        builder.Property(x => x.ExpectedCash).HasColumnType("decimal(14,2)");
+        builder.Property(x => x.ActualCash).HasColumnType("decimal(14,2)");
+        builder.Property(x => x.Variance).HasColumnType("decimal(14,2)");
+
+        builder.HasOne(x => x.Outlet)
+            .WithMany()
+            .HasForeignKey(x => x.OutletId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.User)
+            .WithMany()
+            .HasForeignKey(x => x.UserId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

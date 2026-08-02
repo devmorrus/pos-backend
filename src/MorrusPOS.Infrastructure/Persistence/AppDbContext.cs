@@ -23,12 +23,15 @@ public class AppDbContext : DbContext
     public DbSet<TransactionItem> TransactionItems => Set<TransactionItem>();
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<Return> Returns => Set<Return>();
+    public DbSet<CashierSession> CashierSessions => Set<CashierSession>();
 
     // Fase 2 — Stok
     public DbSet<InventoryStock> InventoryStocks => Set<InventoryStock>();
     public DbSet<StockLedger> StockLedgers => Set<StockLedger>();
     public DbSet<StockOpname> StockOpnames => Set<StockOpname>();
     public DbSet<StockOpnameItem> StockOpnameItems => Set<StockOpnameItem>();
+    public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
+    public DbSet<StockTransferItem> StockTransferItems => Set<StockTransferItem>();
 
     // TODO Fase 3-7: Supplier, PurchaseOrder, Consignment, ChannelAccount,
     // StockTransfer, dst. Tambahkan entity class di Domain/Entities, lalu

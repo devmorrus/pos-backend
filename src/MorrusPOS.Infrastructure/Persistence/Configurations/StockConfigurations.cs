@@ -102,3 +102,55 @@ public class StockOpnameItemConfiguration : IEntityTypeConfiguration<StockOpname
             .OnDelete(DeleteBehavior.Restrict);
     }
 }
+
+public class StockTransferConfiguration : IEntityTypeConfiguration<StockTransfer>
+{
+    public void Configure(EntityTypeBuilder<StockTransfer> builder)
+    {
+        builder.ToTable("stock_transfers");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.TransferNumber).HasMaxLength(30).IsRequired();
+        builder.HasIndex(x => x.TransferNumber).IsUnique();
+        builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
+
+        builder.HasOne(x => x.FromOutlet)
+            .WithMany()
+            .HasForeignKey(x => x.FromOutletId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.ToOutlet)
+            .WithMany()
+            .HasForeignKey(x => x.ToOutletId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.RequestedByUser)
+            .WithMany()
+            .HasForeignKey(x => x.RequestedBy)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.ApprovedByUser)
+            .WithMany()
+            .HasForeignKey(x => x.ApprovedBy)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class StockTransferItemConfiguration : IEntityTypeConfiguration<StockTransferItem>
+{
+    public void Configure(EntityTypeBuilder<StockTransferItem> builder)
+    {
+        builder.ToTable("stock_transfer_items");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Qty).HasColumnType("decimal(12,2)");
+
+        builder.HasOne(x => x.StockTransfer)
+            .WithMany(t => t.Items)
+            .HasForeignKey(x => x.StockTransferId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.Product)
+            .WithMany()
+            .HasForeignKey(x => x.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}

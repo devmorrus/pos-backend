@@ -26,6 +26,9 @@ public class Transaction : BaseEntity
     public Guid UserId { get; set; }
     public User User { get; set; } = default!;
 
+    public Guid? CashierSessionId { get; set; }
+    public CashierSession? CashierSession { get; set; }
+
     public string TransactionNumber { get; set; } = default!; // TRX-20260731-0001
     public string Channel { get; set; } = TransactionChannel.Pos;
     public string Status { get; set; } = TransactionStatus.Pending;
