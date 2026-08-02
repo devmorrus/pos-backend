@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Auth;
+using MorrusPOS.Application.Features.Users;
 using MorrusPOS.Infrastructure.Persistence;
 using MorrusPOS.Infrastructure.Services;
 
@@ -21,9 +22,7 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IAuthService, AuthService>();
-
-        // TODO: daftarkan IProductService, ITransactionService setelah
-        // implementasinya dibuat (lihat catatan di Program.cs).
+        services.AddScoped<IUserService, UserService>();
 
         return services;
     }
