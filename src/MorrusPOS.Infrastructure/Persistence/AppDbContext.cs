@@ -33,9 +33,17 @@ public class AppDbContext : DbContext
     public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
     public DbSet<StockTransferItem> StockTransferItems => Set<StockTransferItem>();
 
-    // TODO Fase 3-7: Supplier, PurchaseOrder, Consignment, ChannelAccount,
-    // StockTransfer, dst. Tambahkan entity class di Domain/Entities, lalu
-    // daftarkan DbSet + konfigurasinya di sini mengikuti pola yang sama.
+    // Fase 3-4 — Supplier & Pembelian
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+    public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
+    public DbSet<PurchaseOrderItem> PurchaseOrderItems => Set<PurchaseOrderItem>();
+    public DbSet<SupplierDebt> SupplierDebts => Set<SupplierDebt>();
+    public DbSet<SupplierPayment> SupplierPayments => Set<SupplierPayment>();
+    public DbSet<SupplierReturn> SupplierReturns => Set<SupplierReturn>();
+    public DbSet<SupplierReturnItem> SupplierReturnItems => Set<SupplierReturnItem>();
+
+    // TODO Fase 5-7: Consignment, ChannelAccount, dst. Tambahkan entity class di
+    // Domain/Entities, lalu daftarkan DbSet + konfigurasinya di sini mengikuti pola yang sama.
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
