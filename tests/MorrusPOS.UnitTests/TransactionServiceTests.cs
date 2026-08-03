@@ -94,7 +94,7 @@ public class TransactionServiceTests
         // Verify SignalR broadcast
         await _notificationServiceMock.Received(1).SendStockUpdateAsync(
             outletId: outletId,
-            updates: Arg.Is<List<StockUpdateItem>>(list => list.Count == 1 && list[0].ProductId == prodId && list[0].Qty == 2),
+            updates: Arg.Is<List<StockUpdateItem>>(list => list != null && list.Count == 1 && list[0].ProductId == prodId && list[0].Qty == 2),
             ct: Arg.Any<CancellationToken>()
         );
     }

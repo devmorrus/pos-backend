@@ -140,13 +140,13 @@ public class StockTransferServiceTests
         // Verify notification sent to both outlets
         await _notificationServiceMock.Received(1).SendStockUpdateAsync(
             outletId: fromOutletId,
-            updates: Arg.Is<List<StockUpdateItem>>(list => list.Count == 1 && list[0].ProductId == prodId && list[0].Qty == -4),
+            updates: Arg.Is<List<StockUpdateItem>>(list => list != null && list.Count == 1 && list[0].ProductId == prodId && list[0].Qty == -4),
             ct: Arg.Any<CancellationToken>()
         );
 
         await _notificationServiceMock.Received(1).SendStockUpdateAsync(
             outletId: toOutletId,
-            updates: Arg.Is<List<StockUpdateItem>>(list => list.Count == 1 && list[0].ProductId == prodId && list[0].Qty == 4),
+            updates: Arg.Is<List<StockUpdateItem>>(list => list != null && list.Count == 1 && list[0].ProductId == prodId && list[0].Qty == 4),
             ct: Arg.Any<CancellationToken>()
         );
     }

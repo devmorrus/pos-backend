@@ -130,7 +130,7 @@ public class ConsignmentServiceTests
         // Assert SignalR broadcast sent
         await _notificationServiceMock.Received(1).SendStockUpdateAsync(
             outletId: _outletId,
-            updates: Arg.Is<List<StockUpdateItem>>(list => list.Count == 1 && list[0].ProductId == _productId && list[0].Qty == 15),
+            updates: Arg.Is<List<StockUpdateItem>>(list => list != null && list.Count == 1 && list[0].ProductId == _productId && list[0].Qty == 15),
             ct: Arg.Any<CancellationToken>()
         );
     }
