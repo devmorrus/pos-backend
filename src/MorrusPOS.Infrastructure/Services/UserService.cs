@@ -108,10 +108,18 @@ public class UserService : IUserService
         // 4. Validate Outlet if provided
         if (request.OutletId.HasValue)
         {
-            var outletExists = await _dbContext.Outlets.AnyAsync(o => o.Id == request.OutletId.Value, ct);
-            if (!outletExists)
+            var outlet = await _dbContext.Outlets
+                .AsNoTracking()
+                .FirstOrDefaultAsync(o => o.Id == request.OutletId.Value, ct);
+
+            if (outlet == null)
             {
                 throw new InvalidOperationException("Outlet tidak valid.");
+            }
+
+            if (!outlet.IsActive)
+            {
+                throw new InvalidOperationException("Outlet nonaktif tidak dapat dipakai untuk pengguna baru.");
             }
         }
         else
@@ -188,10 +196,18 @@ public class UserService : IUserService
         // Validate Outlet
         if (request.OutletId.HasValue)
         {
-            var outletExists = await _dbContext.Outlets.AnyAsync(o => o.Id == request.OutletId.Value, ct);
-            if (!outletExists)
+            var outlet = await _dbContext.Outlets
+                .AsNoTracking()
+                .FirstOrDefaultAsync(o => o.Id == request.OutletId.Value, ct);
+
+            if (outlet == null)
             {
                 throw new InvalidOperationException("Outlet tidak valid.");
+            }
+
+            if (!outlet.IsActive)
+            {
+                throw new InvalidOperationException("Outlet nonaktif tidak dapat dipakai untuk assignment pengguna.");
             }
         }
         else
