@@ -30,13 +30,13 @@ public class PurchaseOrdersController : ControllerBase
 
     [HttpGet]
     [HasPermission("supplier.manage")]
-    public async Task<ActionResult<IReadOnlyList<PurchaseOrderDto>>> GetByOutlet(CancellationToken ct)
+    public async Task<ActionResult<IReadOnlyList<PurchaseOrderDto>>> GetByOutlet([FromQuery] Guid? outletId, CancellationToken ct)
     {
-        var outletId = _currentUser.OutletId;
-        if (outletId == null)
+        var resolvedOutletId = ResolveTargetOutletId(outletId);
+        if (resolvedOutletId == null)
             return BadRequest("Data outlet tidak valid.");
 
-        var result = await _poService.GetByOutletAsync(outletId.Value, ct);
+        var result = await _poService.GetByOutletAsync(resolvedOutletId.Value, ct);
         return Ok(result);
     }
 
@@ -62,5 +62,20 @@ public class PurchaseOrdersController : ControllerBase
 
         var result = await _poService.UpdateStatusAsync(userId.Value, id, request, ct);
         return Ok(result);
+    }
+
+    private Guid? ResolveTargetOutletId(Guid? requestedOutletId)
+    {
+        if (_currentUser.Role == "Owner")
+        {
+            return requestedOutletId;
+        }
+
+        if (requestedOutletId.HasValue && requestedOutletId != _currentUser.OutletId)
+        {
+            throw new UnauthorizedAccessException("Anda tidak memiliki akses ke outlet tersebut.");
+        }
+
+        return _currentUser.OutletId;
     }
 }

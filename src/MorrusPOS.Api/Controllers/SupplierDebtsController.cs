@@ -25,9 +25,15 @@ public class SupplierDebtsController : ControllerBase
     /// </summary>
     [HttpGet]
     [HasPermission("supplier.manage")]
-    public async Task<ActionResult<IReadOnlyList<SupplierDebtDto>>> GetDebts([FromQuery] string? status, CancellationToken ct)
+    public async Task<ActionResult<IReadOnlyList<SupplierDebtDto>>> GetDebts([FromQuery] Guid? outletId, [FromQuery] string? status, CancellationToken ct)
     {
-        var result = await _debtService.GetDebtsAsync(status, ct);
+        var resolvedOutletId = ResolveTargetOutletId(outletId);
+        if (resolvedOutletId == null)
+        {
+            return BadRequest("Pilih outlet terlebih dahulu untuk melihat utang supplier.");
+        }
+
+        var result = await _debtService.GetDebtsAsync(resolvedOutletId.Value, status, ct);
         return Ok(result);
     }
 
@@ -47,9 +53,15 @@ public class SupplierDebtsController : ControllerBase
     /// </summary>
     [HttpGet("payments")]
     [HasPermission("supplier.manage")]
-    public async Task<ActionResult<IReadOnlyList<SupplierPaymentDto>>> GetPayments(CancellationToken ct)
+    public async Task<ActionResult<IReadOnlyList<SupplierPaymentDto>>> GetPayments([FromQuery] Guid? outletId, CancellationToken ct)
     {
-        var result = await _debtService.GetPaymentsAsync(ct);
+        var resolvedOutletId = ResolveTargetOutletId(outletId);
+        if (resolvedOutletId == null)
+        {
+            return BadRequest("Pilih outlet terlebih dahulu untuk melihat histori pembayaran supplier.");
+        }
+
+        var result = await _debtService.GetPaymentsAsync(resolvedOutletId.Value, ct);
         return Ok(result);
     }
 
@@ -66,5 +78,20 @@ public class SupplierDebtsController : ControllerBase
 
         var result = await _debtService.PayDebtAsync(userId.Value, request, ct);
         return Ok(result);
+    }
+
+    private Guid? ResolveTargetOutletId(Guid? requestedOutletId)
+    {
+        if (_currentUser.Role == "Owner")
+        {
+            return requestedOutletId;
+        }
+
+        if (requestedOutletId.HasValue && requestedOutletId != _currentUser.OutletId)
+        {
+            throw new UnauthorizedAccessException("Anda tidak memiliki akses ke outlet tersebut.");
+        }
+
+        return _currentUser.OutletId;
     }
 }
