@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Suppliers;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -8,17 +9,22 @@ namespace MorrusPOS.Infrastructure.Services;
 public class SupplierDebtService : ISupplierDebtService
 {
     private readonly AppDbContext _dbContext;
+    private readonly ICurrentUserService _currentUserService;
 
-    public SupplierDebtService(AppDbContext dbContext)
+    public SupplierDebtService(AppDbContext dbContext, ICurrentUserService currentUserService)
     {
         _dbContext = dbContext;
+        _currentUserService = currentUserService;
     }
 
-    public async Task<IReadOnlyList<SupplierDebtDto>> GetDebtsAsync(string? status = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<SupplierDebtDto>> GetDebtsAsync(Guid outletId, string? status = null, CancellationToken ct = default)
     {
+        await EnsureOutletAccessibleAsync(outletId, ct);
+
         var query = _dbContext.SupplierDebts
             .Include(d => d.Supplier)
             .Include(d => d.PurchaseOrder)
+            .Where(d => d.PurchaseOrder.OutletId == outletId)
             .AsQueryable();
 
         if (!string.IsNullOrEmpty(status))
@@ -38,14 +44,19 @@ public class SupplierDebtService : ISupplierDebtService
         if (debt == null)
             throw new InvalidOperationException("Tidak ada utang untuk Purchase Order tersebut.");
 
+        await EnsureOutletAccessibleAsync(debt.PurchaseOrder.OutletId, ct);
+
         return MapDebtToDto(debt);
     }
 
-    public async Task<IReadOnlyList<SupplierPaymentDto>> GetPaymentsAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<SupplierPaymentDto>> GetPaymentsAsync(Guid outletId, CancellationToken ct = default)
     {
+        await EnsureOutletAccessibleAsync(outletId, ct);
+
         var payments = await _dbContext.SupplierPayments
             .Include(p => p.Supplier)
             .Include(p => p.PurchaseOrder)
+            .Where(p => p.PurchaseOrder.OutletId == outletId)
             .OrderByDescending(p => p.PaymentDate)
             .ToListAsync(ct);
 
@@ -62,6 +73,8 @@ public class SupplierDebtService : ISupplierDebtService
 
         if (debt == null)
             throw new InvalidOperationException("Tidak ada utang untuk Purchase Order tersebut.");
+
+        await EnsureOutletAccessibleAsync(debt.PurchaseOrder.OutletId, ct);
 
         if (debt.Status == SupplierDebtStatus.Paid)
             throw new InvalidOperationException("Utang ini sudah lunas.");
@@ -134,4 +147,21 @@ public class SupplierDebtService : ISupplierDebtService
         p.ReferenceNumber,
         p.Status
     );
+
+    private async Task EnsureOutletAccessibleAsync(Guid outletId, CancellationToken ct)
+    {
+        var outlet = await _dbContext.Outlets
+            .AsNoTracking()
+            .FirstOrDefaultAsync(o => o.Id == outletId, ct);
+
+        if (outlet == null || !outlet.IsActive)
+        {
+            throw new InvalidOperationException("Outlet tidak valid atau tidak aktif.");
+        }
+
+        if (_currentUserService.Role != "Owner" && _currentUserService.OutletId != outletId)
+        {
+            throw new UnauthorizedAccessException("Anda tidak memiliki akses ke outlet tersebut.");
+        }
+    }
 }

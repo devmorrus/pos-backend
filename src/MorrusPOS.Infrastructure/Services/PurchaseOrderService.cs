@@ -11,11 +11,13 @@ public class PurchaseOrderService : IPurchaseOrderService
 {
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockService;
+    private readonly ICurrentUserService _currentUserService;
 
-    public PurchaseOrderService(AppDbContext dbContext, IStockService stockService)
+    public PurchaseOrderService(AppDbContext dbContext, IStockService stockService, ICurrentUserService currentUserService)
     {
         _dbContext = dbContext;
         _stockService = stockService;
+        _currentUserService = currentUserService;
     }
 
     public async Task<PurchaseOrderDto> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -29,6 +31,8 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         if (po == null)
             throw new InvalidOperationException("Purchase Order tidak ditemukan.");
+
+        await EnsureOutletAccessibleAsync(po.OutletId, ct);
 
         return MapToDto(po);
     }
@@ -49,6 +53,8 @@ public class PurchaseOrderService : IPurchaseOrderService
 
     public async Task<PurchaseOrderDto> CreateAsync(Guid userId, CreatePurchaseOrderRequest request, CancellationToken ct = default)
     {
+        await EnsureOutletAccessibleAsync(request.OutletId, ct);
+
         // 1. Validate Supplier & Outlet
         var supplier = await _dbContext.Suppliers.FindAsync(new object[] { request.SupplierId }, ct);
         if (supplier == null || !supplier.IsActive)
@@ -58,7 +64,13 @@ public class PurchaseOrderService : IPurchaseOrderService
         if (outlet == null || !outlet.IsActive)
             throw new InvalidOperationException("Outlet tidak ditemukan atau tidak aktif.");
 
+        if (request.Items.Count == 0)
+            throw new InvalidOperationException("Purchase Order wajib memiliki minimal satu item.");
+
         // 2. Validate payment type
+        if (request.PaymentType is not (PurchaseOrderPaymentType.Cash or PurchaseOrderPaymentType.Tempo))
+            throw new InvalidOperationException("PaymentType hanya boleh cash atau tempo.");
+
         if (request.PaymentType == PurchaseOrderPaymentType.Tempo && request.DueDate == null)
             throw new InvalidOperationException("DueDate wajib diisi untuk pembayaran bertipe Tempo.");
 
@@ -89,6 +101,12 @@ public class PurchaseOrderService : IPurchaseOrderService
         decimal total = 0;
         foreach (var itemReq in request.Items)
         {
+            if (itemReq.Qty <= 0)
+                throw new InvalidOperationException("Qty item PO harus lebih dari 0.");
+
+            if (itemReq.UnitCost <= 0)
+                throw new InvalidOperationException("Unit cost item PO harus lebih dari 0.");
+
             var product = await _dbContext.Products.FindAsync(new object[] { itemReq.ProductId }, ct);
             if (product == null || !product.IsActive)
                 throw new InvalidOperationException($"Produk tidak valid atau tidak aktif.");
@@ -122,6 +140,8 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         if (po == null)
             throw new InvalidOperationException("Purchase Order tidak ditemukan.");
+
+        await EnsureOutletAccessibleAsync(po.OutletId, ct);
 
         // Prevent backward state transitions
         if (po.Status == PurchaseOrderStatus.Completed || po.Status == PurchaseOrderStatus.Cancelled)
@@ -238,4 +258,21 @@ public class PurchaseOrderService : IPurchaseOrderService
             i.TotalCost
         )).ToList()
     );
+
+    private async Task EnsureOutletAccessibleAsync(Guid outletId, CancellationToken ct)
+    {
+        var outlet = await _dbContext.Outlets
+            .AsNoTracking()
+            .FirstOrDefaultAsync(o => o.Id == outletId, ct);
+
+        if (outlet == null || !outlet.IsActive)
+        {
+            throw new InvalidOperationException("Outlet tidak valid atau tidak aktif.");
+        }
+
+        if (_currentUserService.Role != "Owner" && _currentUserService.OutletId != outletId)
+        {
+            throw new UnauthorizedAccessException("Anda tidak memiliki akses ke outlet tersebut.");
+        }
+    }
 }

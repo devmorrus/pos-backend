@@ -1,9 +1,11 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Suppliers;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
 using MorrusPOS.Infrastructure.Services;
+using NSubstitute;
 using Xunit;
 
 namespace MorrusPOS.UnitTests;
@@ -11,6 +13,7 @@ namespace MorrusPOS.UnitTests;
 public class SupplierDebtServiceTests
 {
     private readonly AppDbContext _dbContext;
+    private readonly ICurrentUserService _currentUserServiceMock;
 
     private readonly Guid _supplierId = Guid.NewGuid();
     private readonly Guid _outletId = Guid.NewGuid();
@@ -25,6 +28,10 @@ public class SupplierDebtServiceTests
             .Options;
 
         _dbContext = new AppDbContext(options);
+        _currentUserServiceMock = Substitute.For<ICurrentUserService>();
+        _currentUserServiceMock.Role.Returns("Owner");
+        _currentUserServiceMock.OutletId.Returns((Guid?)null);
+        _currentUserServiceMock.UserId.Returns(_userId);
     }
 
     private async Task<SupplierDebt> SeedDebtAsync(decimal amount = 100000m)
@@ -71,7 +78,7 @@ public class SupplierDebtServiceTests
     public async Task PayDebtAsync_Should_ReduceRemainingAmount_And_SetStatus_ToPartiallyPaid()
     {
         var debt = await SeedDebtAsync(amount: 100000);
-        var service = new SupplierDebtService(_dbContext);
+        var service = new SupplierDebtService(_dbContext, _currentUserServiceMock);
 
         var request = new CreateSupplierPaymentRequest(
             PurchaseOrderId: debt.PurchaseOrderId,
@@ -99,7 +106,7 @@ public class SupplierDebtServiceTests
     public async Task PayDebtAsync_Should_SetStatus_ToPaid_When_FullPayment()
     {
         var debt = await SeedDebtAsync(amount: 100000);
-        var service = new SupplierDebtService(_dbContext);
+        var service = new SupplierDebtService(_dbContext, _currentUserServiceMock);
 
         var request = new CreateSupplierPaymentRequest(
             PurchaseOrderId: debt.PurchaseOrderId,
@@ -122,7 +129,7 @@ public class SupplierDebtServiceTests
     public async Task PayDebtAsync_Should_ThrowException_When_PaymentExceedsRemainingAmount()
     {
         var debt = await SeedDebtAsync(amount: 100000);
-        var service = new SupplierDebtService(_dbContext);
+        var service = new SupplierDebtService(_dbContext, _currentUserServiceMock);
 
         var request = new CreateSupplierPaymentRequest(
             PurchaseOrderId: debt.PurchaseOrderId,
@@ -141,7 +148,7 @@ public class SupplierDebtServiceTests
     public async Task PayDebtAsync_Should_ThrowException_When_DebtIsAlreadyPaid()
     {
         var debt = await SeedDebtAsync(amount: 100000);
-        var service = new SupplierDebtService(_dbContext);
+        var service = new SupplierDebtService(_dbContext, _currentUserServiceMock);
 
         // First: pay off the full amount
         await service.PayDebtAsync(_userId, new CreateSupplierPaymentRequest(

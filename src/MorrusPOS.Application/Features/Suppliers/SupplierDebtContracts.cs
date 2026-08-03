@@ -35,8 +35,8 @@ public record CreateSupplierPaymentRequest(
 
 public interface ISupplierDebtService
 {
-    Task<IReadOnlyList<SupplierDebtDto>> GetDebtsAsync(string? status = null, CancellationToken ct = default);
+    Task<IReadOnlyList<SupplierDebtDto>> GetDebtsAsync(Guid outletId, string? status = null, CancellationToken ct = default);
     Task<SupplierDebtDto> GetDebtByPoIdAsync(Guid purchaseOrderId, CancellationToken ct = default);
-    Task<IReadOnlyList<SupplierPaymentDto>> GetPaymentsAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<SupplierPaymentDto>> GetPaymentsAsync(Guid outletId, CancellationToken ct = default);
     Task<SupplierPaymentDto> PayDebtAsync(Guid userId, CreateSupplierPaymentRequest request, CancellationToken ct = default);
 }
