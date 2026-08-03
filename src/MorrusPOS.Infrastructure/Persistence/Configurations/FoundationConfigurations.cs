@@ -84,6 +84,7 @@ public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermissi
 
         var ownerId = Guid.Parse("e1a7b077-44a3-4b63-95e0-59a8501170ea");
         var adminId = Guid.Parse("d54f590a-6e54-4f05-8461-8ff62dfd8d4c");
+        var kepalaCabangId = Guid.Parse("a3d75ea9-ec36-4e56-9a2c-d95ea7b2671f");
         var kasirId = Guid.Parse("b5e7d5a9-4674-4b5b-a81d-e59fa24285b0");
         var gudangId = Guid.Parse("c457d5a9-5e74-4e2b-a71d-e59fa24285c1");
         var keuanganId = Guid.Parse("d667d5a9-6e74-4e2b-b81d-e59fa24285d2");
@@ -114,6 +115,11 @@ public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermissi
             new RolePermission { RoleId = adminId, PermissionId = pSupplierManage },
             new RolePermission { RoleId = adminId, PermissionId = pConsignmentManage },
             new RolePermission { RoleId = adminId, PermissionId = pReportView },
+
+            // Kepala Cabang gets operational branch permissions
+            new RolePermission { RoleId = kepalaCabangId, PermissionId = pTxCreate },
+            new RolePermission { RoleId = kepalaCabangId, PermissionId = pProdManage },
+            new RolePermission { RoleId = kepalaCabangId, PermissionId = pStockManage },
 
             // Kasir gets transaction.create
             new RolePermission { RoleId = kasirId, PermissionId = pTxCreate },

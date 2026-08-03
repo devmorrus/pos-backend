@@ -141,7 +141,7 @@ public class CashierSessionService : ICashierSessionService
 
     private Task EnsureOperationalRoleAsync()
     {
-        if (_currentUserService.Role is "Owner" or "Admin" or "Kasir")
+        if (_currentUserService.Role is "Owner" or "Admin" or "Kasir" or "KepalaCabang")
         {
             return Task.CompletedTask;
         }

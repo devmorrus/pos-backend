@@ -7,7 +7,7 @@ namespace MorrusPOS.Api.Controllers;
 
 [ApiController]
 [Route("api/cashier-sessions")]
-[Authorize(Roles = "Owner,Admin,Kasir")]
+[Authorize(Roles = "Owner,Admin,Kasir,KepalaCabang")]
 public class CashierSessionsController : ControllerBase
 {
     private readonly ICashierSessionService _sessionService;

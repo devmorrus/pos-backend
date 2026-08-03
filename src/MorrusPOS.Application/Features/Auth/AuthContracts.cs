@@ -8,7 +8,8 @@ public record LoginResponse(
     Guid UserId,
     string Name,
     string Role,
-    Guid? OutletId
+    Guid? OutletId,
+    IReadOnlyList<string> Permissions
 );
 
 public record RefreshTokenRequest(string RefreshToken);

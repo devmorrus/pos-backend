@@ -30,7 +30,7 @@ public class TransactionService : ITransactionService
         int take,
         CancellationToken ct = default)
     {
-        await EnsureOperationalRoleAsync();
+        await EnsureTransactionReadRoleAsync();
         await EnsureOutletAccessibleAsync(outletId, ct);
 
         var transactions = await _dbContext.Transactions
@@ -55,7 +55,7 @@ public class TransactionService : ITransactionService
             throw new InvalidOperationException("Transaksi tidak ditemukan.");
         }
 
-        await EnsureOperationalRoleAsync();
+        await EnsureTransactionReadRoleAsync();
         await EnsureOutletAccessibleAsync(trx.OutletId, ct);
 
         return MapToDto(trx);
@@ -652,12 +652,22 @@ public class TransactionService : ITransactionService
 
     private Task EnsureOperationalRoleAsync()
     {
-        if (_currentUserService.Role is "Owner" or "Admin" or "Kasir")
+        if (_currentUserService.Role is "Owner" or "Admin" or "Kasir" or "KepalaCabang")
         {
             return Task.CompletedTask;
         }
 
         throw new UnauthorizedAccessException("Role Anda tidak memiliki akses ke POS kasir.");
+    }
+
+    private Task EnsureTransactionReadRoleAsync()
+    {
+        if (_currentUserService.Role is "Owner" or "Admin" or "Kasir" or "Keuangan" or "KepalaCabang")
+        {
+            return Task.CompletedTask;
+        }
+
+        throw new UnauthorizedAccessException("Role Anda tidak memiliki akses ke histori transaksi.");
     }
 
     private Task EnsureVoidRoleAsync()
@@ -672,7 +682,7 @@ public class TransactionService : ITransactionService
 
     private Task EnsureRefundRoleAsync()
     {
-        if (_currentUserService.Role is "Owner" or "Admin" or "Kasir")
+        if (_currentUserService.Role is "Owner" or "Admin" or "Kasir" or "KepalaCabang")
         {
             return Task.CompletedTask;
         }

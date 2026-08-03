@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MorrusPOS.Api.Security;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Transactions;
 
@@ -7,7 +8,7 @@ namespace MorrusPOS.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Owner,Admin,Kasir")]
+[Authorize(Roles = "Owner,Admin,Kasir,Keuangan,KepalaCabang")]
 public class TransactionsController : ControllerBase
 {
     private readonly ITransactionService _transactionService;
@@ -51,6 +52,7 @@ public class TransactionsController : ControllerBase
     }
 
     [HttpPost("{id}/void")]
+    [HasPermission("transaction.void")]
     public async Task<ActionResult<TransactionDto>> Void(Guid id, VoidTransactionRequest request, CancellationToken ct)
     {
         var result = await _transactionService.VoidAsync(id, request, ct);

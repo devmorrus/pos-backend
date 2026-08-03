@@ -44,13 +44,16 @@ public class AuthService : IAuthService
         _context.RefreshTokens.Add(refreshToken);
         await _context.SaveChangesAsync(ct);
 
+        var permissions = await GetPermissionsForRoleAsync(user.Role.Name, ct);
+
         return new LoginResponse(
             accessToken,
             refreshTokenString,
             user.Id,
             user.Name,
             user.Role.Name,
-            user.OutletId
+            user.OutletId,
+            permissions
         );
     }
 
@@ -82,13 +85,16 @@ public class AuthService : IAuthService
         _context.RefreshTokens.Add(newRefreshToken);
         await _context.SaveChangesAsync(ct);
 
+        var permissions = await GetPermissionsForRoleAsync(user.Role.Name, ct);
+
         return new LoginResponse(
             newAccessToken,
             newRefreshTokenString,
             user.Id,
             user.Name,
             user.Role.Name,
-            user.OutletId
+            user.OutletId,
+            permissions
         );
     }
 
@@ -105,5 +111,15 @@ public class AuthService : IAuthService
             storedToken.RevokedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync(ct);
         }
+    }
+
+    private async Task<IReadOnlyList<string>> GetPermissionsForRoleAsync(string roleName, CancellationToken ct)
+    {
+        return await _context.Roles
+            .Where(role => role.Name == roleName)
+            .SelectMany(role => role.RolePermissions.Select(rolePermission => rolePermission.Permission.Code))
+            .Distinct()
+            .OrderBy(permission => permission)
+            .ToListAsync(ct);
     }
 }
