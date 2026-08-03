@@ -8,6 +8,7 @@ using MorrusPOS.Application.Features.Products;
 using MorrusPOS.Application.Features.Transactions;
 using MorrusPOS.Application.Features.Stock;
 using MorrusPOS.Application.Features.Suppliers;
+using MorrusPOS.Application.Features.Consignments;
 using MorrusPOS.Infrastructure.Persistence;
 using MorrusPOS.Infrastructure.Services;
 
@@ -39,6 +40,10 @@ public static class DependencyInjection
         services.AddScoped<ISupplierService, SupplierService>();
         services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
         services.AddScoped<ISupplierDebtService, SupplierDebtService>();
+
+        // Fase 6 — Barang Titipan / Konsinyasi
+        services.AddScoped<IConsignmentService, ConsignmentService>();
+        services.AddScoped<IConsignmentSettlementService, ConsignmentSettlementService>();
 
         return services;
     }

@@ -113,6 +113,42 @@ public class TransactionService : ITransactionService
             foreach (var itemReq in request.Items)
             {
                 var product = await _dbContext.Products.FindAsync(new object[] { itemReq.ProductId }, ct);
+                if (product == null)
+                {
+                    throw new InvalidOperationException("Produk tidak ditemukan.");
+                }
+
+                var isConsignment = product.IsConsignment;
+                decimal itemUnitCost = product.CostPrice;
+                Guid? consignmentSupplierId = null;
+
+                if (isConsignment)
+                {
+                    // Find latest received consignment item to resolve dynamic supplier & unit cost
+                    var consignmentItem = await _dbContext.ConsignmentItems
+                        .Include(ci => ci.Consignment)
+                        .Where(ci => ci.ProductId == product.Id && ci.Consignment.OutletId == request.OutletId && ci.Consignment.Status == ConsignmentStatus.Received)
+                        .OrderByDescending(ci => ci.Consignment.ReceiveDate)
+                        .FirstOrDefaultAsync(ct);
+
+                    if (consignmentItem == null)
+                    {
+                        // Fallback globally
+                        consignmentItem = await _dbContext.ConsignmentItems
+                            .Include(ci => ci.Consignment)
+                            .Where(ci => ci.ProductId == product.Id && ci.Consignment.Status == ConsignmentStatus.Received)
+                            .OrderByDescending(ci => ci.Consignment.ReceiveDate)
+                            .FirstOrDefaultAsync(ct);
+                    }
+
+                    if (consignmentItem == null)
+                    {
+                        throw new InvalidOperationException($"Produk konsinyasi {product.Name} tidak memiliki tanda terima konsinyasi (status: received) yang aktif.");
+                    }
+
+                    itemUnitCost = consignmentItem.UnitCost;
+                    consignmentSupplierId = consignmentItem.Consignment.SupplierId;
+                }
 
                 var item = new TransactionItem
                 {
@@ -121,13 +157,29 @@ public class TransactionService : ITransactionService
                     ProductId = itemReq.ProductId,
                     Qty = itemReq.Qty,
                     UnitPrice = itemReq.UnitPrice,
-                    UnitCost = product!.CostPrice, // HPP snapshot
+                    UnitCost = itemUnitCost, // Dynamic HPP for consignment
                     DiscountAmount = itemReq.DiscountAmount,
                     LineTotal = (itemReq.UnitPrice * itemReq.Qty) - itemReq.DiscountAmount,
                     IsReturned = false
                 };
 
                 _dbContext.TransactionItems.Add(item);
+
+                if (isConsignment && consignmentSupplierId.HasValue)
+                {
+                    var consignmentSale = new ConsignmentSale
+                    {
+                        Id = Guid.NewGuid(),
+                        SupplierId = consignmentSupplierId.Value,
+                        TransactionItemId = item.Id,
+                        Qty = item.Qty,
+                        UnitCost = itemUnitCost,
+                        TotalAmount = item.Qty * itemUnitCost,
+                        Status = ConsignmentSaleStatus.Unpaid,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    _dbContext.ConsignmentSales.Add(consignmentSale);
+                }
 
                 // Add movement
                 await _stockService.AddMovementAsync(
