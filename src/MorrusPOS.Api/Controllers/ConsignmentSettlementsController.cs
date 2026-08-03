@@ -32,19 +32,34 @@ public class ConsignmentSettlementsController : ControllerBase
         return Ok(result);
     }
 
-    [HttpGet("supplier/{supplierId}")]
+    [HttpGet]
     [HasPermission("consignment.manage")]
-    public async Task<ActionResult<IReadOnlyList<ConsignmentSettlementDto>>> GetSettlementsBySupplier(Guid supplierId, CancellationToken ct)
+    public async Task<ActionResult<IReadOnlyList<ConsignmentSettlementDto>>> GetByOutlet([FromQuery] Guid? outletId, CancellationToken ct)
     {
-        var result = await _settlementService.GetSettlementsBySupplierAsync(supplierId, ct);
+        var resolvedOutletId = ResolveTargetOutletId(outletId);
+        if (resolvedOutletId == null)
+        {
+            return BadRequest("Pilih outlet terlebih dahulu untuk melihat settlement konsinyasi.");
+        }
+
+        var result = await _settlementService.GetByOutletAsync(resolvedOutletId.Value, ct);
         return Ok(result);
     }
 
-    [HttpGet("unpaid-sales/{supplierId}")]
+    [HttpGet("unpaid-sales")]
     [HasPermission("consignment.manage")]
-    public async Task<ActionResult<IReadOnlyList<ConsignmentSaleDto>>> GetUnpaidSalesBySupplier(Guid supplierId, CancellationToken ct)
+    public async Task<ActionResult<IReadOnlyList<ConsignmentSaleDto>>> GetUnpaidSalesBySupplier(
+        [FromQuery] Guid supplierId,
+        [FromQuery] Guid? outletId,
+        CancellationToken ct)
     {
-        var result = await _settlementService.GetUnpaidSalesBySupplierAsync(supplierId, ct);
+        var resolvedOutletId = ResolveTargetOutletId(outletId);
+        if (resolvedOutletId == null)
+        {
+            return BadRequest("Pilih outlet terlebih dahulu untuk melihat penjualan konsinyasi.");
+        }
+
+        var result = await _settlementService.GetUnpaidSalesBySupplierAsync(supplierId, resolvedOutletId.Value, ct);
         return Ok(result);
     }
 
@@ -74,5 +89,20 @@ public class ConsignmentSettlementsController : ControllerBase
 
         var result = await _settlementService.UpdateStatusAsync(userId.Value, id, request, ct);
         return Ok(result);
+    }
+
+    private Guid? ResolveTargetOutletId(Guid? requestedOutletId)
+    {
+        if (_currentUser.Role == "Owner")
+        {
+            return requestedOutletId;
+        }
+
+        if (requestedOutletId.HasValue && requestedOutletId != _currentUser.OutletId)
+        {
+            throw new UnauthorizedAccessException("Anda tidak memiliki akses ke outlet tersebut.");
+        }
+
+        return _currentUser.OutletId;
     }
 }

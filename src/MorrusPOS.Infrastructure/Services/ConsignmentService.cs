@@ -17,15 +17,18 @@ public class ConsignmentService : IConsignmentService
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockService;
     private readonly IPosNotificationService _notificationService;
+    private readonly ICurrentUserService _currentUser;
 
     public ConsignmentService(
         AppDbContext dbContext,
         IStockService stockService,
-        IPosNotificationService notificationService)
+        IPosNotificationService notificationService,
+        ICurrentUserService currentUser)
     {
         _dbContext = dbContext;
         _stockService = stockService;
         _notificationService = notificationService;
+        _currentUser = currentUser;
     }
 
     public async Task<ConsignmentDto> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -42,11 +45,15 @@ public class ConsignmentService : IConsignmentService
             throw new InvalidOperationException("Tanda terima konsinyasi tidak ditemukan.");
         }
 
+        EnsureOutletAccess(consignment.OutletId);
+
         return MapToDto(consignment);
     }
 
     public async Task<IReadOnlyList<ConsignmentDto>> GetByOutletAsync(Guid outletId, CancellationToken ct = default)
     {
+        EnsureOutletAccess(outletId);
+
         var consignments = await _dbContext.Consignments
             .Include(c => c.Supplier)
             .Include(c => c.Outlet)
@@ -61,6 +68,13 @@ public class ConsignmentService : IConsignmentService
 
     public async Task<ConsignmentDto> CreateAsync(Guid userId, CreateConsignmentRequest request, CancellationToken ct = default)
     {
+        EnsureOutletAccess(request.OutletId);
+
+        if (request.Items == null || request.Items.Count == 0)
+        {
+            throw new InvalidOperationException("Minimal harus ada satu item konsinyasi.");
+        }
+
         // 1. Validate Supplier & Outlet
         var supplier = await _dbContext.Suppliers.FindAsync(new object[] { request.SupplierId }, ct);
         if (supplier == null || !supplier.IsActive)
@@ -97,6 +111,21 @@ public class ConsignmentService : IConsignmentService
         // 4. Add items
         foreach (var itemReq in request.Items)
         {
+            if (itemReq.Qty <= 0)
+            {
+                throw new InvalidOperationException("Qty barang konsinyasi harus lebih dari 0.");
+            }
+
+            if (itemReq.UnitCost <= 0)
+            {
+                throw new InvalidOperationException("Unit cost barang konsinyasi harus lebih dari 0.");
+            }
+
+            if (itemReq.UnitPrice <= 0)
+            {
+                throw new InvalidOperationException("Unit price barang konsinyasi harus lebih dari 0.");
+            }
+
             var product = await _dbContext.Products.FindAsync(new object[] { itemReq.ProductId }, ct);
             if (product == null || !product.IsActive)
             {
@@ -131,6 +160,8 @@ public class ConsignmentService : IConsignmentService
         {
             throw new InvalidOperationException("Tanda terima konsinyasi tidak ditemukan.");
         }
+
+        EnsureOutletAccess(consignment.OutletId);
 
         if (consignment.Status == ConsignmentStatus.Received || consignment.Status == ConsignmentStatus.Cancelled)
         {
@@ -216,6 +247,14 @@ public class ConsignmentService : IConsignmentService
         {
             await dbTx.RollbackAsync(ct);
             throw;
+        }
+    }
+
+    private void EnsureOutletAccess(Guid outletId)
+    {
+        if (_currentUser.OutletId.HasValue && _currentUser.OutletId.Value != outletId)
+        {
+            throw new UnauthorizedAccessException("Anda tidak memiliki akses ke outlet tersebut.");
         }
     }
 

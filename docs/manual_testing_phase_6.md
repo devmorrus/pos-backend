@@ -92,7 +92,7 @@ Dokumen ini berisi panduan pengujian manual langkah-demi-langkah menggunakan Swa
 3. **Respon Sukses (`200 OK`)**.
 
 ### Langkah 2: Verifikasi Penjualan Konsinyasi Terbentuk Otomatis
-1. Panggil endpoint: `GET /api/consignmentsettlements/unpaid-sales/{supplierId}`
+1. Panggil endpoint: `GET /api/consignmentsettlements/unpaid-sales?supplierId={supplierId}&outletId={outletId}`
 2. **Respon Sukses (`200 OK`)**: Harus muncul data penjualan konsinyasi berstatus `"unpaid"` untuk supplier tersebut:
    - `qty: 2`
    - `unitCost: 3000`
@@ -108,7 +108,8 @@ Dokumen ini berisi panduan pengujian manual langkah-demi-langkah menggunakan Swa
 2. Kirim payload:
    ```json
    {
-     "supplierId": "id-supplier-anda"
+     "supplierId": "id-supplier-anda",
+     "outletId": "id-outlet-anda"
    }
    ```
 3. **Respon Sukses (`201 Created`)**:
@@ -126,7 +127,7 @@ Dokumen ini berisi panduan pengujian manual langkah-demi-langkah menggunakan Swa
    }
    ```
 3. **Respon Sukses (`200 OK`)**: Status settlement berubah menjadi `"cancelled"`.
-4. **Verifikasi Lepas Penjualan**: Panggil kembali `GET /api/consignmentsettlements/unpaid-sales/{supplierId}`. Dua penjualan konsinyasi tadi harus muncul kembali sebagai `"unpaid"` (lepas ikatan dari settlement yang dibatalkan).
+4. **Verifikasi Lepas Penjualan**: Panggil kembali `GET /api/consignmentsettlements/unpaid-sales?supplierId={supplierId}&outletId={outletId}`. Dua penjualan konsinyasi tadi harus muncul kembali sebagai `"unpaid"` (lepas ikatan dari settlement yang dibatalkan).
 
 ### Langkah 3: Buat Kembali Settlement Baru & Setujui (Settled/Lunas)
 1. Buat kembali settlement baru seperti Langkah 1. Catat `id` yang baru (disebut `{NEW_SETTLEMENT_ID}`).
@@ -139,5 +140,5 @@ Dokumen ini berisi panduan pengujian manual langkah-demi-langkah menggunakan Swa
    ```
 4. **Respon Sukses (`200 OK`)**: Status settlement menjadi `"settled"`.
 5. **Verifikasi Akhir Lunas**:
-   - Panggil `GET /api/consignmentsettlements/unpaid-sales/{supplierId}` -> harus mengembalikan daftar kosong (karena semua sudah lunas terbayar).
+   - Panggil `GET /api/consignmentsettlements/unpaid-sales?supplierId={supplierId}&outletId={outletId}` -> harus mengembalikan daftar kosong (karena semua sudah lunas terbayar).
    - Panggil `GET /api/consignmentsettlements/{NEW_SETTLEMENT_ID}` -> status settlement `"settled"` dan status semua penjualan di dalamnya harus berubah menjadi `"paid"`.

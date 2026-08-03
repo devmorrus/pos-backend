@@ -5,10 +5,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Consignments;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
 using MorrusPOS.Infrastructure.Services;
+using NSubstitute;
 using Xunit;
 
 namespace MorrusPOS.UnitTests;
@@ -16,6 +18,7 @@ namespace MorrusPOS.UnitTests;
 public class ConsignmentSettlementTests
 {
     private readonly AppDbContext _dbContext;
+    private readonly ICurrentUserService _currentUserMock;
 
     private readonly Guid _supplierId = Guid.NewGuid();
     private readonly Guid _outletId = Guid.NewGuid();
@@ -33,6 +36,8 @@ public class ConsignmentSettlementTests
             .Options;
 
         _dbContext = new AppDbContext(options);
+        _currentUserMock = Substitute.For<ICurrentUserService>();
+        _currentUserMock.OutletId.Returns((Guid?)null);
     }
 
     private async Task SeedSalesDataAsync()
@@ -95,9 +100,9 @@ public class ConsignmentSettlementTests
     public async Task CreateSettlementAsync_Should_CreateDraftSettlement_WithAllUnpaidSalesLinked()
     {
         await SeedSalesDataAsync();
-        var service = new ConsignmentSettlementService(_dbContext);
+        var service = new ConsignmentSettlementService(_dbContext, _currentUserMock);
 
-        var result = await service.CreateSettlementAsync(_userId, new CreateConsignmentSettlementRequest(_supplierId));
+        var result = await service.CreateSettlementAsync(_userId, new CreateConsignmentSettlementRequest(_supplierId, _outletId));
 
         result.Should().NotBeNull();
         result.Status.Should().Be("draft");
@@ -115,9 +120,9 @@ public class ConsignmentSettlementTests
     public async Task UpdateStatusAsync_ToSettled_Should_SetStatusPaidForSalesAndSettlement()
     {
         await SeedSalesDataAsync();
-        var service = new ConsignmentSettlementService(_dbContext);
+        var service = new ConsignmentSettlementService(_dbContext, _currentUserMock);
 
-        var settlement = await service.CreateSettlementAsync(_userId, new CreateConsignmentSettlementRequest(_supplierId));
+        var settlement = await service.CreateSettlementAsync(_userId, new CreateConsignmentSettlementRequest(_supplierId, _outletId));
 
         // Act: settle the payment
         var result = await service.UpdateStatusAsync(_userId, settlement.Id, new UpdateConsignmentSettlementStatusRequest("settled"));
@@ -134,9 +139,9 @@ public class ConsignmentSettlementTests
     public async Task UpdateStatusAsync_ToCancelled_Should_ReleaseLinkedSalesAndKeepThemUnpaid()
     {
         await SeedSalesDataAsync();
-        var service = new ConsignmentSettlementService(_dbContext);
+        var service = new ConsignmentSettlementService(_dbContext, _currentUserMock);
 
-        var settlement = await service.CreateSettlementAsync(_userId, new CreateConsignmentSettlementRequest(_supplierId));
+        var settlement = await service.CreateSettlementAsync(_userId, new CreateConsignmentSettlementRequest(_supplierId, _outletId));
 
         // Act: cancel the settlement
         var result = await service.UpdateStatusAsync(_userId, settlement.Id, new UpdateConsignmentSettlementStatusRequest("cancelled"));

@@ -34,15 +34,15 @@ public class ConsignmentsController : ControllerBase
 
     [HttpGet]
     [HasPermission("consignment.manage")]
-    public async Task<ActionResult<IReadOnlyList<ConsignmentDto>>> GetByOutlet(CancellationToken ct)
+    public async Task<ActionResult<IReadOnlyList<ConsignmentDto>>> GetByOutlet([FromQuery] Guid? outletId, CancellationToken ct)
     {
-        var outletId = _currentUser.OutletId;
-        if (outletId == null)
+        var resolvedOutletId = ResolveTargetOutletId(outletId);
+        if (resolvedOutletId == null)
         {
-            return BadRequest("Data outlet tidak valid.");
+            return BadRequest("Pilih outlet terlebih dahulu untuk melihat tanda terima konsinyasi.");
         }
 
-        var result = await _consignmentService.GetByOutletAsync(outletId.Value, ct);
+        var result = await _consignmentService.GetByOutletAsync(resolvedOutletId.Value, ct);
         return Ok(result);
     }
 
@@ -72,5 +72,20 @@ public class ConsignmentsController : ControllerBase
 
         var result = await _consignmentService.UpdateStatusAsync(userId.Value, id, request, ct);
         return Ok(result);
+    }
+
+    private Guid? ResolveTargetOutletId(Guid? requestedOutletId)
+    {
+        if (_currentUser.Role == "Owner")
+        {
+            return requestedOutletId;
+        }
+
+        if (requestedOutletId.HasValue && requestedOutletId != _currentUser.OutletId)
+        {
+            throw new UnauthorizedAccessException("Anda tidak memiliki akses ke outlet tersebut.");
+        }
+
+        return _currentUser.OutletId;
     }
 }

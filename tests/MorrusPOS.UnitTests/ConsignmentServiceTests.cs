@@ -20,6 +20,7 @@ public class ConsignmentServiceTests
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockServiceMock;
     private readonly IPosNotificationService _notificationServiceMock;
+    private readonly ICurrentUserService _currentUserMock;
 
     private readonly Guid _supplierId = Guid.NewGuid();
     private readonly Guid _outletId = Guid.NewGuid();
@@ -38,6 +39,8 @@ public class ConsignmentServiceTests
         _dbContext = new AppDbContext(options);
         _stockServiceMock = Substitute.For<IStockService>();
         _notificationServiceMock = Substitute.For<IPosNotificationService>();
+        _currentUserMock = Substitute.For<ICurrentUserService>();
+        _currentUserMock.OutletId.Returns((Guid?)null);
     }
 
     private async Task SeedBaseDataAsync(decimal initialCostPrice = 1000m)
@@ -65,7 +68,7 @@ public class ConsignmentServiceTests
     public async Task CreateAsync_Should_CreateDraftConsignment()
     {
         await SeedBaseDataAsync();
-        var service = new ConsignmentService(_dbContext, _stockServiceMock, _notificationServiceMock);
+        var service = new ConsignmentService(_dbContext, _stockServiceMock, _notificationServiceMock, _currentUserMock);
 
         var request = new CreateConsignmentRequest(
             SupplierId: _supplierId,
@@ -88,7 +91,7 @@ public class ConsignmentServiceTests
     public async Task UpdateStatusAsync_ToReceived_Should_AddStock_UpdateCostPrice_And_SetIsConsignment_And_BroadcastSignalR()
     {
         await SeedBaseDataAsync(initialCostPrice: 1000);
-        var service = new ConsignmentService(_dbContext, _stockServiceMock, _notificationServiceMock);
+        var service = new ConsignmentService(_dbContext, _stockServiceMock, _notificationServiceMock, _currentUserMock);
 
         var createReq = new CreateConsignmentRequest(
             SupplierId: _supplierId,

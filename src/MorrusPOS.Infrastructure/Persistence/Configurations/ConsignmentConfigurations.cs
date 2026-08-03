@@ -97,6 +97,11 @@ public class ConsignmentSettlementConfiguration : IEntityTypeConfiguration<Consi
             .HasForeignKey(x => x.SupplierId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne(x => x.Outlet)
+            .WithMany()
+            .HasForeignKey(x => x.OutletId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(x => x.CreatedByUser)
             .WithMany()
             .HasForeignKey(x => x.CreatedBy)

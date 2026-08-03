@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Consignments;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -13,10 +14,12 @@ namespace MorrusPOS.Infrastructure.Services;
 public class ConsignmentSettlementService : IConsignmentSettlementService
 {
     private readonly AppDbContext _dbContext;
+    private readonly ICurrentUserService _currentUser;
 
-    public ConsignmentSettlementService(AppDbContext dbContext)
+    public ConsignmentSettlementService(AppDbContext dbContext, ICurrentUserService currentUser)
     {
         _dbContext = dbContext;
+        _currentUser = currentUser;
     }
 
     public async Task<ConsignmentSettlementDto> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -33,30 +36,41 @@ public class ConsignmentSettlementService : IConsignmentSettlementService
             throw new InvalidOperationException("Settlement konsinyasi tidak ditemukan.");
         }
 
+        EnsureOutletAccess(settlement.OutletId);
+
         return MapToDto(settlement);
     }
 
-    public async Task<IReadOnlyList<ConsignmentSettlementDto>> GetSettlementsBySupplierAsync(Guid supplierId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ConsignmentSettlementDto>> GetByOutletAsync(Guid outletId, CancellationToken ct = default)
     {
+        EnsureOutletAccess(outletId);
+
         var settlements = await _dbContext.ConsignmentSettlements
             .Include(s => s.Supplier)
+            .Include(s => s.Outlet)
             .Include(s => s.CreatedByUser)
             .Include(s => s.Sales).ThenInclude(sale => sale.TransactionItem).ThenInclude(ti => ti.Transaction)
             .Include(s => s.Sales).ThenInclude(sale => sale.TransactionItem).ThenInclude(ti => ti.Product)
-            .Where(s => s.SupplierId == supplierId)
+            .Where(s => s.OutletId == outletId)
             .OrderByDescending(s => s.SettlementDate)
             .ToListAsync(ct);
 
         return settlements.Select(MapToDto).ToList();
     }
 
-    public async Task<IReadOnlyList<ConsignmentSaleDto>> GetUnpaidSalesBySupplierAsync(Guid supplierId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ConsignmentSaleDto>> GetUnpaidSalesBySupplierAsync(Guid supplierId, Guid outletId, CancellationToken ct = default)
     {
+        EnsureOutletAccess(outletId);
+
         var sales = await _dbContext.ConsignmentSales
             .Include(s => s.Supplier)
             .Include(s => s.TransactionItem).ThenInclude(ti => ti.Transaction)
             .Include(s => s.TransactionItem).ThenInclude(ti => ti.Product)
-            .Where(s => s.SupplierId == supplierId && s.Status == ConsignmentSaleStatus.Unpaid && s.ConsignmentSettlementId == null)
+            .Where(s =>
+                s.SupplierId == supplierId
+                && s.Status == ConsignmentSaleStatus.Unpaid
+                && s.ConsignmentSettlementId == null
+                && s.TransactionItem.Transaction.OutletId == outletId)
             .OrderBy(s => s.CreatedAt)
             .ToListAsync(ct);
 
@@ -65,6 +79,8 @@ public class ConsignmentSettlementService : IConsignmentSettlementService
 
     public async Task<ConsignmentSettlementDto> CreateSettlementAsync(Guid userId, CreateConsignmentSettlementRequest request, CancellationToken ct = default)
     {
+        EnsureOutletAccess(request.OutletId);
+
         // 1. Validate Supplier
         var supplier = await _dbContext.Suppliers.FindAsync(new object[] { request.SupplierId }, ct);
         if (supplier == null || !supplier.IsActive)
@@ -72,9 +88,20 @@ public class ConsignmentSettlementService : IConsignmentSettlementService
             throw new InvalidOperationException("Supplier tidak valid atau tidak aktif.");
         }
 
+        var outlet = await _dbContext.Outlets.FindAsync(new object[] { request.OutletId }, ct);
+        if (outlet == null || !outlet.IsActive)
+        {
+            throw new InvalidOperationException("Outlet tidak valid atau tidak aktif.");
+        }
+
         // 2. Fetch all unpaid, unlinked sales
         var sales = await _dbContext.ConsignmentSales
-            .Where(s => s.SupplierId == request.SupplierId && s.Status == ConsignmentSaleStatus.Unpaid && s.ConsignmentSettlementId == null)
+            .Include(s => s.TransactionItem).ThenInclude(ti => ti.Transaction)
+            .Where(s =>
+                s.SupplierId == request.SupplierId
+                && s.Status == ConsignmentSaleStatus.Unpaid
+                && s.ConsignmentSettlementId == null
+                && s.TransactionItem.Transaction.OutletId == request.OutletId)
             .ToListAsync(ct);
 
         if (!sales.Any())
@@ -91,6 +118,7 @@ public class ConsignmentSettlementService : IConsignmentSettlementService
         {
             Id = Guid.NewGuid(),
             SupplierId = request.SupplierId,
+            OutletId = request.OutletId,
             SettlementNumber = settlementNumber,
             SettlementDate = DateTime.UtcNow,
             TotalAmount = sales.Sum(s => s.TotalAmount),
@@ -123,6 +151,8 @@ public class ConsignmentSettlementService : IConsignmentSettlementService
         {
             throw new InvalidOperationException("Settlement konsinyasi tidak ditemukan.");
         }
+
+        EnsureOutletAccess(settlement.OutletId);
 
         if (settlement.Status == ConsignmentSettlementStatus.Settled || settlement.Status == ConsignmentSettlementStatus.Cancelled)
         {
@@ -170,12 +200,22 @@ public class ConsignmentSettlementService : IConsignmentSettlementService
         }
     }
 
+    private void EnsureOutletAccess(Guid outletId)
+    {
+        if (_currentUser.OutletId.HasValue && _currentUser.OutletId.Value != outletId)
+        {
+            throw new UnauthorizedAccessException("Anda tidak memiliki akses ke outlet tersebut.");
+        }
+    }
+
     private static ConsignmentSettlementDto MapToDto(ConsignmentSettlement s)
     {
         return new ConsignmentSettlementDto(
             s.Id,
             s.SupplierId,
             s.Supplier?.Name ?? string.Empty,
+            s.OutletId,
+            s.Outlet?.Name ?? string.Empty,
             s.SettlementNumber,
             s.SettlementDate,
             s.TotalAmount,

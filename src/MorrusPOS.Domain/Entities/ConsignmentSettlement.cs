@@ -14,6 +14,9 @@ public class ConsignmentSettlement : AuditableEntity
     public Guid SupplierId { get; set; }
     public Supplier Supplier { get; set; } = default!;
 
+    public Guid OutletId { get; set; }
+    public Outlet Outlet { get; set; } = default!;
+
     public string SettlementNumber { get; set; } = default!;
     public DateTime SettlementDate { get; set; } = DateTime.UtcNow;
     public decimal TotalAmount { get; set; }

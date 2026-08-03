@@ -71,6 +71,8 @@ public record ConsignmentSettlementDto(
     Guid Id,
     Guid SupplierId,
     string SupplierName,
+    Guid OutletId,
+    string OutletName,
     string SettlementNumber,
     DateTime SettlementDate,
     decimal TotalAmount,
@@ -79,7 +81,8 @@ public record ConsignmentSettlementDto(
 );
 
 public record CreateConsignmentSettlementRequest(
-    Guid SupplierId
+    Guid SupplierId,
+    Guid OutletId
 );
 
 public record UpdateConsignmentSettlementStatusRequest(
@@ -89,8 +92,8 @@ public record UpdateConsignmentSettlementStatusRequest(
 public interface IConsignmentSettlementService
 {
     Task<ConsignmentSettlementDto> GetByIdAsync(Guid id, CancellationToken ct = default);
-    Task<IReadOnlyList<ConsignmentSettlementDto>> GetSettlementsBySupplierAsync(Guid supplierId, CancellationToken ct = default);
-    Task<IReadOnlyList<ConsignmentSaleDto>> GetUnpaidSalesBySupplierAsync(Guid supplierId, CancellationToken ct = default);
+    Task<IReadOnlyList<ConsignmentSettlementDto>> GetByOutletAsync(Guid outletId, CancellationToken ct = default);
+    Task<IReadOnlyList<ConsignmentSaleDto>> GetUnpaidSalesBySupplierAsync(Guid supplierId, Guid outletId, CancellationToken ct = default);
     Task<ConsignmentSettlementDto> CreateSettlementAsync(Guid userId, CreateConsignmentSettlementRequest request, CancellationToken ct = default);
     Task<ConsignmentSettlementDto> UpdateStatusAsync(Guid userId, Guid settlementId, UpdateConsignmentSettlementStatusRequest request, CancellationToken ct = default);
 }
