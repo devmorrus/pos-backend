@@ -6,7 +6,7 @@ using MorrusPOS.Application.Features.Transactions;
 namespace MorrusPOS.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/cashier-sessions")]
 [Authorize(Roles = "Owner,Admin,Kasir")]
 public class CashierSessionsController : ControllerBase
 {
