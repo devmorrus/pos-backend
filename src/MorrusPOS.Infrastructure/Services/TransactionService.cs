@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Transactions;
@@ -26,6 +25,27 @@ public class TransactionService : ITransactionService
         _notificationService = notificationService;
     }
 
+    public async Task<IReadOnlyList<TransactionListItemDto>> GetRecentByOutletAsync(
+        Guid outletId,
+        int take,
+        CancellationToken ct = default)
+    {
+        await EnsureOperationalRoleAsync();
+        await EnsureOutletAccessibleAsync(outletId, ct);
+
+        var transactions = await _dbContext.Transactions
+            .Include(t => t.Outlet)
+            .Include(t => t.User)
+            .Include(t => t.Payments)
+            .AsNoTracking()
+            .Where(t => t.OutletId == outletId)
+            .OrderByDescending(t => t.CreatedAt)
+            .Take(Math.Clamp(take, 1, 50))
+            .ToListAsync(ct);
+
+        return transactions.Select(MapToListItemDto).ToList();
+    }
+
     public async Task<TransactionDto> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         var trx = await _dbContext.Transactions
@@ -40,12 +60,32 @@ public class TransactionService : ITransactionService
             throw new InvalidOperationException("Transaksi tidak ditemukan.");
         }
 
+        await EnsureOperationalRoleAsync();
+        await EnsureOutletAccessibleAsync(trx.OutletId, ct);
+
         return MapToDto(trx);
     }
 
     public async Task<TransactionDto> CheckoutAsync(CheckoutRequest request, CancellationToken ct = default)
     {
-        // 1. Idempotency Check
+        await EnsureOperationalRoleAsync();
+        await EnsureOutletAccessibleAsync(request.OutletId, ct);
+
+        if (_currentUserService.UserId == null)
+        {
+            throw new UnauthorizedAccessException("User tidak valid untuk checkout transaksi.");
+        }
+
+        if (request.Items == null || request.Items.Count == 0)
+        {
+            throw new InvalidOperationException("Keranjang tidak boleh kosong.");
+        }
+
+        if (request.Payments == null || request.Payments.Count == 0)
+        {
+            throw new InvalidOperationException("Minimal satu pembayaran wajib diisi.");
+        }
+
         var existing = await _dbContext.Transactions
             .Include(t => t.Outlet)
             .Include(t => t.User)
@@ -55,27 +95,60 @@ public class TransactionService : ITransactionService
 
         if (existing != null)
         {
+            await EnsureOutletAccessibleAsync(existing.OutletId, ct);
             return MapToDto(existing);
         }
 
-        // 2. Validate Cashier Session
-        var session = await _dbContext.CashierSessions.FindAsync(new object[] { request.CashierSessionId }, ct);
+        var session = await _dbContext.CashierSessions
+            .FirstOrDefaultAsync(s => s.Id == request.CashierSessionId, ct);
+
         if (session == null || session.Status != CashierSessionStatus.Open)
         {
             throw new InvalidOperationException("Sesi kasir tidak valid atau sudah ditutup.");
         }
 
-        // 3. Atomicity: Execute inside database transaction
+        if (session.OutletId != request.OutletId)
+        {
+            throw new InvalidOperationException("Sesi kasir tidak cocok dengan outlet transaksi.");
+        }
+
+        if (_currentUserService.Role != "Owner")
+        {
+            if (_currentUserService.UserId != session.UserId || _currentUserService.OutletId != session.OutletId)
+            {
+                throw new UnauthorizedAccessException("Anda tidak dapat menggunakan sesi kasir ini.");
+            }
+        }
+
         using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
         try
         {
-            // Validate stock levels before deducting
+            decimal recalculatedSubtotal = 0;
+            decimal recalculatedDiscountTotal = 0;
+            decimal recalculatedTaxTotal = 0;
+            var validatedItems = new List<ValidatedCheckoutItem>();
+
             foreach (var itemReq in request.Items)
             {
                 var product = await _dbContext.Products.FindAsync(new object[] { itemReq.ProductId }, ct);
                 if (product == null || !product.IsActive)
                 {
-                    throw new InvalidOperationException($"Produk tidak valid atau tidak aktif.");
+                    throw new InvalidOperationException("Produk tidak valid atau tidak aktif.");
+                }
+
+                if (itemReq.Qty <= 0)
+                {
+                    throw new InvalidOperationException($"Qty untuk produk {product.Name} harus lebih dari 0.");
+                }
+
+                if (itemReq.DiscountAmount < 0)
+                {
+                    throw new InvalidOperationException($"Diskon untuk produk {product.Name} tidak boleh negatif.");
+                }
+
+                if (itemReq.UnitPrice != product.BasePrice)
+                {
+                    throw new InvalidOperationException($"Harga produk {product.Name} sudah berubah. Silakan muat ulang data produk.");
                 }
 
                 var stock = await _dbContext.InventoryStocks
@@ -85,9 +158,47 @@ public class TransactionService : ITransactionService
                 {
                     throw new InvalidOperationException($"Stok tidak mencukupi untuk produk {product.Name}. Stok tersedia: {(stock != null ? stock.QtyOnHand : 0)}");
                 }
+
+                var lineSubtotal = product.BasePrice * itemReq.Qty;
+                if (itemReq.DiscountAmount > lineSubtotal)
+                {
+                    throw new InvalidOperationException($"Diskon untuk produk {product.Name} melebihi nilai item.");
+                }
+
+                recalculatedSubtotal += lineSubtotal;
+                recalculatedDiscountTotal += itemReq.DiscountAmount;
+                validatedItems.Add(new ValidatedCheckoutItem(product, itemReq));
             }
 
-            // Generate unique transaction number without lock bottlenecks
+            var recalculatedGrandTotal = recalculatedSubtotal - recalculatedDiscountTotal + recalculatedTaxTotal;
+
+            if (request.Subtotal != recalculatedSubtotal ||
+                request.DiscountTotal != recalculatedDiscountTotal ||
+                request.TaxTotal != recalculatedTaxTotal ||
+                request.GrandTotal != recalculatedGrandTotal)
+            {
+                throw new InvalidOperationException("Ringkasan transaksi tidak sinkron. Silakan muat ulang keranjang sebelum checkout.");
+            }
+
+            var totalPayment = request.Payments.Sum(payment => payment.Amount);
+            if (totalPayment != recalculatedGrandTotal)
+            {
+                throw new InvalidOperationException("Total pembayaran harus sama dengan grand total transaksi.");
+            }
+
+            foreach (var payment in request.Payments)
+            {
+                if (payment.Amount <= 0)
+                {
+                    throw new InvalidOperationException("Nominal pembayaran harus lebih dari 0.");
+                }
+
+                if (!IsSupportedPaymentMethod(payment.Method))
+                {
+                    throw new InvalidOperationException($"Metode pembayaran {payment.Method} tidak didukung.");
+                }
+            }
+
             var rand = new Random();
             var trxNumber = $"TRX-{DateTime.UtcNow:yyyyMMddHHmmss}-{rand.Next(1000, 9999)}";
 
@@ -95,28 +206,24 @@ public class TransactionService : ITransactionService
             {
                 Id = request.Id,
                 OutletId = request.OutletId,
-                UserId = _currentUserService.UserId ?? Guid.Empty,
+                UserId = _currentUserService.UserId.Value,
                 CashierSessionId = request.CashierSessionId,
                 TransactionNumber = trxNumber,
-                Channel = request.Channel,
+                Channel = string.IsNullOrWhiteSpace(request.Channel) ? TransactionChannel.Pos : request.Channel,
                 Status = TransactionStatus.Completed,
-                Subtotal = request.Subtotal,
-                DiscountTotal = request.DiscountTotal,
-                TaxTotal = request.TaxTotal,
-                GrandTotal = request.GrandTotal,
+                Subtotal = recalculatedSubtotal,
+                DiscountTotal = recalculatedDiscountTotal,
+                TaxTotal = recalculatedTaxTotal,
+                GrandTotal = recalculatedGrandTotal,
                 CreatedAt = DateTime.UtcNow
             };
 
             _dbContext.Transactions.Add(newTrx);
 
-            // Add Items and record movement
-            foreach (var itemReq in request.Items)
+            foreach (var validated in validatedItems)
             {
-                var product = await _dbContext.Products.FindAsync(new object[] { itemReq.ProductId }, ct);
-                if (product == null)
-                {
-                    throw new InvalidOperationException("Produk tidak ditemukan.");
-                }
+                var product = validated.Product;
+                var itemReq = validated.Request;
 
                 var isConsignment = product.IsConsignment;
                 decimal itemUnitCost = product.CostPrice;
@@ -124,16 +231,16 @@ public class TransactionService : ITransactionService
 
                 if (isConsignment)
                 {
-                    // Find latest received consignment item to resolve dynamic supplier & unit cost
                     var consignmentItem = await _dbContext.ConsignmentItems
                         .Include(ci => ci.Consignment)
-                        .Where(ci => ci.ProductId == product.Id && ci.Consignment.OutletId == request.OutletId && ci.Consignment.Status == ConsignmentStatus.Received)
+                        .Where(ci => ci.ProductId == product.Id &&
+                                     ci.Consignment.OutletId == request.OutletId &&
+                                     ci.Consignment.Status == ConsignmentStatus.Received)
                         .OrderByDescending(ci => ci.Consignment.ReceiveDate)
                         .FirstOrDefaultAsync(ct);
 
                     if (consignmentItem == null)
                     {
-                        // Fallback globally
                         consignmentItem = await _dbContext.ConsignmentItems
                             .Include(ci => ci.Consignment)
                             .Where(ci => ci.ProductId == product.Id && ci.Consignment.Status == ConsignmentStatus.Received)
@@ -154,12 +261,12 @@ public class TransactionService : ITransactionService
                 {
                     Id = Guid.NewGuid(),
                     TransactionId = newTrx.Id,
-                    ProductId = itemReq.ProductId,
+                    ProductId = product.Id,
                     Qty = itemReq.Qty,
-                    UnitPrice = itemReq.UnitPrice,
-                    UnitCost = itemUnitCost, // Dynamic HPP for consignment
+                    UnitPrice = product.BasePrice,
+                    UnitCost = itemUnitCost,
                     DiscountAmount = itemReq.DiscountAmount,
-                    LineTotal = (itemReq.UnitPrice * itemReq.Qty) - itemReq.DiscountAmount,
+                    LineTotal = (product.BasePrice * itemReq.Qty) - itemReq.DiscountAmount,
                     IsReturned = false
                 };
 
@@ -181,9 +288,8 @@ public class TransactionService : ITransactionService
                     _dbContext.ConsignmentSales.Add(consignmentSale);
                 }
 
-                // Add movement
                 await _stockService.AddMovementAsync(
-                    productId: itemReq.ProductId,
+                    productId: product.Id,
                     outletId: request.OutletId,
                     qtyChange: -itemReq.Qty,
                     movementType: StockMovementType.Sale,
@@ -194,7 +300,6 @@ public class TransactionService : ITransactionService
                 );
             }
 
-            // Add Payments
             foreach (var payReq in request.Payments)
             {
                 var payment = new Payment
@@ -213,18 +318,41 @@ public class TransactionService : ITransactionService
             await _dbContext.SaveChangesAsync(ct);
             await dbTx.CommitAsync(ct);
 
-            // 4. Real-time updates broadcast to outlet group
             var stockUpdates = request.Items.Select(i => new StockUpdateItem(i.ProductId, i.Qty)).ToList();
             await _notificationService.SendStockUpdateAsync(request.OutletId, stockUpdates, ct);
 
-            // Fetch fully populated entity for return mapping
             return await GetByIdAsync(newTrx.Id, ct);
         }
-        catch (Exception)
+        catch
         {
             await dbTx.RollbackAsync(ct);
             throw;
         }
+    }
+
+    private static TransactionListItemDto MapToListItemDto(Transaction transaction)
+    {
+        var firstPayment = transaction.Payments.FirstOrDefault();
+        var paymentSummary = transaction.Payments.Count switch
+        {
+            0 => "-",
+            1 => firstPayment?.Method ?? "-",
+            _ => $"{firstPayment?.Method ?? "-"} +{transaction.Payments.Count - 1}",
+        };
+
+        return new TransactionListItemDto(
+            transaction.Id,
+            transaction.TransactionNumber,
+            transaction.OutletId,
+            transaction.Outlet?.Name ?? string.Empty,
+            transaction.UserId,
+            transaction.User?.Name ?? string.Empty,
+            transaction.GrandTotal,
+            transaction.Status,
+            transaction.Channel,
+            transaction.CreatedAt,
+            paymentSummary
+        );
     }
 
     private static TransactionDto MapToDto(Transaction t)
@@ -262,4 +390,36 @@ public class TransactionService : ITransactionService
             )).ToList()
         );
     }
+
+    private Task EnsureOperationalRoleAsync()
+    {
+        if (_currentUserService.Role is "Owner" or "Admin" or "Kasir")
+        {
+            return Task.CompletedTask;
+        }
+
+        throw new UnauthorizedAccessException("Role Anda tidak memiliki akses ke POS kasir.");
+    }
+
+    private async Task EnsureOutletAccessibleAsync(Guid outletId, CancellationToken ct)
+    {
+        var outlet = await _dbContext.Outlets
+            .AsNoTracking()
+            .FirstOrDefaultAsync(o => o.Id == outletId, ct);
+
+        if (outlet == null || !outlet.IsActive)
+        {
+            throw new InvalidOperationException("Outlet tidak valid atau tidak aktif.");
+        }
+
+        if (_currentUserService.Role != "Owner" && _currentUserService.OutletId != outletId)
+        {
+            throw new UnauthorizedAccessException("Anda tidak memiliki akses ke outlet tersebut.");
+        }
+    }
+
+    private static bool IsSupportedPaymentMethod(string method)
+        => method is PaymentMethod.Cash or PaymentMethod.Qris or PaymentMethod.Transfer or PaymentMethod.Edc;
 }
+
+file sealed record ValidatedCheckoutItem(Product Product, CheckoutItemRequest Request);

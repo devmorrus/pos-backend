@@ -15,7 +15,7 @@ public record CashierSessionDto(
     string Status
 );
 
-public record OpenSessionRequest(decimal OpeningCash);
+public record OpenSessionRequest(decimal OpeningCash, Guid? OutletId = null);
 
 public record CloseSessionRequest(decimal ActualCash);
 

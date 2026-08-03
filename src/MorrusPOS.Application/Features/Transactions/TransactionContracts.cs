@@ -1,5 +1,19 @@
 namespace MorrusPOS.Application.Features.Transactions;
 
+public record TransactionListItemDto(
+    Guid Id,
+    string TransactionNumber,
+    Guid OutletId,
+    string OutletName,
+    Guid UserId,
+    string UserName,
+    decimal GrandTotal,
+    string Status,
+    string Channel,
+    DateTime CreatedAt,
+    string PaymentSummary
+);
+
 public record TransactionDto(
     Guid Id,
     string TransactionNumber,
@@ -65,6 +79,7 @@ public record CheckoutRequest(
 
 public interface ITransactionService
 {
+    Task<IReadOnlyList<TransactionListItemDto>> GetRecentByOutletAsync(Guid outletId, int take, CancellationToken ct = default);
     Task<TransactionDto> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<TransactionDto> CheckoutAsync(CheckoutRequest request, CancellationToken ct = default);
 }

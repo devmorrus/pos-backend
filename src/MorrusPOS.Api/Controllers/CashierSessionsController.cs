@@ -7,7 +7,7 @@ namespace MorrusPOS.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = "Owner,Admin,Kasir")]
 public class CashierSessionsController : ControllerBase
 {
     private readonly ICashierSessionService _sessionService;
@@ -20,17 +20,17 @@ public class CashierSessionsController : ControllerBase
     }
 
     [HttpGet("current")]
-    public async Task<ActionResult<CashierSessionDto?>> GetCurrent(CancellationToken ct)
+    public async Task<ActionResult<CashierSessionDto?>> GetCurrent([FromQuery] Guid? outletId, CancellationToken ct)
     {
         var userId = _currentUser.UserId;
-        var outletId = _currentUser.OutletId;
+        var resolvedOutletId = ResolveTargetOutletId(outletId);
 
-        if (userId == null || outletId == null)
+        if (userId == null || resolvedOutletId == null)
         {
-            return BadRequest("Sesi kasir hanya dapat diakses oleh user yang terikat dengan Outlet (Kasir/Admin).");
+            return BadRequest("Pilih outlet kerja terlebih dahulu untuk mengakses sesi kasir.");
         }
 
-        var result = await _sessionService.GetActiveSessionAsync(userId.Value, outletId.Value, ct);
+        var result = await _sessionService.GetActiveSessionAsync(userId.Value, resolvedOutletId.Value, ct);
         return Ok(result);
     }
 
@@ -38,11 +38,11 @@ public class CashierSessionsController : ControllerBase
     public async Task<ActionResult<CashierSessionDto>> Open(OpenSessionRequest request, CancellationToken ct)
     {
         var userId = _currentUser.UserId;
-        var outletId = _currentUser.OutletId;
+        var outletId = ResolveTargetOutletId(request.OutletId);
 
         if (userId == null || outletId == null)
         {
-            return BadRequest("Sesi kasir hanya dapat dibuka oleh user yang terikat dengan Outlet (Kasir/Admin).");
+            return BadRequest("Pilih outlet kerja terlebih dahulu untuk membuka sesi kasir.");
         }
 
         var result = await _sessionService.OpenSessionAsync(userId.Value, outletId.Value, request, ct);
@@ -54,5 +54,20 @@ public class CashierSessionsController : ControllerBase
     {
         var result = await _sessionService.CloseSessionAsync(id, request, ct);
         return Ok(result);
+    }
+
+    private Guid? ResolveTargetOutletId(Guid? requestedOutletId)
+    {
+        if (_currentUser.Role == "Owner")
+        {
+            return requestedOutletId;
+        }
+
+        if (requestedOutletId.HasValue && requestedOutletId != _currentUser.OutletId)
+        {
+            throw new UnauthorizedAccessException("Anda tidak dapat membuka sesi untuk outlet lain.");
+        }
+
+        return _currentUser.OutletId;
     }
 }

@@ -1,5 +1,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using NSubstitute;
+using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Transactions;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -11,6 +13,7 @@ namespace MorrusPOS.UnitTests;
 public class CashierSessionServiceTests
 {
     private readonly AppDbContext _dbContext;
+    private readonly ICurrentUserService _currentUserMock;
 
     public CashierSessionServiceTests()
     {
@@ -19,6 +22,7 @@ public class CashierSessionServiceTests
             .Options;
 
         _dbContext = new AppDbContext(options);
+        _currentUserMock = Substitute.For<ICurrentUserService>();
     }
 
     [Fact]
@@ -31,7 +35,11 @@ public class CashierSessionServiceTests
         _dbContext.Users.Add(new User { Id = userId, Name = "Kasir 1", Email = "k1@morruspos.com", PasswordHash = "hash", RoleId = Guid.NewGuid() });
         await _dbContext.SaveChangesAsync();
 
-        var service = new CashierSessionService(_dbContext);
+        _currentUserMock.Role.Returns("Kasir");
+        _currentUserMock.UserId.Returns(userId);
+        _currentUserMock.OutletId.Returns(outletId);
+
+        var service = new CashierSessionService(_dbContext, _currentUserMock);
         var request = new OpenSessionRequest(OpeningCash: 100000);
 
         // Act
@@ -63,7 +71,11 @@ public class CashierSessionServiceTests
         });
         await _dbContext.SaveChangesAsync();
 
-        var service = new CashierSessionService(_dbContext);
+        _currentUserMock.Role.Returns("Kasir");
+        _currentUserMock.UserId.Returns(userId);
+        _currentUserMock.OutletId.Returns(outletId);
+
+        var service = new CashierSessionService(_dbContext, _currentUserMock);
         var request = new OpenSessionRequest(OpeningCash: 100000);
 
         // Act & Assert
@@ -116,7 +128,11 @@ public class CashierSessionServiceTests
         });
         await _dbContext.SaveChangesAsync();
 
-        var service = new CashierSessionService(_dbContext);
+        _currentUserMock.Role.Returns("Kasir");
+        _currentUserMock.UserId.Returns(userId);
+        _currentUserMock.OutletId.Returns(outletId);
+
+        var service = new CashierSessionService(_dbContext, _currentUserMock);
         var request = new CloseSessionRequest(ActualCash: 148000); // 100000 + 50000 = 150000 expected. actual = 148000. variance should be -2000.
 
         // Act

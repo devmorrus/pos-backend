@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Transactions;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -8,10 +9,12 @@ namespace MorrusPOS.Infrastructure.Services;
 public class CashierSessionService : ICashierSessionService
 {
     private readonly AppDbContext _dbContext;
+    private readonly ICurrentUserService _currentUserService;
 
-    public CashierSessionService(AppDbContext dbContext)
+    public CashierSessionService(AppDbContext dbContext, ICurrentUserService currentUserService)
     {
         _dbContext = dbContext;
+        _currentUserService = currentUserService;
     }
 
     public async Task<CashierSessionDto> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -31,6 +34,8 @@ public class CashierSessionService : ICashierSessionService
 
     public async Task<CashierSessionDto?> GetActiveSessionAsync(Guid userId, Guid outletId, CancellationToken ct = default)
     {
+        await EnsureOutletAccessibleAsync(outletId, ct);
+
         var session = await _dbContext.CashierSessions
             .Include(s => s.Outlet)
             .Include(s => s.User)
@@ -41,6 +46,9 @@ public class CashierSessionService : ICashierSessionService
 
     public async Task<CashierSessionDto> OpenSessionAsync(Guid userId, Guid outletId, OpenSessionRequest request, CancellationToken ct = default)
     {
+        await EnsureOperationalRoleAsync();
+        await EnsureOutletAccessibleAsync(outletId, ct);
+
         // Check if there is already an active session for this user at this outlet
         var existing = await GetActiveSessionAsync(userId, outletId, ct);
         if (existing != null)
@@ -69,6 +77,8 @@ public class CashierSessionService : ICashierSessionService
 
     public async Task<CashierSessionDto> CloseSessionAsync(Guid sessionId, CloseSessionRequest request, CancellationToken ct = default)
     {
+        await EnsureOperationalRoleAsync();
+
         var session = await _dbContext.CashierSessions
             .Include(s => s.Outlet)
             .Include(s => s.User)
@@ -82,6 +92,14 @@ public class CashierSessionService : ICashierSessionService
         if (session.Status == CashierSessionStatus.Closed)
         {
             throw new InvalidOperationException("Sesi kasir sudah ditutup.");
+        }
+
+        if (_currentUserService.Role != "Owner")
+        {
+            if (_currentUserService.UserId != session.UserId || _currentUserService.OutletId != session.OutletId)
+            {
+                throw new UnauthorizedAccessException("Anda tidak memiliki akses untuk menutup sesi kasir ini.");
+            }
         }
 
         // Calculate expected cash in drawer (OpeningCash + Cash Payments)
@@ -119,5 +137,32 @@ public class CashierSessionService : ICashierSessionService
             s.Variance,
             s.Status
         );
+    }
+
+    private Task EnsureOperationalRoleAsync()
+    {
+        if (_currentUserService.Role is "Owner" or "Admin" or "Kasir")
+        {
+            return Task.CompletedTask;
+        }
+
+        throw new UnauthorizedAccessException("Role Anda tidak memiliki akses ke POS kasir.");
+    }
+
+    private async Task EnsureOutletAccessibleAsync(Guid outletId, CancellationToken ct)
+    {
+        var outlet = await _dbContext.Outlets
+            .AsNoTracking()
+            .FirstOrDefaultAsync(o => o.Id == outletId, ct);
+
+        if (outlet == null || !outlet.IsActive)
+        {
+            throw new InvalidOperationException("Outlet tidak valid atau tidak aktif.");
+        }
+
+        if (_currentUserService.Role != "Owner" && _currentUserService.OutletId != outletId)
+        {
+            throw new UnauthorizedAccessException("Anda tidak memiliki akses ke outlet tersebut.");
+        }
     }
 }
