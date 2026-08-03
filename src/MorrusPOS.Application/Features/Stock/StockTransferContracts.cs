@@ -19,6 +19,7 @@ public record StockTransferDto(
     string RequestedByName,
     Guid? ApprovedBy,
     string? ApprovedByName,
+    DateTime CreatedAt,
     IReadOnlyList<StockTransferItemDto> Items
 );
 

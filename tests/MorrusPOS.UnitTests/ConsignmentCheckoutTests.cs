@@ -45,6 +45,7 @@ public class ConsignmentCheckoutTests
 
         _currentUserServiceMock.UserId.Returns(_userId);
         _currentUserServiceMock.OutletId.Returns(_outletId);
+        _currentUserServiceMock.Role.Returns("Admin");
     }
 
     private async Task SeedBaseDataAsync(bool isConsignment = true, bool hasReceivedConsignment = true)

@@ -15,6 +15,7 @@ public class StockTransferServiceTests
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockServiceMock;
     private readonly IPosNotificationService _notificationServiceMock;
+    private readonly ICurrentUserService _currentUserServiceMock;
 
     public StockTransferServiceTests()
     {
@@ -26,6 +27,8 @@ public class StockTransferServiceTests
         _dbContext = new AppDbContext(options);
         _stockServiceMock = Substitute.For<IStockService>();
         _notificationServiceMock = Substitute.For<IPosNotificationService>();
+        _currentUserServiceMock = Substitute.For<ICurrentUserService>();
+        _currentUserServiceMock.Role.Returns("Admin");
     }
 
     [Fact]
@@ -45,7 +48,7 @@ public class StockTransferServiceTests
         _dbContext.Products.Add(new Product { Id = prodId, CategoryId = catId, Sku = "SKU-1", Name = "Chiki", BasePrice = 10000, CostPrice = 8000, Unit = "pcs", IsActive = true });
         await _dbContext.SaveChangesAsync();
 
-        var service = new StockTransferService(_dbContext, _stockServiceMock, _notificationServiceMock);
+        var service = new StockTransferService(_dbContext, _stockServiceMock, _notificationServiceMock, _currentUserServiceMock);
 
         var request = new CreateStockTransferRequest(
             FromOutletId: fromOutletId,
@@ -98,7 +101,7 @@ public class StockTransferServiceTests
         _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), OutletId = fromOutletId, ProductId = prodId, QtyOnHand = 10, MinStockAlert = 0 });
         await _dbContext.SaveChangesAsync();
 
-        var service = new StockTransferService(_dbContext, _stockServiceMock, _notificationServiceMock);
+        var service = new StockTransferService(_dbContext, _stockServiceMock, _notificationServiceMock, _currentUserServiceMock);
 
         var request = new CreateStockTransferRequest(
             FromOutletId: fromOutletId,
@@ -171,7 +174,7 @@ public class StockTransferServiceTests
         _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), OutletId = fromOutletId, ProductId = prodId, QtyOnHand = 2, MinStockAlert = 0 });
         await _dbContext.SaveChangesAsync();
 
-        var service = new StockTransferService(_dbContext, _stockServiceMock, _notificationServiceMock);
+        var service = new StockTransferService(_dbContext, _stockServiceMock, _notificationServiceMock, _currentUserServiceMock);
 
         var request = new CreateStockTransferRequest(
             FromOutletId: fromOutletId,
@@ -202,7 +205,7 @@ public class StockTransferServiceTests
         _dbContext.Products.Add(new Product { Id = prodId, CategoryId = catId, Sku = "SKU-1", Name = "Chiki", BasePrice = 10000, CostPrice = 8000, Unit = "pcs", IsActive = true });
         await _dbContext.SaveChangesAsync();
 
-        var service = new StockTransferService(_dbContext, _stockServiceMock, _notificationServiceMock);
+        var service = new StockTransferService(_dbContext, _stockServiceMock, _notificationServiceMock, _currentUserServiceMock);
 
         var request = new CreateStockTransferRequest(
             FromOutletId: fromOutletId,

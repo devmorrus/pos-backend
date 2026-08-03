@@ -11,15 +11,18 @@ public class StockTransferService : IStockTransferService
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockService;
     private readonly IPosNotificationService _notificationService;
+    private readonly ICurrentUserService _currentUserService;
 
     public StockTransferService(
         AppDbContext dbContext,
         IStockService stockService,
-        IPosNotificationService notificationService)
+        IPosNotificationService notificationService,
+        ICurrentUserService currentUserService)
     {
         _dbContext = dbContext;
         _stockService = stockService;
         _notificationService = notificationService;
+        _currentUserService = currentUserService;
     }
 
     public async Task<StockTransferDto> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -134,6 +137,8 @@ public class StockTransferService : IStockTransferService
             throw new InvalidOperationException("Transfer Stok sudah diproses sebelumnya.");
         }
 
+        EnsureTransferApprovalAccess(transfer.ToOutletId);
+
         using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
         try
         {
@@ -216,6 +221,8 @@ public class StockTransferService : IStockTransferService
             throw new InvalidOperationException("Transfer Stok sudah diproses sebelumnya.");
         }
 
+        EnsureTransferApprovalAccess(transfer.ToOutletId);
+
         transfer.Status = StockTransferStatus.Rejected;
         transfer.ApprovedBy = userId;
         transfer.UpdatedAt = DateTime.UtcNow;
@@ -239,6 +246,7 @@ public class StockTransferService : IStockTransferService
             t.RequestedByUser?.Name ?? string.Empty,
             t.ApprovedBy,
             t.ApprovedByUser?.Name,
+            t.CreatedAt,
             t.Items.Select(i => new StockTransferItemDto(
                 i.ProductId,
                 i.Product?.Name ?? string.Empty,
@@ -246,5 +254,18 @@ public class StockTransferService : IStockTransferService
                 i.Qty
             )).ToList()
         );
+    }
+
+    private void EnsureTransferApprovalAccess(Guid targetOutletId)
+    {
+        if (_currentUserService.Role is "Owner" or "Admin")
+        {
+            return;
+        }
+
+        if (_currentUserService.OutletId != targetOutletId)
+        {
+            throw new UnauthorizedAccessException("Approve atau reject transfer hanya bisa dilakukan oleh outlet tujuan.");
+        }
     }
 }

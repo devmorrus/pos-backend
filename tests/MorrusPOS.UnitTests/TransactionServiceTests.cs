@@ -28,6 +28,7 @@ public class TransactionServiceTests
         _stockServiceMock = Substitute.For<IStockService>();
         _currentUserMock = Substitute.For<ICurrentUserService>();
         _notificationServiceMock = Substitute.For<IPosNotificationService>();
+        _currentUserMock.Role.Returns("Admin");
     }
 
     [Fact]
@@ -49,6 +50,7 @@ public class TransactionServiceTests
         await _dbContext.SaveChangesAsync();
 
         _currentUserMock.UserId.Returns(userId);
+        _currentUserMock.OutletId.Returns(outletId);
 
         var service = new TransactionService(_dbContext, _stockServiceMock, _currentUserMock, _notificationServiceMock);
 
@@ -117,6 +119,9 @@ public class TransactionServiceTests
         _dbContext.CashierSessions.Add(new CashierSession { Id = sessionId, UserId = userId, OutletId = outletId, OpeningCash = 100000, Status = "open" });
         await _dbContext.SaveChangesAsync();
 
+        _currentUserMock.UserId.Returns(userId);
+        _currentUserMock.OutletId.Returns(outletId);
+
         var service = new TransactionService(_dbContext, _stockServiceMock, _currentUserMock, _notificationServiceMock);
 
         var request = new CheckoutRequest(
@@ -150,8 +155,15 @@ public class TransactionServiceTests
         var trxId = Guid.NewGuid();
         var outletId = Guid.NewGuid();
         var userId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+        var prodId = Guid.NewGuid();
+        var catId = Guid.NewGuid();
         _dbContext.Outlets.Add(new Outlet { Id = outletId, Code = "OUT-1", Name = "Main Outlet", IsActive = true });
         _dbContext.Users.Add(new User { Id = userId, Name = "Kasir 1", Email = "k1@morruspos.com", PasswordHash = "hash", RoleId = Guid.NewGuid() });
+        _dbContext.Categories.Add(new Category { Id = catId, Name = "Snack" });
+        _dbContext.Products.Add(new Product { Id = prodId, CategoryId = catId, Sku = "SKU-1", Name = "Chiki", BasePrice = 10000, CostPrice = 8000, Unit = "pcs", IsActive = true });
+        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), OutletId = outletId, ProductId = prodId, QtyOnHand = 10, MinStockAlert = 0 });
+        _dbContext.CashierSessions.Add(new CashierSession { Id = sessionId, UserId = userId, OutletId = outletId, OpeningCash = 100000, Status = "open" });
         _dbContext.Transactions.Add(new Transaction
         {
             Id = trxId,
@@ -164,18 +176,27 @@ public class TransactionServiceTests
         });
         await _dbContext.SaveChangesAsync();
 
+        _currentUserMock.UserId.Returns(userId);
+        _currentUserMock.OutletId.Returns(outletId);
+
         var service = new TransactionService(_dbContext, _stockServiceMock, _currentUserMock, _notificationServiceMock);
         var request = new CheckoutRequest(
             Id: trxId, // Duplicate ID
             OutletId: outletId,
-            CashierSessionId: Guid.NewGuid(),
+            CashierSessionId: sessionId,
             Channel: "pos",
-            Subtotal: 50000,
+            Subtotal: 10000,
             DiscountTotal: 0,
             TaxTotal: 0,
-            GrandTotal: 50000,
-            Items: new List<CheckoutItemRequest>(),
-            Payments: new List<PaymentRequest>()
+            GrandTotal: 10000,
+            Items: new List<CheckoutItemRequest>
+            {
+                new(prodId, Qty: 1, UnitPrice: 10000, DiscountAmount: 0)
+            },
+            Payments: new List<PaymentRequest>
+            {
+                new("cash", Amount: 10000, ReferenceNumber: null)
+            }
         );
 
         // Act
