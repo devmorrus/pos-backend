@@ -50,6 +50,20 @@ public class TransactionsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
+    [HttpPost("{id}/void")]
+    public async Task<ActionResult<TransactionDto>> Void(Guid id, VoidTransactionRequest request, CancellationToken ct)
+    {
+        var result = await _transactionService.VoidAsync(id, request, ct);
+        return Ok(result);
+    }
+
+    [HttpPost("{id}/refund")]
+    public async Task<ActionResult<TransactionDto>> Refund(Guid id, RefundTransactionRequest request, CancellationToken ct)
+    {
+        var result = await _transactionService.RefundAsync(id, request, ct);
+        return Ok(result);
+    }
+
     private Guid? ResolveTargetOutletId(Guid? requestedOutletId)
     {
         if (_currentUser.Role == "Owner")

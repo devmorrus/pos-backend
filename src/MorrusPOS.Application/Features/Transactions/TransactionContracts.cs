@@ -28,16 +28,23 @@ public record TransactionDto(
     decimal DiscountTotal,
     decimal TaxTotal,
     decimal GrandTotal,
+    Guid? VoidedBy,
+    string? VoidedByName,
+    string? VoidedReason,
     DateTime CreatedAt,
     IReadOnlyList<TransactionItemDto> Items,
-    IReadOnlyList<PaymentDto> Payments
+    IReadOnlyList<PaymentDto> Payments,
+    IReadOnlyList<TransactionReturnDto> Returns
 );
 
 public record TransactionItemDto(
+    Guid Id,
     Guid ProductId,
     string ProductName,
     string Sku,
     decimal Qty,
+    decimal ReturnedQty,
+    decimal RemainingQty,
     decimal UnitPrice,
     decimal UnitCost,
     decimal DiscountAmount,
@@ -48,6 +55,19 @@ public record PaymentDto(
     string Method,
     decimal Amount,
     string? ReferenceNumber,
+    DateTime CreatedAt
+);
+
+public record TransactionReturnDto(
+    Guid Id,
+    Guid TransactionItemId,
+    Guid ProductId,
+    string ProductName,
+    decimal Qty,
+    string? Reason,
+    string RefundMethod,
+    Guid ProcessedBy,
+    string ProcessedByName,
     DateTime CreatedAt
 );
 
@@ -77,9 +97,26 @@ public record CheckoutRequest(
     List<PaymentRequest> Payments
 );
 
+public record VoidTransactionRequest(
+    string Reason
+);
+
+public record RefundTransactionItemRequest(
+    Guid ProductId,
+    decimal Qty
+);
+
+public record RefundTransactionRequest(
+    string RefundMethod,
+    string? Reason,
+    List<RefundTransactionItemRequest> Items
+);
+
 public interface ITransactionService
 {
     Task<IReadOnlyList<TransactionListItemDto>> GetRecentByOutletAsync(Guid outletId, int take, CancellationToken ct = default);
     Task<TransactionDto> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<TransactionDto> CheckoutAsync(CheckoutRequest request, CancellationToken ct = default);
+    Task<TransactionDto> VoidAsync(Guid id, VoidTransactionRequest request, CancellationToken ct = default);
+    Task<TransactionDto> RefundAsync(Guid id, RefundTransactionRequest request, CancellationToken ct = default);
 }

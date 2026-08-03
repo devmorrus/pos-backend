@@ -48,12 +48,7 @@ public class TransactionService : ITransactionService
 
     public async Task<TransactionDto> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        var trx = await _dbContext.Transactions
-            .Include(t => t.Outlet)
-            .Include(t => t.User)
-            .Include(t => t.Items).ThenInclude(i => i.Product)
-            .Include(t => t.Payments)
-            .FirstOrDefaultAsync(t => t.Id == id, ct);
+        var trx = await GetTransactionAggregateAsync(id, ct);
 
         if (trx == null)
         {
@@ -64,6 +59,232 @@ public class TransactionService : ITransactionService
         await EnsureOutletAccessibleAsync(trx.OutletId, ct);
 
         return MapToDto(trx);
+    }
+
+    public async Task<TransactionDto> VoidAsync(Guid id, VoidTransactionRequest request, CancellationToken ct = default)
+    {
+        await EnsureVoidRoleAsync();
+
+        var transaction = await GetTransactionAggregateAsync(id, ct);
+        if (transaction == null)
+        {
+            throw new InvalidOperationException("Transaksi tidak ditemukan.");
+        }
+
+        await EnsureOutletAccessibleAsync(transaction.OutletId, ct);
+
+        if (transaction.Status == TransactionStatus.Voided)
+        {
+            return MapToDto(transaction);
+        }
+
+        if (transaction.Status != TransactionStatus.Completed)
+        {
+            throw new InvalidOperationException("Hanya transaksi completed yang dapat di-void.");
+        }
+
+        if (transaction.Returns.Count > 0)
+        {
+            throw new InvalidOperationException("Transaksi yang sudah memiliki refund tidak dapat di-void.");
+        }
+
+        var reason = string.IsNullOrWhiteSpace(request.Reason)
+            ? throw new InvalidOperationException("Alasan void wajib diisi.")
+            : request.Reason.Trim();
+
+        var consignmentSales = await _dbContext.ConsignmentSales
+            .Where(s => transaction.Items.Select(item => item.Id).Contains(s.TransactionItemId))
+            .ToListAsync(ct);
+
+        if (consignmentSales.Any(sale => sale.Status == ConsignmentSaleStatus.Paid || sale.ConsignmentSettlementId != null))
+        {
+            throw new InvalidOperationException("Transaksi konsinyasi yang sudah disettle tidak dapat di-void.");
+        }
+
+        using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
+        try
+        {
+            foreach (var item in transaction.Items)
+            {
+                await _stockService.AddMovementAsync(
+                    productId: item.ProductId,
+                    outletId: transaction.OutletId,
+                    qtyChange: item.Qty,
+                    movementType: StockMovementType.Return,
+                    referenceType: "transaction_void",
+                    referenceId: transaction.Id,
+                    note: $"Void transaksi {transaction.TransactionNumber}",
+                    ct: ct
+                );
+
+                item.IsReturned = true;
+            }
+
+            if (consignmentSales.Count > 0)
+            {
+                _dbContext.ConsignmentSales.RemoveRange(consignmentSales);
+            }
+
+            transaction.Status = TransactionStatus.Voided;
+            transaction.VoidedBy = _currentUserService.UserId;
+            transaction.VoidedReason = reason;
+
+            await _dbContext.SaveChangesAsync(ct);
+            await dbTx.CommitAsync(ct);
+
+            var stockUpdates = transaction.Items
+                .Select(item => new StockUpdateItem(item.ProductId, item.Qty))
+                .ToList();
+            await _notificationService.SendStockUpdateAsync(transaction.OutletId, stockUpdates, ct);
+
+            return await GetByIdAsync(transaction.Id, ct);
+        }
+        catch
+        {
+            await dbTx.RollbackAsync(ct);
+            throw;
+        }
+    }
+
+    public async Task<TransactionDto> RefundAsync(Guid id, RefundTransactionRequest request, CancellationToken ct = default)
+    {
+        await EnsureRefundRoleAsync();
+
+        var transaction = await GetTransactionAggregateAsync(id, ct);
+        if (transaction == null)
+        {
+            throw new InvalidOperationException("Transaksi tidak ditemukan.");
+        }
+
+        await EnsureOutletAccessibleAsync(transaction.OutletId, ct);
+
+        if (transaction.Status == TransactionStatus.Voided)
+        {
+            throw new InvalidOperationException("Transaksi yang sudah void tidak dapat direfund.");
+        }
+
+        if (request.Items == null || request.Items.Count == 0)
+        {
+            throw new InvalidOperationException("Minimal satu item refund wajib diisi.");
+        }
+
+        var refundMethod = string.IsNullOrWhiteSpace(request.RefundMethod)
+            ? throw new InvalidOperationException("Metode refund wajib diisi.")
+            : request.RefundMethod.Trim().ToLowerInvariant();
+
+        if (refundMethod is not "refund" and not "exchange")
+        {
+            throw new InvalidOperationException("Metode refund harus berupa refund atau exchange.");
+        }
+
+        var requestedProductIds = request.Items.Select(item => item.ProductId).ToHashSet();
+        var consignmentSales = await _dbContext.ConsignmentSales
+            .Where(s => transaction.Items
+                .Where(item => requestedProductIds.Contains(item.ProductId))
+                .Select(item => item.Id)
+                .Contains(s.TransactionItemId))
+            .ToListAsync(ct);
+
+        if (consignmentSales.Any(sale => sale.Status == ConsignmentSaleStatus.Paid || sale.ConsignmentSettlementId != null))
+        {
+            throw new InvalidOperationException("Item konsinyasi yang sudah disettle tidak dapat direfund.");
+        }
+
+        var existingReturnedQtyByItemId = transaction.Returns
+            .GroupBy(itemReturn => itemReturn.TransactionItemId)
+            .ToDictionary(group => group.Key, group => group.Sum(itemReturn => itemReturn.Qty));
+
+        using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
+        try
+        {
+            foreach (var refundItem in request.Items)
+            {
+                var transactionItem = transaction.Items.FirstOrDefault(item => item.ProductId == refundItem.ProductId);
+                if (transactionItem == null)
+                {
+                    throw new InvalidOperationException("Produk refund tidak ditemukan di transaksi.");
+                }
+
+                if (refundItem.Qty <= 0)
+                {
+                    throw new InvalidOperationException($"Qty refund untuk {transactionItem.Product.Name} harus lebih dari 0.");
+                }
+
+                var alreadyReturnedQty = existingReturnedQtyByItemId.GetValueOrDefault(transactionItem.Id);
+                var remainingQty = transactionItem.Qty - alreadyReturnedQty;
+                if (refundItem.Qty > remainingQty)
+                {
+                    throw new InvalidOperationException($"Qty refund {transactionItem.Product.Name} melebihi sisa qty yang belum direfund.");
+                }
+
+                var newReturn = new Return
+                {
+                    Id = Guid.NewGuid(),
+                    TransactionId = transaction.Id,
+                    TransactionItemId = transactionItem.Id,
+                    Qty = refundItem.Qty,
+                    Reason = string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim(),
+                    RefundMethod = refundMethod,
+                    ProcessedBy = _currentUserService.UserId ?? Guid.Empty,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _dbContext.Returns.Add(newReturn);
+
+                await _stockService.AddMovementAsync(
+                    productId: transactionItem.ProductId,
+                    outletId: transaction.OutletId,
+                    qtyChange: refundItem.Qty,
+                    movementType: StockMovementType.Return,
+                    referenceType: "transaction_refund",
+                    referenceId: transaction.Id,
+                    note: $"Refund transaksi {transaction.TransactionNumber}",
+                    ct: ct
+                );
+
+                var consignmentSale = consignmentSales.FirstOrDefault(sale => sale.TransactionItemId == transactionItem.Id);
+                if (consignmentSale != null)
+                {
+                    if (refundItem.Qty == consignmentSale.Qty)
+                    {
+                        _dbContext.ConsignmentSales.Remove(consignmentSale);
+                    }
+                    else
+                    {
+                        consignmentSale.Qty -= refundItem.Qty;
+                        consignmentSale.TotalAmount = consignmentSale.Qty * consignmentSale.UnitCost;
+                    }
+                }
+
+                var nextReturnedQty = alreadyReturnedQty + refundItem.Qty;
+                if (nextReturnedQty >= transactionItem.Qty)
+                {
+                    transactionItem.IsReturned = true;
+                }
+
+                existingReturnedQtyByItemId[transactionItem.Id] = nextReturnedQty;
+            }
+
+            if (transaction.Items.All(item => existingReturnedQtyByItemId.GetValueOrDefault(item.Id) >= item.Qty))
+            {
+                transaction.Status = TransactionStatus.Refunded;
+            }
+
+            await _dbContext.SaveChangesAsync(ct);
+            await dbTx.CommitAsync(ct);
+
+            var stockUpdates = request.Items
+                .Select(item => new StockUpdateItem(item.ProductId, item.Qty))
+                .ToList();
+            await _notificationService.SendStockUpdateAsync(transaction.OutletId, stockUpdates, ct);
+
+            return await GetByIdAsync(transaction.Id, ct);
+        }
+        catch
+        {
+            await dbTx.RollbackAsync(ct);
+            throw;
+        }
     }
 
     public async Task<TransactionDto> CheckoutAsync(CheckoutRequest request, CancellationToken ct = default)
@@ -357,6 +578,10 @@ public class TransactionService : ITransactionService
 
     private static TransactionDto MapToDto(Transaction t)
     {
+        var returnedQtyByItemId = t.Returns
+            .GroupBy(itemReturn => itemReturn.TransactionItemId)
+            .ToDictionary(group => group.Key, group => group.Sum(itemReturn => itemReturn.Qty));
+
         return new TransactionDto(
             t.Id,
             t.TransactionNumber,
@@ -371,12 +596,18 @@ public class TransactionService : ITransactionService
             t.DiscountTotal,
             t.TaxTotal,
             t.GrandTotal,
+            t.VoidedBy,
+            t.VoidedByUser?.Name,
+            t.VoidedReason,
             t.CreatedAt,
             t.Items.Select(i => new TransactionItemDto(
+                i.Id,
                 i.ProductId,
                 i.Product?.Name ?? string.Empty,
                 i.Product?.Sku ?? string.Empty,
                 i.Qty,
+                returnedQtyByItemId.GetValueOrDefault(i.Id),
+                i.Qty - returnedQtyByItemId.GetValueOrDefault(i.Id),
                 i.UnitPrice,
                 i.UnitCost,
                 i.DiscountAmount,
@@ -387,8 +618,36 @@ public class TransactionService : ITransactionService
                 p.Amount,
                 p.ReferenceNumber,
                 p.CreatedAt
-            )).ToList()
+            )).ToList(),
+            t.Returns
+                .OrderByDescending(itemReturn => itemReturn.CreatedAt)
+                .Select(itemReturn => new TransactionReturnDto(
+                    itemReturn.Id,
+                    itemReturn.TransactionItemId,
+                    itemReturn.TransactionItem.ProductId,
+                    itemReturn.TransactionItem.Product?.Name ?? string.Empty,
+                    itemReturn.Qty,
+                    itemReturn.Reason,
+                    itemReturn.RefundMethod,
+                    itemReturn.ProcessedBy,
+                    itemReturn.ProcessedByUser?.Name ?? string.Empty,
+                    itemReturn.CreatedAt
+                ))
+                .ToList()
         );
+    }
+
+    private async Task<Transaction?> GetTransactionAggregateAsync(Guid id, CancellationToken ct)
+    {
+        return await _dbContext.Transactions
+            .Include(t => t.Outlet)
+            .Include(t => t.User)
+            .Include(t => t.VoidedByUser)
+            .Include(t => t.Items).ThenInclude(i => i.Product)
+            .Include(t => t.Payments)
+            .Include(t => t.Returns).ThenInclude(r => r.TransactionItem).ThenInclude(ti => ti.Product)
+            .Include(t => t.Returns).ThenInclude(r => r.ProcessedByUser)
+            .FirstOrDefaultAsync(t => t.Id == id, ct);
     }
 
     private Task EnsureOperationalRoleAsync()
@@ -399,6 +658,26 @@ public class TransactionService : ITransactionService
         }
 
         throw new UnauthorizedAccessException("Role Anda tidak memiliki akses ke POS kasir.");
+    }
+
+    private Task EnsureVoidRoleAsync()
+    {
+        if (_currentUserService.Role is "Owner" or "Admin")
+        {
+            return Task.CompletedTask;
+        }
+
+        throw new UnauthorizedAccessException("Role Anda tidak memiliki akses untuk void transaksi.");
+    }
+
+    private Task EnsureRefundRoleAsync()
+    {
+        if (_currentUserService.Role is "Owner" or "Admin" or "Kasir")
+        {
+            return Task.CompletedTask;
+        }
+
+        throw new UnauthorizedAccessException("Role Anda tidak memiliki akses untuk refund transaksi.");
     }
 
     private async Task EnsureOutletAccessibleAsync(Guid outletId, CancellationToken ct)
