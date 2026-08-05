@@ -159,8 +159,9 @@ public class ConsignmentSettlementService : IConsignmentSettlementService
             throw new InvalidOperationException($"Settlement konsinyasi sudah berstatus '{settlement.Status}', tidak bisa diubah kembali.");
         }
 
+        var sanitizedStatus = request.Status?.Trim().ToLowerInvariant();
         var allowedStatuses = new[] { ConsignmentSettlementStatus.Settled, ConsignmentSettlementStatus.Cancelled };
-        if (!allowedStatuses.Contains(request.Status))
+        if (!allowedStatuses.Contains(sanitizedStatus))
         {
             throw new InvalidOperationException($"Status '{request.Status}' tidak valid.");
         }
@@ -168,7 +169,7 @@ public class ConsignmentSettlementService : IConsignmentSettlementService
         using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
         try
         {
-            if (request.Status == ConsignmentSettlementStatus.Settled)
+            if (sanitizedStatus == ConsignmentSettlementStatus.Settled)
             {
                 // Mark all linked sales as paid
                 foreach (var sale in settlement.Sales)
@@ -176,7 +177,7 @@ public class ConsignmentSettlementService : IConsignmentSettlementService
                     sale.Status = ConsignmentSaleStatus.Paid;
                 }
             }
-            else if (request.Status == ConsignmentSettlementStatus.Cancelled)
+            else if (sanitizedStatus == ConsignmentSettlementStatus.Cancelled)
             {
                 // Release all linked sales back to unpaid
                 foreach (var sale in settlement.Sales)
@@ -185,7 +186,7 @@ public class ConsignmentSettlementService : IConsignmentSettlementService
                 }
             }
 
-            settlement.Status = request.Status;
+            settlement.Status = sanitizedStatus!;
             settlement.UpdatedAt = DateTime.UtcNow;
 
             await _dbContext.SaveChangesAsync(ct);

@@ -22,6 +22,8 @@ using MorrusPOS.Application.Features.Stock;
 using MorrusPOS.Application.Features.Stock.Validators;
 using MorrusPOS.Application.Features.Suppliers;
 using MorrusPOS.Application.Features.Suppliers.Validators;
+using MorrusPOS.Application.Features.Consignments;
+using MorrusPOS.Application.Features.Consignments.Validators;
 using MorrusPOS.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -50,6 +52,10 @@ builder.Services.AddScoped<IValidator<UpdateSupplierRequest>, UpdateSupplierRequ
 builder.Services.AddScoped<IValidator<CreatePurchaseOrderRequest>, CreatePurchaseOrderRequestValidator>();
 builder.Services.AddScoped<IValidator<UpdatePoStatusRequest>, UpdatePoStatusRequestValidator>();
 builder.Services.AddScoped<IValidator<CreateSupplierPaymentRequest>, CreateSupplierPaymentRequestValidator>();
+builder.Services.AddScoped<IValidator<CreateConsignmentRequest>, CreateConsignmentRequestValidator>();
+builder.Services.AddScoped<IValidator<UpdateConsignmentStatusRequest>, UpdateConsignmentStatusRequestValidator>();
+builder.Services.AddScoped<IValidator<CreateConsignmentSettlementRequest>, CreateConsignmentSettlementRequestValidator>();
+builder.Services.AddScoped<IValidator<UpdateConsignmentSettlementStatusRequest>, UpdateConsignmentSettlementStatusRequestValidator>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();

@@ -126,6 +126,11 @@ public class ConsignmentService : IConsignmentService
                 throw new InvalidOperationException("Unit price barang konsinyasi harus lebih dari 0.");
             }
 
+            if (itemReq.UnitPrice < itemReq.UnitCost)
+            {
+                throw new InvalidOperationException("Harga jual tidak boleh kurang dari bagi hasil.");
+            }
+
             var product = await _dbContext.Products.FindAsync(new object[] { itemReq.ProductId }, ct);
             if (product == null || !product.IsActive)
             {
@@ -168,8 +173,9 @@ public class ConsignmentService : IConsignmentService
             throw new InvalidOperationException($"Tanda terima konsinyasi sudah berstatus '{consignment.Status}', tidak bisa diubah kembali.");
         }
 
+        var sanitizedStatus = request.Status?.Trim().ToLowerInvariant();
         var allowedStatuses = new[] { ConsignmentStatus.Received, ConsignmentStatus.Cancelled };
-        if (!allowedStatuses.Contains(request.Status))
+        if (!allowedStatuses.Contains(sanitizedStatus))
         {
             throw new InvalidOperationException($"Status '{request.Status}' tidak valid.");
         }
@@ -179,7 +185,7 @@ public class ConsignmentService : IConsignmentService
         {
             var stockUpdates = new List<StockUpdateItem>();
 
-            if (request.Status == ConsignmentStatus.Received)
+            if (sanitizedStatus == ConsignmentStatus.Received)
             {
                 foreach (var item in consignment.Items)
                 {
@@ -229,7 +235,7 @@ public class ConsignmentService : IConsignmentService
                 }
             }
 
-            consignment.Status = request.Status;
+            consignment.Status = sanitizedStatus!;
             consignment.UpdatedAt = DateTime.UtcNow;
 
             await _dbContext.SaveChangesAsync(ct);
