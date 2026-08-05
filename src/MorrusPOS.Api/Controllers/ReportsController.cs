@@ -46,6 +46,54 @@ public class ReportsController : ControllerBase
         return File(response.FileBytes, response.ContentType, response.FileName);
     }
 
+    [HttpGet("purchases")]
+    public async Task<ActionResult<PurchaseRecapReportDto>> GetPurchaseRecap(
+        [FromQuery] Guid? outletId,
+        [FromQuery] DateTime startDate,
+        [FromQuery] DateTime endDate,
+        CancellationToken ct = default)
+    {
+        var resolvedOutletId = ResolveTargetOutletId(outletId);
+        var report = await _reportService.GetPurchaseRecapReportAsync(resolvedOutletId, startDate, endDate, ct);
+        return Ok(report);
+    }
+
+    [HttpGet("purchases/export-excel")]
+    public async Task<IActionResult> ExportPurchaseRecapExcel(
+        [FromQuery] Guid? outletId,
+        [FromQuery] DateTime startDate,
+        [FromQuery] DateTime endDate,
+        CancellationToken ct = default)
+    {
+        var resolvedOutletId = ResolveTargetOutletId(outletId);
+        var response = await _reportService.ExportPurchaseRecapExcelAsync(resolvedOutletId, startDate, endDate, ct);
+        return File(response.FileBytes, response.ContentType, response.FileName);
+    }
+
+    [HttpGet("sales")]
+    public async Task<ActionResult<SalesRecapReportDto>> GetSalesRecap(
+        [FromQuery] Guid? outletId,
+        [FromQuery] DateTime startDate,
+        [FromQuery] DateTime endDate,
+        CancellationToken ct = default)
+    {
+        var resolvedOutletId = ResolveTargetOutletId(outletId);
+        var report = await _reportService.GetSalesRecapReportAsync(resolvedOutletId, startDate, endDate, ct);
+        return Ok(report);
+    }
+
+    [HttpGet("sales/export-excel")]
+    public async Task<IActionResult> ExportSalesRecapExcel(
+        [FromQuery] Guid? outletId,
+        [FromQuery] DateTime startDate,
+        [FromQuery] DateTime endDate,
+        CancellationToken ct = default)
+    {
+        var resolvedOutletId = ResolveTargetOutletId(outletId);
+        var response = await _reportService.ExportSalesRecapExcelAsync(resolvedOutletId, startDate, endDate, ct);
+        return File(response.FileBytes, response.ContentType, response.FileName);
+    }
+
     private Guid? ResolveTargetOutletId(Guid? requestedOutletId)
     {
         if (_currentUser.Role == "Owner" || _currentUser.Role == "Admin" || _currentUser.Role == "Keuangan")
