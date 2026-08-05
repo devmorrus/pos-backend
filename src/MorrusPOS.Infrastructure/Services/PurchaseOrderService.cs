@@ -68,11 +68,14 @@ public class PurchaseOrderService : IPurchaseOrderService
             throw new InvalidOperationException("Purchase Order wajib memiliki minimal satu item.");
 
         // 2. Validate payment type
-        if (request.PaymentType is not (PurchaseOrderPaymentType.Cash or PurchaseOrderPaymentType.Tempo))
-            throw new InvalidOperationException("PaymentType hanya boleh cash atau tempo.");
+        if (request.PaymentType is not (PurchaseOrderPaymentType.Cash or PurchaseOrderPaymentType.Tempo or PurchaseOrderPaymentType.Consignment))
+            throw new InvalidOperationException("PaymentType hanya boleh cash, tempo, atau consignment.");
 
         if (request.PaymentType == PurchaseOrderPaymentType.Tempo && request.DueDate == null)
             throw new InvalidOperationException("DueDate wajib diisi untuk pembayaran bertipe Tempo.");
+
+        if (request.PaymentType == PurchaseOrderPaymentType.Consignment && request.DueDate != null)
+            throw new InvalidOperationException("DueDate tidak boleh diisi untuk pembayaran bertipe Konsinyasi.");
 
         // 3. Generate PO number (non-blocking: random suffix to avoid sequence lock)
         var rand = new Random();
@@ -158,19 +161,70 @@ public class PurchaseOrderService : IPurchaseOrderService
             // === Handle Completion: Receive Goods ===
             if (request.Status == PurchaseOrderStatus.Completed)
             {
+                var isConsignmentPayment = po.PaymentType == PurchaseOrderPaymentType.Consignment;
+
+                Consignment? consignment = null;
+                if (isConsignmentPayment)
+                {
+                    consignment = new Consignment
+                    {
+                        Id = Guid.NewGuid(),
+                        SupplierId = po.SupplierId,
+                        OutletId = po.OutletId,
+                        ConsignmentNumber = $"CSG-PO-{po.PoNumber}",
+                        ReceiveDate = DateTime.UtcNow,
+                        Status = ConsignmentStatus.Received,
+                        CreatedBy = userId,
+                        CreatedAt = DateTime.UtcNow,
+                        Items = po.Items.Select(item => new ConsignmentItem
+                        {
+                            Id = Guid.NewGuid(),
+                            ProductId = item.ProductId,
+                            Qty = item.Qty,
+                            UnitCost = item.UnitCost,
+                            UnitPrice = item.Product != null ? item.Product.BasePrice : item.UnitCost
+                        }).ToList()
+                    };
+                    _dbContext.Consignments.Add(consignment);
+                }
+
                 foreach (var item in po.Items)
                 {
-                    // 1. Add stock movement (purchase_in)
-                    await _stockService.AddMovementAsync(
-                        productId: item.ProductId,
-                        outletId: po.OutletId,
-                        qtyChange: item.Qty,
-                        movementType: "purchase_in",
-                        referenceType: "purchase_order",
-                        referenceId: po.Id,
-                        note: $"Penerimaan barang dari PO {po.PoNumber}",
-                        ct: ct
-                    );
+                    if (isConsignmentPayment)
+                    {
+                        // 1. Mark product as consignment product
+                        if (item.Product != null)
+                        {
+                            item.Product.IsConsignment = true;
+                            item.Product.UpdatedAt = DateTime.UtcNow;
+                        }
+
+                        // 2. Add stock movement (consignment_in)
+                        await _stockService.AddMovementAsync(
+                            productId: item.ProductId,
+                            outletId: po.OutletId,
+                            qtyChange: item.Qty,
+                            movementType: "consignment_in",
+                            referenceType: "consignment",
+                            referenceId: consignment!.Id,
+                            note: $"Penerimaan barang konsinyasi via PO {po.PoNumber}",
+                            ct: ct
+                        );
+                    }
+                    else
+                    {
+                        // 1. Add stock movement (purchase_in)
+                        await _stockService.AddMovementAsync(
+                            productId: item.ProductId,
+                            outletId: po.OutletId,
+                            qtyChange: item.Qty,
+                            movementType: "purchase_in",
+                            referenceType: "purchase_order",
+                            referenceId: po.Id,
+                            note: $"Penerimaan barang dari PO {po.PoNumber}",
+                            ct: ct
+                        );
+                    }
 
                     // 2. Update HPP (CostPrice) and write audit log
                     if (item.Product != null && item.Product.CostPrice != item.UnitCost)

@@ -14,6 +14,7 @@ public static class PurchaseOrderPaymentType
 {
     public const string Cash = "cash";
     public const string Tempo = "tempo";
+    public const string Consignment = "consignment";
 }
 
 public class PurchaseOrder : AuditableEntity

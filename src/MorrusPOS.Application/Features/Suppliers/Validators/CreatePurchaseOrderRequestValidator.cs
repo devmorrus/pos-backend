@@ -23,7 +23,7 @@ public class PurchaseOrderItemRequestValidator : AbstractValidator<PurchaseOrder
 
 public class CreatePurchaseOrderRequestValidator : AbstractValidator<CreatePurchaseOrderRequest>
 {
-    private static readonly string[] AllowedPaymentTypes = { "cash", "tempo" };
+    private static readonly string[] AllowedPaymentTypes = { "cash", "tempo", "consignment" };
 
     public CreatePurchaseOrderRequestValidator()
     {
@@ -36,12 +36,16 @@ public class CreatePurchaseOrderRequestValidator : AbstractValidator<CreatePurch
         RuleFor(x => x.PaymentType)
             .NotEmpty().WithMessage("Tipe pembayaran wajib diisi.")
             .Must(pt => AllowedPaymentTypes.Contains(pt.ToLowerInvariant()))
-            .WithMessage("Tipe pembayaran harus 'cash' atau 'tempo'.");
+            .WithMessage("Tipe pembayaran harus 'cash', 'tempo', atau 'consignment'.");
 
         RuleFor(x => x.DueDate)
             .NotNull().WithMessage("Tanggal jatuh tempo wajib diisi untuk PO tempo.")
             .GreaterThanOrEqualTo(DateTime.UtcNow.Date).WithMessage("Tanggal jatuh tempo tidak boleh di masa lalu.")
             .When(x => string.Equals(x.PaymentType, "tempo", StringComparison.OrdinalIgnoreCase));
+
+        RuleFor(x => x.DueDate)
+            .Null().WithMessage("Tanggal jatuh tempo tidak boleh diisi untuk PO konsinyasi.")
+            .When(x => string.Equals(x.PaymentType, "consignment", StringComparison.OrdinalIgnoreCase));
 
         RuleFor(x => x.Items)
             .NotEmpty().WithMessage("Minimal satu item wajib diisi.")
