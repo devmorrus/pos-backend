@@ -47,6 +47,8 @@ public class AppDbContext : DbContext
     public DbSet<ConsignmentItem> ConsignmentItems => Set<ConsignmentItem>();
     public DbSet<ConsignmentSale> ConsignmentSales => Set<ConsignmentSale>();
     public DbSet<ConsignmentSettlement> ConsignmentSettlements => Set<ConsignmentSettlement>();
+    public DbSet<ConsignmentReturn> ConsignmentReturns => Set<ConsignmentReturn>();
+    public DbSet<ConsignmentReturnItem> ConsignmentReturnItems => Set<ConsignmentReturnItem>();
 
     // Fase 6 — Integrasi Channel Online
     public DbSet<ChannelAccount> ChannelAccounts => Set<ChannelAccount>();

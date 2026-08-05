@@ -47,6 +47,7 @@ public static class DependencyInjection
         // Fase 6 — Barang Titipan / Konsinyasi
         services.AddScoped<IConsignmentService, ConsignmentService>();
         services.AddScoped<IConsignmentSettlementService, ConsignmentSettlementService>();
+        services.AddScoped<IConsignmentReturnService, ConsignmentReturnService>();
 
         // Fase 8 — Dashboard & Laporan
         services.AddScoped<IDashboardService, DashboardService>();

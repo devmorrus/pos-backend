@@ -108,3 +108,51 @@ public class ConsignmentSettlementConfiguration : IEntityTypeConfiguration<Consi
             .OnDelete(DeleteBehavior.Restrict);
     }
 }
+
+public class ConsignmentReturnConfiguration : IEntityTypeConfiguration<ConsignmentReturn>
+{
+    public void Configure(EntityTypeBuilder<ConsignmentReturn> builder)
+    {
+        builder.ToTable("consignment_returns");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.ReturnNumber).HasMaxLength(30).IsRequired();
+        builder.HasIndex(x => x.ReturnNumber).IsUnique();
+        builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
+
+        builder.HasOne(x => x.Supplier)
+            .WithMany()
+            .HasForeignKey(x => x.SupplierId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.Outlet)
+            .WithMany()
+            .HasForeignKey(x => x.OutletId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.CreatedByUser)
+            .WithMany()
+            .HasForeignKey(x => x.CreatedBy)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class ConsignmentReturnItemConfiguration : IEntityTypeConfiguration<ConsignmentReturnItem>
+{
+    public void Configure(EntityTypeBuilder<ConsignmentReturnItem> builder)
+    {
+        builder.ToTable("consignment_return_items");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Qty).HasColumnType("decimal(12,2)");
+
+        builder.HasOne(x => x.ConsignmentReturn)
+            .WithMany(c => c.Items)
+            .HasForeignKey(x => x.ConsignmentReturnId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.Product)
+            .WithMany()
+            .HasForeignKey(x => x.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+

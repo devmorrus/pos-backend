@@ -56,6 +56,8 @@ builder.Services.AddScoped<IValidator<CreateConsignmentRequest>, CreateConsignme
 builder.Services.AddScoped<IValidator<UpdateConsignmentStatusRequest>, UpdateConsignmentStatusRequestValidator>();
 builder.Services.AddScoped<IValidator<CreateConsignmentSettlementRequest>, CreateConsignmentSettlementRequestValidator>();
 builder.Services.AddScoped<IValidator<UpdateConsignmentSettlementStatusRequest>, UpdateConsignmentSettlementStatusRequestValidator>();
+builder.Services.AddScoped<IValidator<CreateConsignmentReturnRequest>, CreateConsignmentReturnRequestValidator>();
+builder.Services.AddScoped<IValidator<UpdateConsignmentReturnStatusRequest>, UpdateConsignmentReturnStatusRequestValidator>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
