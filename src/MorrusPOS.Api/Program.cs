@@ -7,7 +7,13 @@ using MorrusPOS.Api.Middleware;
 using MorrusPOS.Api.Security;
 using MorrusPOS.Api.Hubs;
 using MorrusPOS.Api.Services;
+using FluentValidation;
+using MorrusPOS.Api.Filters;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Features.Auth;
+using MorrusPOS.Application.Features.Auth.Validators;
+using MorrusPOS.Application.Features.Users;
+using MorrusPOS.Application.Features.Users.Validators;
 using MorrusPOS.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,8 +21,11 @@ var builder = WebApplication.CreateBuilder(args);
 // ---- Layer registration ----
 builder.Services.AddInfrastructure(builder.Configuration);
 
-// TODO: buat AddApplication() extension di project Application kalau nanti
-// ada MediatR/FluentValidation pipeline yang perlu didaftarkan terpusat.
+// ---- FluentValidation Validators ----
+builder.Services.AddScoped<IValidator<LoginRequest>, LoginRequestValidator>();
+builder.Services.AddScoped<IValidator<CreateUserRequest>, CreateUserRequestValidator>();
+builder.Services.AddScoped<IValidator<UpdateUserRequest>, UpdateUserRequestValidator>();
+builder.Services.AddScoped<IValidator<ChangePasswordRequest>, ChangePasswordRequestValidator>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
@@ -47,7 +56,10 @@ builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionAuthorizat
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
 // ---- Controllers & Swagger ----
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<ValidationFilter>();
+});
 builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
 // Swashbuckle.AspNetCore v10+ (dipakai untuk .NET 10) pindah ke Microsoft.OpenApi v2,
