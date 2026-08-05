@@ -20,6 +20,8 @@ using MorrusPOS.Application.Features.Transactions;
 using MorrusPOS.Application.Features.Transactions.Validators;
 using MorrusPOS.Application.Features.Stock;
 using MorrusPOS.Application.Features.Stock.Validators;
+using MorrusPOS.Application.Features.Suppliers;
+using MorrusPOS.Application.Features.Suppliers.Validators;
 using MorrusPOS.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -43,6 +45,11 @@ builder.Services.AddScoped<IValidator<VoidTransactionRequest>, VoidTransactionRe
 builder.Services.AddScoped<IValidator<RefundTransactionRequest>, RefundTransactionRequestValidator>();
 builder.Services.AddScoped<IValidator<CreateStockOpnameRequest>, CreateStockOpnameRequestValidator>();
 builder.Services.AddScoped<IValidator<CreateStockTransferRequest>, CreateStockTransferRequestValidator>();
+builder.Services.AddScoped<IValidator<CreateSupplierRequest>, CreateSupplierRequestValidator>();
+builder.Services.AddScoped<IValidator<UpdateSupplierRequest>, UpdateSupplierRequestValidator>();
+builder.Services.AddScoped<IValidator<CreatePurchaseOrderRequest>, CreatePurchaseOrderRequestValidator>();
+builder.Services.AddScoped<IValidator<UpdatePoStatusRequest>, UpdatePoStatusRequestValidator>();
+builder.Services.AddScoped<IValidator<CreateSupplierPaymentRequest>, CreateSupplierPaymentRequestValidator>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();

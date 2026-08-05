@@ -35,14 +35,23 @@ public class SupplierService : ISupplierService
 
     public async Task<SupplierDto> CreateAsync(CreateSupplierRequest request, CancellationToken ct = default)
     {
+        var trimmedName = request.Name?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmedName))
+            throw new InvalidOperationException("Nama supplier wajib diisi.");
+
+        var nameLower = trimmedName.ToLower();
+        var exists = await _dbContext.Suppliers.AnyAsync(s => s.Name.ToLower() == nameLower, ct);
+        if (exists)
+            throw new InvalidOperationException("Supplier dengan nama yang sama sudah terdaftar.");
+
         var supplier = new Supplier
         {
             Id = Guid.NewGuid(),
-            Name = request.Name,
-            ContactPerson = request.ContactPerson,
-            Phone = request.Phone,
-            Email = request.Email,
-            Address = request.Address,
+            Name = trimmedName,
+            ContactPerson = request.ContactPerson?.Trim(),
+            Phone = request.Phone?.Trim(),
+            Email = request.Email?.Trim(),
+            Address = request.Address?.Trim(),
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -60,11 +69,20 @@ public class SupplierService : ISupplierService
         if (supplier == null)
             throw new InvalidOperationException("Supplier tidak ditemukan.");
 
-        supplier.Name = request.Name;
-        supplier.ContactPerson = request.ContactPerson;
-        supplier.Phone = request.Phone;
-        supplier.Email = request.Email;
-        supplier.Address = request.Address;
+        var trimmedName = request.Name?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmedName))
+            throw new InvalidOperationException("Nama supplier wajib diisi.");
+
+        var nameLower = trimmedName.ToLower();
+        var exists = await _dbContext.Suppliers.AnyAsync(s => s.Id != id && s.Name.ToLower() == nameLower, ct);
+        if (exists)
+            throw new InvalidOperationException("Supplier dengan nama yang sama sudah terdaftar.");
+
+        supplier.Name = trimmedName;
+        supplier.ContactPerson = request.ContactPerson?.Trim();
+        supplier.Phone = request.Phone?.Trim();
+        supplier.Email = request.Email?.Trim();
+        supplier.Address = request.Address?.Trim();
         supplier.IsActive = request.IsActive;
         supplier.UpdatedAt = DateTime.UtcNow;
 
