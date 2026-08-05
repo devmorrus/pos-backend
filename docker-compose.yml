@@ -1,0 +1,54 @@
+name: morrus-pos
+
+services:
+  database:
+    image: postgres:15-alpine
+    container_name: morruspos_db
+    environment:
+      POSTGRES_DB: morrusposs
+      POSTGRES_USER: irok
+      POSTGRES_PASSWORD: password123
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U irok -d morrusposs"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: morruspos_backend
+    ports:
+      - "8080:8080"
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=database;Port=5432;Database=morrusposs;Username=irok;Password=password123
+      - Jwt__Secret=mohammadhilmiafifi1234567890123456
+      - Jwt__Issuer=MorrusPOS
+      - Jwt__Audience=MorrusPOS.Client
+      - Jwt__AccessTokenMinutes=60
+      - Frontend__Url=http://localhost
+      - ASPNETCORE_ENVIRONMENT=Development
+    depends_on:
+      database:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=http://localhost:8080
+        - VITE_SIGNALR_URL=http://localhost:8080/hub/notifications
+    container_name: morruspos_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
