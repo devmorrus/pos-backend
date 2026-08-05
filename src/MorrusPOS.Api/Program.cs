@@ -16,6 +16,8 @@ using MorrusPOS.Application.Features.Users;
 using MorrusPOS.Application.Features.Users.Validators;
 using MorrusPOS.Application.Features.Products;
 using MorrusPOS.Application.Features.Products.Validators;
+using MorrusPOS.Application.Features.Transactions;
+using MorrusPOS.Application.Features.Transactions.Validators;
 using MorrusPOS.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -32,6 +34,11 @@ builder.Services.AddScoped<IValidator<CreateProductRequest>, CreateProductReques
 builder.Services.AddScoped<IValidator<UpdateProductRequest>, UpdateProductRequestValidator>();
 builder.Services.AddScoped<IValidator<CreateCategoryRequest>, CreateCategoryRequestValidator>();
 builder.Services.AddScoped<IValidator<UpdateCategoryRequest>, UpdateCategoryRequestValidator>();
+builder.Services.AddScoped<IValidator<OpenSessionRequest>, OpenSessionRequestValidator>();
+builder.Services.AddScoped<IValidator<CloseSessionRequest>, CloseSessionRequestValidator>();
+builder.Services.AddScoped<IValidator<CheckoutRequest>, CheckoutRequestValidator>();
+builder.Services.AddScoped<IValidator<VoidTransactionRequest>, VoidTransactionRequestValidator>();
+builder.Services.AddScoped<IValidator<RefundTransactionRequest>, RefundTransactionRequestValidator>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
