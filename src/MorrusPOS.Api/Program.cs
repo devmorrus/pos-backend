@@ -18,6 +18,8 @@ using MorrusPOS.Application.Features.Products;
 using MorrusPOS.Application.Features.Products.Validators;
 using MorrusPOS.Application.Features.Transactions;
 using MorrusPOS.Application.Features.Transactions.Validators;
+using MorrusPOS.Application.Features.Stock;
+using MorrusPOS.Application.Features.Stock.Validators;
 using MorrusPOS.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -39,6 +41,8 @@ builder.Services.AddScoped<IValidator<CloseSessionRequest>, CloseSessionRequestV
 builder.Services.AddScoped<IValidator<CheckoutRequest>, CheckoutRequestValidator>();
 builder.Services.AddScoped<IValidator<VoidTransactionRequest>, VoidTransactionRequestValidator>();
 builder.Services.AddScoped<IValidator<RefundTransactionRequest>, RefundTransactionRequestValidator>();
+builder.Services.AddScoped<IValidator<CreateStockOpnameRequest>, CreateStockOpnameRequestValidator>();
+builder.Services.AddScoped<IValidator<CreateStockTransferRequest>, CreateStockTransferRequestValidator>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
