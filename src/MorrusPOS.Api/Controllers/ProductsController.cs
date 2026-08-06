@@ -13,11 +13,16 @@ public class ProductsController : ControllerBase
 {
     private readonly IProductService _productService;
     private readonly ICurrentUserService _currentUser;
+    private readonly Microsoft.AspNetCore.Hosting.IWebHostEnvironment _env;
 
-    public ProductsController(IProductService productService, ICurrentUserService currentUser)
+    public ProductsController(
+        IProductService productService,
+        ICurrentUserService currentUser,
+        Microsoft.AspNetCore.Hosting.IWebHostEnvironment env)
     {
         _productService = productService;
         _currentUser = currentUser;
+        _env = env;
     }
 
     [HttpGet]
@@ -62,5 +67,47 @@ public class ProductsController : ControllerBase
     {
         await _productService.DeleteAsync(id, ct);
         return NoContent();
+    }
+
+    [HttpPost("upload-image")]
+    [HasPermission("product.manage")]
+    public async Task<IActionResult> UploadImage(Microsoft.AspNetCore.Http.IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest("File tidak boleh kosong.");
+        }
+
+        // Validate file size (max 2MB)
+        if (file.Length > 2 * 1024 * 1024)
+        {
+            return BadRequest("Ukuran file tidak boleh melebihi 2MB.");
+        }
+
+        // Validate extensions
+        var allowedExtensions = new[] { ".png", ".jpg", ".jpeg", ".webp" };
+        var extension = Path.GetExtension(file.FileName).ToLower();
+        if (!allowedExtensions.Contains(extension))
+        {
+            return BadRequest("Hanya diperbolehkan format PNG, JPG, JPEG, atau WEBP.");
+        }
+
+        // Target path: wwwroot/uploads/
+        var uploadsFolder = Path.Combine(_env.ContentRootPath, "wwwroot", "uploads");
+        if (!Directory.Exists(uploadsFolder))
+        {
+            Directory.CreateDirectory(uploadsFolder);
+        }
+
+        var fileName = $"{Guid.NewGuid()}{extension}";
+        var filePath = Path.Combine(uploadsFolder, fileName);
+
+        using (var stream = new FileStream(filePath, FileMode.Create))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        var relativeUrl = $"/uploads/{fileName}";
+        return Ok(new { url = relativeUrl });
     }
 }

@@ -129,6 +129,12 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+Console.WriteLine($"[DIAGNOSTIC] Current Directory: {Directory.GetCurrentDirectory()}");
+Console.WriteLine($"[DIAGNOSTIC] WebRootPath: {app.Environment.WebRootPath}");
+Console.WriteLine($"[DIAGNOSTIC] ContentRootPath: {app.Environment.ContentRootPath}");
+Console.WriteLine($"[DIAGNOSTIC] Uploads Directory Path: {Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads")}");
+Console.WriteLine($"[DIAGNOSTIC] Uploads Folder Exists: {Directory.Exists(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads"))}");
+
 // Auto-migrate database on startup
 using (var scope = app.Services.CreateScope())
 {
@@ -143,6 +149,22 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Ensure wwwroot/uploads directory exists at runtime
+var wwwrootPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot");
+var uploadsPath = Path.Combine(wwwrootPath, "uploads");
+if (!Directory.Exists(uploadsPath))
+{
+    Directory.CreateDirectory(uploadsPath);
+}
+
+// Serve static files from wwwroot/uploads folder under /uploads request path
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadsPath),
+    RequestPath = "/uploads"
+});
+
 app.UseCors("FrontendPolicy");
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
