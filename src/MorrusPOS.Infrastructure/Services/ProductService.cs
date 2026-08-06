@@ -89,6 +89,7 @@ public class ProductService : IProductService
             CostPrice = request.CostPrice,
             Unit = request.Unit,
             IsConsignment = request.IsConsignment,
+            ImageUrl = request.ImageUrl,
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -220,6 +221,7 @@ public class ProductService : IProductService
         product.CostPrice = request.CostPrice;
         product.Unit = request.Unit;
         product.IsConsignment = request.IsConsignment;
+        product.ImageUrl = request.ImageUrl;
         product.IsActive = request.IsActive;
         product.UpdatedAt = DateTime.UtcNow;
 
@@ -271,7 +273,8 @@ public class ProductService : IProductService
             p.BasePrice,
             p.Unit,
             p.IsConsignment,
-            qtyOnHand
+            qtyOnHand,
+            p.ImageUrl
         );
     }
 }

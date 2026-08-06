@@ -9,7 +9,8 @@ public record ProductDto(
     decimal BasePrice,
     string Unit,
     bool IsConsignment,
-    decimal QtyOnHand // hasil join ke InventoryStock untuk outlet aktif
+    decimal QtyOnHand, // hasil join ke InventoryStock untuk outlet aktif
+    string? ImageUrl = null
 );
 
 public record CreateProductRequest(
@@ -20,7 +21,8 @@ public record CreateProductRequest(
     decimal BasePrice,
     decimal CostPrice,
     string Unit,
-    bool IsConsignment
+    bool IsConsignment,
+    string? ImageUrl = null
 );
 
 public record UpdateProductRequest(
@@ -32,7 +34,8 @@ public record UpdateProductRequest(
     decimal CostPrice,
     string Unit,
     bool IsConsignment,
-    bool IsActive
+    bool IsActive,
+    string? ImageUrl = null
 );
 
 public interface IProductService
