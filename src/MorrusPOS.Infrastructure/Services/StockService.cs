@@ -43,30 +43,27 @@ public class StockService : IStockService
 
         _dbContext.StockLedgers.Add(ledger);
 
-        // 2. Adjust InventoryStock (C# layer fallback for InMemory/SQLite tests)
-        if (_dbContext.Database.ProviderName != "Npgsql.EntityFrameworkCore.PostgreSQL")
-        {
-            var stock = await _dbContext.InventoryStocks
-                .FirstOrDefaultAsync(s => s.ProductId == productId && s.OutletId == outletId, ct);
+        // 2. Adjust InventoryStock
+        var stock = await _dbContext.InventoryStocks
+            .FirstOrDefaultAsync(s => s.ProductId == productId && s.OutletId == outletId, ct);
 
-            if (stock == null)
+        if (stock == null)
+        {
+            stock = new InventoryStock
             {
-                stock = new InventoryStock
-                {
-                    Id = Guid.NewGuid(),
-                    ProductId = productId,
-                    OutletId = outletId,
-                    QtyOnHand = qtyChange,
-                    MinStockAlert = 0,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                _dbContext.InventoryStocks.Add(stock);
-            }
-            else
-            {
-                stock.QtyOnHand += qtyChange;
-                stock.UpdatedAt = DateTime.UtcNow;
-            }
+                Id = Guid.NewGuid(),
+                ProductId = productId,
+                OutletId = outletId,
+                QtyOnHand = qtyChange,
+                MinStockAlert = 0,
+                UpdatedAt = DateTime.UtcNow
+            };
+            _dbContext.InventoryStocks.Add(stock);
+        }
+        else
+        {
+            stock.QtyOnHand += qtyChange;
+            stock.UpdatedAt = DateTime.UtcNow;
         }
     }
 }
