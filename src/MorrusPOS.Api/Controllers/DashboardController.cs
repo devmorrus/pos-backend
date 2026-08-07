@@ -10,7 +10,7 @@ namespace MorrusPOS.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Owner,Admin,Keuangan,KepalaCabang")]
+[Authorize(Roles = "Owner,Admin,Keuangan,Gudang,Kasir,KepalaCabang")]
 public class DashboardController : ControllerBase
 {
     private readonly IDashboardService _dashboardService;
@@ -32,6 +32,24 @@ public class DashboardController : ControllerBase
         var resolvedOutletId = ResolveTargetOutletId(outletId);
         
         var summary = await _dashboardService.GetSummaryAsync(resolvedOutletId, startDate, endDate, ct);
+        return Ok(summary);
+    }
+
+    [HttpGet("role-summary")]
+    public async Task<ActionResult<RoleDashboardDto>> GetRoleSummary(
+        [FromQuery] Guid? outletId,
+        [FromQuery] DateTime startDate,
+        [FromQuery] DateTime endDate,
+        CancellationToken ct = default)
+    {
+        var resolvedOutletId = ResolveTargetOutletId(outletId);
+        var summary = await _dashboardService.GetRoleSummaryAsync(
+            _currentUser.Role ?? "Kasir",
+            _currentUser.UserId ?? Guid.Empty,
+            resolvedOutletId,
+            startDate,
+            endDate,
+            ct);
         return Ok(summary);
     }
 
