@@ -12,12 +12,14 @@ public class PurchaseOrderService : IPurchaseOrderService
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IPosNotificationService _notificationService;
 
-    public PurchaseOrderService(AppDbContext dbContext, IStockService stockService, ICurrentUserService currentUserService)
+    public PurchaseOrderService(AppDbContext dbContext, IStockService stockService, ICurrentUserService currentUserService, IPosNotificationService notificationService)
     {
         _dbContext = dbContext;
         _stockService = stockService;
         _currentUserService = currentUserService;
+        _notificationService = notificationService;
     }
 
     public async Task<PurchaseOrderDto> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -280,6 +282,26 @@ public class PurchaseOrderService : IPurchaseOrderService
             po.UpdatedAt = DateTime.UtcNow;
 
             await _dbContext.SaveChangesAsync(ct);
+
+            // After SaveChangesAsync, PostgreSQL trigger has already updated InventoryStock.
+            // Now query the latest stock values and broadcast to connected POS clients via SignalR.
+            if (request.Status == PurchaseOrderStatus.Completed)
+            {
+                var productIds = po.Items.Select(i => i.ProductId).ToList();
+                var stocks = await _dbContext.InventoryStocks
+                    .Where(s => s.OutletId == po.OutletId && productIds.Contains(s.ProductId))
+                    .ToListAsync(ct);
+
+                var stockUpdates = stocks
+                    .Select(s => new StockUpdateItem(s.ProductId, s.QtyOnHand))
+                    .ToList();
+
+                if (stockUpdates.Any())
+                {
+                    await _notificationService.SendStockUpdateAsync(po.OutletId, stockUpdates, ct);
+                }
+            }
+
             await dbTx.CommitAsync(ct);
 
             return await GetByIdAsync(po.Id, ct);

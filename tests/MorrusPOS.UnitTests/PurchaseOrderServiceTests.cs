@@ -15,6 +15,7 @@ public class PurchaseOrderServiceTests
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockServiceMock;
     private readonly ICurrentUserService _currentUserServiceMock;
+    private readonly IPosNotificationService _notificationServiceMock;
 
     // Fixed seed data
     private readonly Guid _supplierId = Guid.NewGuid();
@@ -34,6 +35,7 @@ public class PurchaseOrderServiceTests
         _dbContext = new AppDbContext(options);
         _stockServiceMock = Substitute.For<IStockService>();
         _currentUserServiceMock = Substitute.For<ICurrentUserService>();
+        _notificationServiceMock = Substitute.For<IPosNotificationService>();
         _currentUserServiceMock.Role.Returns("Owner");
         _currentUserServiceMock.OutletId.Returns((Guid?)null);
         _currentUserServiceMock.UserId.Returns(_userId);
@@ -73,7 +75,7 @@ public class PurchaseOrderServiceTests
     public async Task CreateAsync_Should_CreatePO_WithStatusDraft_AndCalculateTotalAmount()
     {
         await SeedBaseDataAsync();
-        var service = new PurchaseOrderService(_dbContext, _stockServiceMock, _currentUserServiceMock);
+        var service = new PurchaseOrderService(_dbContext, _stockServiceMock, _currentUserServiceMock, _notificationServiceMock);
 
         var request = new CreatePurchaseOrderRequest(
             SupplierId: _supplierId,
@@ -99,7 +101,7 @@ public class PurchaseOrderServiceTests
     public async Task CreateAsync_Should_ThrowException_When_TempoPaymentHasNoDueDate()
     {
         await SeedBaseDataAsync();
-        var service = new PurchaseOrderService(_dbContext, _stockServiceMock, _currentUserServiceMock);
+        var service = new PurchaseOrderService(_dbContext, _stockServiceMock, _currentUserServiceMock, _notificationServiceMock);
 
         var request = new CreatePurchaseOrderRequest(
             SupplierId: _supplierId,
@@ -119,7 +121,7 @@ public class PurchaseOrderServiceTests
     public async Task UpdateStatusAsync_ToCompleted_Should_IncrementStock_And_UpdateCostPrice_And_CreateSupplierDebt_ForTempoPO()
     {
         await SeedBaseDataAsync(initialCostPrice: 8000); // Initial HPP = 8000
-        var service = new PurchaseOrderService(_dbContext, _stockServiceMock, _currentUserServiceMock);
+        var service = new PurchaseOrderService(_dbContext, _stockServiceMock, _currentUserServiceMock, _notificationServiceMock);
 
         // Create a Tempo PO
         var createRequest = new CreatePurchaseOrderRequest(
@@ -172,7 +174,7 @@ public class PurchaseOrderServiceTests
     public async Task UpdateStatusAsync_ToCompleted_Should_NOT_CreateSupplierDebt_ForCashPO()
     {
         await SeedBaseDataAsync();
-        var service = new PurchaseOrderService(_dbContext, _stockServiceMock, _currentUserServiceMock);
+        var service = new PurchaseOrderService(_dbContext, _stockServiceMock, _currentUserServiceMock, _notificationServiceMock);
 
         var createRequest = new CreatePurchaseOrderRequest(
             SupplierId: _supplierId,
@@ -194,7 +196,7 @@ public class PurchaseOrderServiceTests
     public async Task UpdateStatusAsync_Should_ThrowException_When_PoIsAlreadyCompleted()
     {
         await SeedBaseDataAsync();
-        var service = new PurchaseOrderService(_dbContext, _stockServiceMock, _currentUserServiceMock);
+        var service = new PurchaseOrderService(_dbContext, _stockServiceMock, _currentUserServiceMock, _notificationServiceMock);
 
         var createRequest = new CreatePurchaseOrderRequest(
             SupplierId: _supplierId,

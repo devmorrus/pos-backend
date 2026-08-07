@@ -20,6 +20,7 @@ public class PurchaseOrderConsignmentTests
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockServiceMock;
     private readonly ICurrentUserService _currentUserServiceMock;
+    private readonly IPosNotificationService _notificationServiceMock;
 
     private readonly Guid _supplierId = Guid.NewGuid();
     private readonly Guid _outletId = Guid.NewGuid();
@@ -38,6 +39,7 @@ public class PurchaseOrderConsignmentTests
         _dbContext = new AppDbContext(options);
         _stockServiceMock = Substitute.For<IStockService>();
         _currentUserServiceMock = Substitute.For<ICurrentUserService>();
+        _notificationServiceMock = Substitute.For<IPosNotificationService>();
         _currentUserServiceMock.Role.Returns("Owner");
         _currentUserServiceMock.OutletId.Returns((Guid?)null);
         _currentUserServiceMock.UserId.Returns(_userId);
@@ -69,7 +71,7 @@ public class PurchaseOrderConsignmentTests
     {
         // Arrange
         await SeedBaseDataAsync();
-        var service = new PurchaseOrderService(_dbContext, _stockServiceMock, _currentUserServiceMock);
+        var service = new PurchaseOrderService(_dbContext, _stockServiceMock, _currentUserServiceMock, _notificationServiceMock);
 
         var request = new CreatePurchaseOrderRequest(
             SupplierId: _supplierId,

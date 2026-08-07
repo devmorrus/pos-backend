@@ -278,17 +278,28 @@ public class DashboardService : IDashboardService
             .ToListAsync(ct);
 
         // 5. Top Suppliers
-        var topSuppliers = await poQuery
-            .GroupBy(po => new { po.SupplierId, po.Supplier.Name })
-            .Select(g => new TopSupplierDto(
-                g.Key.SupplierId,
-                g.Key.Name,
-                g.Sum(po => po.TotalAmount),
-                g.Count()
-            ))
-            .OrderByDescending(s => s.TotalPurchaseAmount)
+        var topSuppliersData = await poQuery
+            .GroupBy(po => po.SupplierId)
+            .Select(g => new {
+                SupplierId = g.Key,
+                TotalPurchaseAmount = g.Sum(po => po.TotalAmount),
+                PurchaseCount = g.Count()
+            })
+            .OrderByDescending(x => x.TotalPurchaseAmount)
             .Take(5)
             .ToListAsync(ct);
+
+        var supplierIds = topSuppliersData.Select(x => x.SupplierId).ToList();
+        var suppliers = await _dbContext.Suppliers
+            .Where(s => supplierIds.Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, s => s.Name, ct);
+
+        var topSuppliers = topSuppliersData.Select(x => new TopSupplierDto(
+            x.SupplierId,
+            suppliers.TryGetValue(x.SupplierId, out var name) ? name : "Unknown",
+            x.TotalPurchaseAmount,
+            x.PurchaseCount
+        )).ToList();
 
         // 6. Purchase Trend
         var poTrendData = await poQuery
