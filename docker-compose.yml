@@ -6,14 +6,14 @@ services:
     container_name: morruspos_db
     environment:
       POSTGRES_DB: morrusposs
-      POSTGRES_USER: irok
+      POSTGRES_USER: morrus
       POSTGRES_PASSWORD: password123
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5436:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U irok -d morrusposs"]
+      test: ["CMD-SHELL", "pg_isready -U morrus -d morrusposs"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -24,9 +24,9 @@ services:
       dockerfile: Dockerfile
     container_name: morruspos_backend
     ports:
-      - "8080:8080"
+      - "8085:8080"
     environment:
-      - ConnectionStrings__DefaultConnection=Host=database;Port=5432;Database=morrusposs;Username=irok;Password=password123
+      - ConnectionStrings__DefaultConnection=Host=database;Port=5432;Database=morrusposs;Username=morrus;Password=password123
       - Jwt__Secret=mohammadhilmiafifi1234567890123456
       - Jwt__Issuer=MorrusPOS
       - Jwt__Audience=MorrusPOS.Client
