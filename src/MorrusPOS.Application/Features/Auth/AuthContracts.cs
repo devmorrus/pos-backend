@@ -9,8 +9,22 @@ public record LoginResponse(
     string Name,
     string Role,
     Guid? OutletId,
-    IReadOnlyList<string> Permissions
+    IReadOnlyList<string> Permissions,
+    Guid? BusinessId,
+    string SubscriptionStatus,
+    DateTime TrialEndDate
 );
+
+public record RegisterOwnerRequest(
+    RegisterOwnerOwnerDetails Owner,
+    RegisterOwnerBusinessDetails Business,
+    string Package,
+    RegisterOwnerOutletDetails Outlet
+);
+
+public record RegisterOwnerOwnerDetails(string Name, string Email, string Password);
+public record RegisterOwnerBusinessDetails(string Name, string Category, string? Phone);
+public record RegisterOwnerOutletDetails(string Name, string Code, string? Address, string? Phone);
 
 public record RefreshTokenRequest(string RefreshToken);
 public record RevokeTokenRequest(string RefreshToken);
@@ -19,5 +33,6 @@ public interface IAuthService
 {
     Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken ct = default);
     Task<LoginResponse> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken ct = default);
+    Task<LoginResponse> RegisterOwnerAsync(RegisterOwnerRequest request, CancellationToken ct = default);
     Task RevokeTokenAsync(RevokeTokenRequest request, CancellationToken ct = default);
 }

@@ -9,13 +9,14 @@ public interface ICurrentUserService
 {
     Guid? UserId { get; }
     Guid? OutletId { get; } // null = akses semua outlet (role Owner)
+    Guid? BusinessId { get; }
     string? Role { get; }
     bool IsAuthenticated { get; }
 }
 
 public interface IJwtTokenService
 {
-    string GenerateAccessToken(Guid userId, Guid? outletId, string role);
+    string GenerateAccessToken(Guid userId, Guid? outletId, string role, Guid? businessId, string subscriptionStatus, DateTime trialEndDate);
     string GenerateRefreshToken();
 }
 

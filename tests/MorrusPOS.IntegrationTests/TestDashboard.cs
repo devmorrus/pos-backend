@@ -28,7 +28,7 @@ public class TestDashboard : IClassFixture<WebApplicationFactory<Program>>
 
         // Generate owner token
         var userId = Guid.Parse("a4f78de1-8a9d-4e96-857e-399fa5b5f25a");
-        var token = jwtService.GenerateAccessToken(userId, null, "Owner");
+        var token = jwtService.GenerateAccessToken(userId, null, "Owner", null, "Active", DateTime.UtcNow.AddYears(1));
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 

@@ -17,13 +17,18 @@ public class JwtTokenService : IJwtTokenService
         _config = config;
     }
 
-    public string GenerateAccessToken(Guid userId, Guid? outletId, string role)
+    public string GenerateAccessToken(Guid userId, Guid? outletId, string role, Guid? businessId, string subscriptionStatus, DateTime trialEndDate)
     {
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, userId.ToString()),
             new(ClaimTypes.Role, role),
+            new("subscription_status", subscriptionStatus),
+            new("trial_end_date", trialEndDate.ToString("o"))
         };
+
+        if (businessId is not null)
+            claims.Add(new Claim("business_id", businessId.Value.ToString()));
 
         // outletId null (Owner, akses semua outlet) sengaja tidak ditambahkan sebagai claim
         if (outletId is not null)
