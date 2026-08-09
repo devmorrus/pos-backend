@@ -34,5 +34,14 @@ public class CurrentUserService : ICurrentUserService
         }
     }
 
+    public Guid? BusinessId
+    {
+        get
+        {
+            var businessId = User?.FindFirstValue("business_id");
+            return Guid.TryParse(businessId, out var id) ? id : null;
+        }
+    }
+
     public string? Role => User?.FindFirstValue(ClaimTypes.Role);
 }

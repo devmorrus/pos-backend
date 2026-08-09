@@ -23,6 +23,13 @@ public class AuthController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("register-owner")]
+    public async Task<ActionResult<LoginResponse>> RegisterOwner(RegisterOwnerRequest request, CancellationToken ct)
+    {
+        var result = await _authService.RegisterOwnerAsync(request, ct);
+        return Ok(result);
+    }
+
     [HttpPost("refresh")]
     public async Task<ActionResult<LoginResponse>> Refresh(RefreshTokenRequest request, CancellationToken ct)
     {

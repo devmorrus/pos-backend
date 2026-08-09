@@ -172,6 +172,8 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.UseMiddleware<SubscriptionVerificationMiddleware>();
+
 // Guard multi-tenant: pastikan user hanya bisa akses data outlet-nya sendiri
 // (kecuali Owner, yang outlet_id-nya null di JWT claim)
 app.UseMiddleware<OutletTenantMiddleware>();
