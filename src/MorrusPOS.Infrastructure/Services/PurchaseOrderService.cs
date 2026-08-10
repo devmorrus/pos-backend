@@ -331,7 +331,8 @@ public class PurchaseOrderService : IPurchaseOrderService
             i.Product?.Sku ?? string.Empty,
             i.Qty,
             i.UnitCost,
-            i.TotalCost
+            i.TotalCost,
+            i.Product?.BasePrice ?? 0
         )).ToList()
     );
 

@@ -60,6 +60,8 @@ public class InventoryService : IInventoryService
                 stock.QtyOnHand,
                 stock.MinStockAlert,
                 stock.QtyOnHand <= stock.MinStockAlert,
+                stock.Product.CostPrice,
+                stock.Product.BasePrice,
                 stock.UpdatedAt
             ))
             .ToListAsync(ct);

@@ -7,6 +7,7 @@ public record ProductDto(
     string Name,
     string? Barcode,
     decimal BasePrice,
+    decimal CostPrice,
     string Unit,
     bool IsConsignment,
     decimal QtyOnHand, // hasil join ke InventoryStock untuk outlet aktif

@@ -12,22 +12,23 @@
 CREATE OR REPLACE FUNCTION fn_update_inventory_stock()
 RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO inventory_stock (id, product_id, outlet_id, qty_on_hand, min_stock_alert, updated_at)
-    VALUES (gen_random_uuid(), NEW.product_id, NEW.outlet_id, NEW.qty_change, 0, now())
-    ON CONFLICT (product_id, outlet_id)
+    INSERT INTO "inventory_stock" ("Id", "ProductId", "OutletId", "QtyOnHand", "MinStockAlert", "UpdatedAt")
+    VALUES (gen_random_uuid(), NEW."ProductId", NEW."OutletId", NEW."QtyChange", 0, now())
+    ON CONFLICT ("ProductId", "OutletId")
     DO UPDATE SET
-        qty_on_hand = inventory_stock.qty_on_hand + NEW.qty_change,
-        updated_at = now();
+        "QtyOnHand" = "inventory_stock"."QtyOnHand" + NEW."QtyChange",
+        "UpdatedAt" = now();
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trg_stock_ledger_insert ON stock_ledger;
+DROP TRIGGER IF EXISTS trg_stock_ledger_insert ON "stock_ledger";
 
 CREATE TRIGGER trg_stock_ledger_insert
-AFTER INSERT ON stock_ledger
+AFTER INSERT ON "stock_ledger"
 FOR EACH ROW
 EXECUTE FUNCTION fn_update_inventory_stock();
+
 
 -- CATATAN: constraint unique (product_id, outlet_id) di inventory_stock
 -- WAJIB ada sebelum trigger ini dipasang — sudah didefinisikan lewat

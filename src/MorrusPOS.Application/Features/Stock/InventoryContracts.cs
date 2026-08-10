@@ -12,6 +12,8 @@ public record InventoryListItemDto(
     decimal QtyOnHand,
     decimal MinStockAlert,
     bool IsLowStock,
+    decimal CostPrice,
+    decimal BasePrice,
     DateTime UpdatedAt
 );
 

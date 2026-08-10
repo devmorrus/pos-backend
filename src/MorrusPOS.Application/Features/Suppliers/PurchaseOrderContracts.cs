@@ -6,7 +6,8 @@ public record PurchaseOrderItemDto(
     string Sku,
     decimal Qty,
     decimal UnitCost,
-    decimal TotalCost
+    decimal TotalCost,
+    decimal SellingPrice
 );
 
 public record PurchaseOrderDto(

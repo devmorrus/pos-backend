@@ -275,6 +275,7 @@ public class ProductService : IProductService
             p.Name,
             p.Barcode,
             p.BasePrice,
+            p.CostPrice,
             p.Unit,
             p.IsConsignment,
             qtyOnHand,
