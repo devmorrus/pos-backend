@@ -29,9 +29,20 @@ public class Transaction : BaseEntity
     public Guid? CashierSessionId { get; set; }
     public CashierSession? CashierSession { get; set; }
 
+    public Guid? CustomerId { get; set; }
+    public Customer? Customer { get; set; }
+
     public string TransactionNumber { get; set; } = default!; // TRX-20260731-0001
     public string Channel { get; set; } = TransactionChannel.Pos;
     public string Status { get; set; } = TransactionStatus.Pending;
+    public string CustomerType { get; set; } = TransactionCustomerType.Guest;
+    public string? CustomerNameSnapshot { get; set; }
+    public string? CustomerPhoneSnapshot { get; set; }
+    public string? ExternalCustomerReference { get; set; }
+    public string? ExternalCustomerName { get; set; }
+    public string? ExternalCustomerPhone { get; set; }
+    public string? LoyaltyReference { get; set; }
+    public string? ChannelOrderReference { get; set; }
 
     public decimal Subtotal { get; set; }
     public decimal DiscountTotal { get; set; }

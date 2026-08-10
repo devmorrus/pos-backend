@@ -32,6 +32,7 @@ public class AppDbContext : DbContext
     // Fase 1 — Core POS
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<TransactionItem> TransactionItems => Set<TransactionItem>();
     public DbSet<Payment> Payments => Set<Payment>();
@@ -85,6 +86,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Outlet>().HasQueryFilter(o => CurrentBusinessId == null || o.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<User>().HasQueryFilter(u => CurrentBusinessId == null || u.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<Product>().HasQueryFilter(p => CurrentBusinessId == null || p.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<Customer>().HasQueryFilter(c => CurrentBusinessId == null || c.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<Category>().HasQueryFilter(c => CurrentBusinessId == null || c.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<Supplier>().HasQueryFilter(s => CurrentBusinessId == null || s.BusinessId == CurrentBusinessId);
 

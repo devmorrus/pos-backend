@@ -10,6 +10,11 @@ public record TransactionListItemDto(
     decimal GrandTotal,
     string Status,
     string Channel,
+    Guid? CustomerId,
+    string? CustomerName,
+    string? CustomerPhone,
+    string CustomerType,
+    string? ExternalCustomerReference,
     DateTime CreatedAt,
     string PaymentSummary
 );
@@ -24,6 +29,13 @@ public record TransactionDto(
     Guid? CashierSessionId,
     string Channel,
     string Status,
+    Guid? CustomerId,
+    string? CustomerName,
+    string? CustomerPhone,
+    string CustomerType,
+    string? ExternalCustomerReference,
+    string? ExternalCustomerName,
+    string? ExternalCustomerPhone,
     decimal Subtotal,
     decimal DiscountTotal,
     decimal ManualDiscountTotal,
@@ -103,7 +115,9 @@ public record CheckoutRequest(
     List<CheckoutItemRequest> Items,
     List<PaymentRequest> Payments,
     string? VoucherCode = null,
-    string? AppliedPromoCode = null
+    string? AppliedPromoCode = null,
+    Guid? CustomerId = null,
+    string? CustomerPhone = null
 );
 
 public record PricingPreviewRequest(

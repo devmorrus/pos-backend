@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Features.Customers;
 using MorrusPOS.Application.Features.Transactions;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -369,6 +370,7 @@ public class TransactionService : ITransactionService
         try
         {
             var validatedItems = new List<ValidatedCheckoutItem>();
+            Customer? selectedCustomer = null;
 
             foreach (var itemReq in request.Items)
             {
@@ -418,6 +420,22 @@ public class TransactionService : ITransactionService
                 request.Items
             ), ct);
 
+            if (request.CustomerId.HasValue)
+            {
+                selectedCustomer = await _dbContext.Customers
+                    .FirstOrDefaultAsync(customer => customer.Id == request.CustomerId.Value, ct);
+
+                if (selectedCustomer == null)
+                {
+                    throw new InvalidOperationException("Customer tidak ditemukan.");
+                }
+
+                if (!selectedCustomer.IsActive)
+                {
+                    throw new InvalidOperationException("Customer yang dipilih sudah tidak aktif.");
+                }
+            }
+
             var totalPayment = request.Payments.Sum(payment => payment.Amount);
             if (totalPayment != pricingBreakdown.GrandTotal)
             {
@@ -446,9 +464,15 @@ public class TransactionService : ITransactionService
                 OutletId = request.OutletId,
                 UserId = _currentUserService.UserId.Value,
                 CashierSessionId = request.CashierSessionId,
+                CustomerId = selectedCustomer?.Id,
                 TransactionNumber = trxNumber,
                 Channel = string.IsNullOrWhiteSpace(request.Channel) ? TransactionChannel.Pos : request.Channel,
                 Status = TransactionStatus.Completed,
+                CustomerType = selectedCustomer != null
+                    ? TransactionCustomerType.Member
+                    : TransactionCustomerType.Guest,
+                CustomerNameSnapshot = selectedCustomer?.Name,
+                CustomerPhoneSnapshot = selectedCustomer?.Phone,
                 Subtotal = pricingBreakdown.Subtotal,
                 DiscountTotal = pricingBreakdown.ManualDiscountTotal + pricingBreakdown.PromoDiscountTotal + pricingBreakdown.VoucherDiscountTotal,
                 ManualDiscountTotal = pricingBreakdown.ManualDiscountTotal,
@@ -573,6 +597,13 @@ public class TransactionService : ITransactionService
                 });
             }
 
+            if (selectedCustomer != null)
+            {
+                selectedCustomer.LifetimeSpend += pricingBreakdown.GrandTotal;
+                selectedCustomer.LastTransactionAt = DateTime.UtcNow;
+                selectedCustomer.UpdatedAt = DateTime.UtcNow;
+            }
+
             await _dbContext.SaveChangesAsync(ct);
             await dbTx.CommitAsync(ct);
 
@@ -608,6 +639,11 @@ public class TransactionService : ITransactionService
             transaction.GrandTotal,
             transaction.Status,
             transaction.Channel,
+            transaction.CustomerId,
+            transaction.CustomerNameSnapshot,
+            transaction.CustomerPhoneSnapshot,
+            transaction.CustomerType,
+            transaction.ExternalCustomerReference,
             transaction.CreatedAt,
             paymentSummary
         );
@@ -629,6 +665,13 @@ public class TransactionService : ITransactionService
             t.CashierSessionId,
             t.Channel,
             t.Status,
+            t.CustomerId,
+            t.CustomerNameSnapshot ?? t.ExternalCustomerName,
+            t.CustomerPhoneSnapshot ?? t.ExternalCustomerPhone,
+            t.CustomerType,
+            t.ExternalCustomerReference,
+            t.ExternalCustomerName,
+            t.ExternalCustomerPhone,
             t.Subtotal,
             t.DiscountTotal,
             t.ManualDiscountTotal,
@@ -712,6 +755,7 @@ public class TransactionService : ITransactionService
         return await _dbContext.Transactions
             .Include(t => t.Outlet)
             .Include(t => t.User)
+            .Include(t => t.Customer)
             .Include(t => t.VoidedByUser)
             .Include(t => t.Items).ThenInclude(i => i.Product)
             .Include(t => t.Payments)

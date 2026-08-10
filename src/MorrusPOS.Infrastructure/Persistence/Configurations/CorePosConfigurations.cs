@@ -45,6 +45,34 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
     }
 }
 
+public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
+{
+    public void Configure(EntityTypeBuilder<Customer> builder)
+    {
+        builder.ToTable("customers");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.CustomerCode).HasMaxLength(40).IsRequired();
+        builder.HasIndex(x => x.CustomerCode).IsUnique();
+        builder.Property(x => x.Name).HasMaxLength(150).IsRequired();
+        builder.Property(x => x.Phone).HasMaxLength(30).IsRequired();
+        builder.Property(x => x.Email).HasMaxLength(150);
+        builder.Property(x => x.Gender).HasMaxLength(20);
+        builder.Property(x => x.Notes).HasMaxLength(500);
+        builder.Property(x => x.MemberStatus).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.PointsBalance).HasColumnType("decimal(14,2)");
+        builder.Property(x => x.LifetimeSpend).HasColumnType("decimal(14,2)");
+        builder.HasIndex(x => x.LastTransactionAt);
+        builder.HasIndex(x => new { x.BusinessId, x.Phone })
+            .IsUnique()
+            .HasFilter("\"IsActive\" = TRUE");
+
+        builder.HasOne(x => x.CreatedOutlet)
+            .WithMany()
+            .HasForeignKey(x => x.CreatedOutletId)
+            .OnDelete(DeleteBehavior.SetNull);
+    }
+}
+
 public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
 {
     public void Configure(EntityTypeBuilder<Transaction> builder)
@@ -55,6 +83,14 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
         builder.HasIndex(x => x.TransactionNumber).IsUnique();
         builder.Property(x => x.Channel).HasMaxLength(20).IsRequired();
         builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.CustomerType).HasMaxLength(30).IsRequired();
+        builder.Property(x => x.CustomerNameSnapshot).HasMaxLength(150);
+        builder.Property(x => x.CustomerPhoneSnapshot).HasMaxLength(30);
+        builder.Property(x => x.ExternalCustomerReference).HasMaxLength(150);
+        builder.Property(x => x.ExternalCustomerName).HasMaxLength(150);
+        builder.Property(x => x.ExternalCustomerPhone).HasMaxLength(30);
+        builder.Property(x => x.LoyaltyReference).HasMaxLength(150);
+        builder.Property(x => x.ChannelOrderReference).HasMaxLength(150);
 
         foreach (var prop in new[]
                  {
@@ -95,6 +131,14 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
             .WithMany(c => c.Transactions)
             .HasForeignKey(x => x.CashierSessionId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.Customer)
+            .WithMany(c => c.Transactions)
+            .HasForeignKey(x => x.CustomerId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(x => x.CustomerId);
+        builder.HasIndex(x => x.ExternalCustomerReference);
     }
 }
 
