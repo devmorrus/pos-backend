@@ -69,6 +69,14 @@ public class AppDbContext : DbContext
     public DbSet<ChannelSettlementItem> ChannelSettlementItems => Set<ChannelSettlementItem>();
     public DbSet<IntegrationLog> IntegrationLogs => Set<IntegrationLog>();
 
+    // Fase 7 — Pricing Engine
+    public DbSet<TaxRule> TaxRules => Set<TaxRule>();
+    public DbSet<ServiceChargeRule> ServiceChargeRules => Set<ServiceChargeRule>();
+    public DbSet<PromoCampaign> PromoCampaigns => Set<PromoCampaign>();
+    public DbSet<PromoCampaignTarget> PromoCampaignTargets => Set<PromoCampaignTarget>();
+    public DbSet<Voucher> Vouchers => Set<Voucher>();
+    public DbSet<VoucherRedemption> VoucherRedemptions => Set<VoucherRedemption>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
@@ -107,6 +115,13 @@ public class AppDbContext : DbContext
         // SaaS Scoping for Online Channels Integration
         modelBuilder.Entity<ChannelAccount>().HasQueryFilter(ca => CurrentBusinessId == null || ca.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<ChannelSettlement>().HasQueryFilter(cset => CurrentBusinessId == null || cset.ChannelAccount.Outlet.BusinessId == CurrentBusinessId);
+
+        // SaaS Scoping for Pricing
+        modelBuilder.Entity<TaxRule>().HasQueryFilter(tr => CurrentBusinessId == null || tr.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<ServiceChargeRule>().HasQueryFilter(sr => CurrentBusinessId == null || sr.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<PromoCampaign>().HasQueryFilter(pc => CurrentBusinessId == null || pc.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<Voucher>().HasQueryFilter(v => CurrentBusinessId == null || v.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<VoucherRedemption>().HasQueryFilter(vr => CurrentBusinessId == null || vr.Transaction.Outlet.BusinessId == CurrentBusinessId);
 
         base.OnModelCreating(modelBuilder);
     }

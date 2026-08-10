@@ -28,8 +28,8 @@ public class PaymentRequestValidator : AbstractValidator<PaymentRequest>
     {
         RuleFor(x => x.Method)
             .NotEmpty().WithMessage("Metode pembayaran wajib diisi.")
-            .Must(method => new[] { "cash", "debit", "credit", "qris" }.Contains(method.ToLower()))
-            .WithMessage("Metode pembayaran tidak valid. Hanya menerima cash, debit, credit, atau qris.");
+            .Must(method => new[] { "cash", "debit", "credit", "qris", "transfer", "edc" }.Contains(method.ToLower()))
+            .WithMessage("Metode pembayaran tidak valid.");
 
         RuleFor(x => x.Amount)
             .GreaterThan(0).WithMessage("Nominal pembayaran harus lebih besar dari 0.");
@@ -57,7 +57,7 @@ public class CheckoutRequestValidator : AbstractValidator<CheckoutRequest>
             .NotEmpty().WithMessage("Channel transaksi wajib diisi.");
 
         RuleFor(x => x.Subtotal)
-            .GreaterThan(0).WithMessage("Subtotal transaksi harus lebih besar dari 0.");
+            .GreaterThanOrEqualTo(0).WithMessage("Subtotal transaksi tidak boleh negatif.");
 
         RuleFor(x => x.DiscountTotal)
             .GreaterThanOrEqualTo(0).WithMessage("Total diskon harus bernilai 0 atau lebih.");
@@ -66,11 +66,7 @@ public class CheckoutRequestValidator : AbstractValidator<CheckoutRequest>
             .GreaterThanOrEqualTo(0).WithMessage("Total pajak harus bernilai 0 atau lebih.");
 
         RuleFor(x => x.GrandTotal)
-            .GreaterThan(0).WithMessage("Grand total transaksi harus lebih besar dari 0.");
-
-        RuleFor(x => x)
-            .Must(x => x.GrandTotal == (x.Subtotal - x.DiscountTotal + x.TaxTotal))
-            .WithMessage("Grand total tidak cocok dengan kalkulasi (Subtotal - Diskon + Pajak).");
+            .GreaterThanOrEqualTo(0).WithMessage("Grand total transaksi tidak boleh negatif.");
 
         RuleFor(x => x.Items)
             .NotEmpty().WithMessage("Keranjang belanja tidak boleh kosong.");
@@ -83,5 +79,23 @@ public class CheckoutRequestValidator : AbstractValidator<CheckoutRequest>
 
         RuleForEach(x => x.Payments)
             .SetValidator(new PaymentRequestValidator());
+    }
+}
+
+public class PricingPreviewRequestValidator : AbstractValidator<PricingPreviewRequest>
+{
+    public PricingPreviewRequestValidator()
+    {
+        RuleFor(x => x.OutletId)
+            .NotEmpty().WithMessage("Outlet ID wajib diisi.");
+
+        RuleFor(x => x.Channel)
+            .NotEmpty().WithMessage("Channel transaksi wajib diisi.");
+
+        RuleFor(x => x.Items)
+            .NotEmpty().WithMessage("Keranjang belanja tidak boleh kosong.");
+
+        RuleForEach(x => x.Items)
+            .SetValidator(new CheckoutItemRequestValidator());
     }
 }

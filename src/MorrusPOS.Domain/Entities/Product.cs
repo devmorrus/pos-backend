@@ -18,6 +18,8 @@ public class Product : AuditableEntity
     public string Unit { get; set; } = default!; // pcs, kg, dus, dll
     public bool IsConsignment { get; set; } = false;
     public string? ImageUrl { get; set; }
+    public bool? IsTaxable { get; set; }
+    public bool? IsServiceChargeable { get; set; }
     public bool IsActive { get; set; } = true;
     public uint Version { get; set; }
 

@@ -51,6 +51,13 @@ public class TransactionsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
+    [HttpPost("pricing-preview")]
+    public async Task<ActionResult<PricingBreakdownDto>> PreviewPricing(PricingPreviewRequest request, CancellationToken ct)
+    {
+        var result = await _transactionService.PreviewPricingAsync(request, ct);
+        return Ok(result);
+    }
+
     [HttpPost("{id}/void")]
     [HasPermission("transaction.void")]
     public async Task<ActionResult<TransactionDto>> Void(Guid id, VoidTransactionRequest request, CancellationToken ct)

@@ -34,6 +34,8 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(x => x.CostPrice).HasColumnType("decimal(14,2)");
         builder.Property(x => x.Unit).HasMaxLength(20).IsRequired();
         builder.Property(x => x.ImageUrl).HasMaxLength(500);
+        builder.Property(x => x.IsTaxable);
+        builder.Property(x => x.IsServiceChargeable);
         builder.Property(x => x.Version).IsRowVersion();
 
         builder.HasOne(x => x.Category)
@@ -54,11 +56,22 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
         builder.Property(x => x.Channel).HasMaxLength(20).IsRequired();
         builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
 
-        foreach (var prop in new[] { nameof(Transaction.Subtotal), nameof(Transaction.DiscountTotal),
-                                      nameof(Transaction.TaxTotal), nameof(Transaction.GrandTotal) })
+        foreach (var prop in new[]
+                 {
+                     nameof(Transaction.Subtotal),
+                     nameof(Transaction.DiscountTotal),
+                     nameof(Transaction.ManualDiscountTotal),
+                     nameof(Transaction.PromoDiscountTotal),
+                     nameof(Transaction.VoucherDiscountTotal),
+                     nameof(Transaction.ServiceChargeTotal),
+                     nameof(Transaction.TaxTotal),
+                     nameof(Transaction.GrandTotal)
+                 })
         {
             builder.Property(prop).HasColumnType("decimal(14,2)");
         }
+        builder.Property(x => x.AppliedVoucherCode).HasMaxLength(100);
+        builder.Property(x => x.AppliedPromoName).HasMaxLength(150);
 
         // Index untuk query dashboard/laporan per outlet & tanggal — dipakai sejak Fase 6
         builder.HasIndex(x => new { x.OutletId, x.CreatedAt });

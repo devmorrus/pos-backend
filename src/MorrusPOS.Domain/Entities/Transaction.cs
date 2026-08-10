@@ -35,8 +35,14 @@ public class Transaction : BaseEntity
 
     public decimal Subtotal { get; set; }
     public decimal DiscountTotal { get; set; }
+    public decimal ManualDiscountTotal { get; set; }
+    public decimal PromoDiscountTotal { get; set; }
+    public decimal VoucherDiscountTotal { get; set; }
+    public decimal ServiceChargeTotal { get; set; }
     public decimal TaxTotal { get; set; }
     public decimal GrandTotal { get; set; }
+    public string? AppliedVoucherCode { get; set; }
+    public string? AppliedPromoName { get; set; }
 
     public Guid? VoidedBy { get; set; }
     public User? VoidedByUser { get; set; }
@@ -47,6 +53,7 @@ public class Transaction : BaseEntity
     public ICollection<TransactionItem> Items { get; set; } = new List<TransactionItem>();
     public ICollection<Payment> Payments { get; set; } = new List<Payment>();
     public ICollection<Return> Returns { get; set; } = new List<Return>();
+    public ICollection<VoucherRedemption> VoucherRedemptions { get; set; } = new List<VoucherRedemption>();
 }
 
 public class TransactionItem : BaseEntity

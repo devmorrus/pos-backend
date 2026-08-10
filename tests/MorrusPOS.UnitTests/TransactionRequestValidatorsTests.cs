@@ -57,7 +57,7 @@ public class TransactionRequestValidatorsTests
     }
 
     [Fact]
-    public void CheckoutRequest_GrandTotalMismatch_Should_Fail()
+    public void CheckoutRequest_GrandTotalMismatch_Should_Pass_BecauseBackendRecalculatesTotals()
     {
         var request = new CheckoutRequest(
             Id: Guid.NewGuid(),
@@ -79,7 +79,7 @@ public class TransactionRequestValidatorsTests
         );
 
         var result = _checkoutValidator.TestValidate(request);
-        result.ShouldHaveAnyValidationError();
+        result.ShouldNotHaveAnyValidationErrors();
     }
 
     [Fact]

@@ -12,17 +12,34 @@ public class TransactionService : ITransactionService
     private readonly IStockService _stockService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IPosNotificationService _notificationService;
+    private readonly IPricingService _pricingService;
 
     public TransactionService(
         AppDbContext dbContext,
         IStockService stockService,
         ICurrentUserService currentUserService,
         IPosNotificationService notificationService)
+        : this(
+            dbContext,
+            stockService,
+            currentUserService,
+            notificationService,
+            new PricingService(dbContext))
+    {
+    }
+
+    public TransactionService(
+        AppDbContext dbContext,
+        IStockService stockService,
+        ICurrentUserService currentUserService,
+        IPosNotificationService notificationService,
+        IPricingService pricingService)
     {
         _dbContext = dbContext;
         _stockService = stockService;
         _currentUserService = currentUserService;
         _notificationService = notificationService;
+        _pricingService = pricingService;
     }
 
     public async Task<IReadOnlyList<TransactionListItemDto>> GetRecentByOutletAsync(
@@ -59,6 +76,13 @@ public class TransactionService : ITransactionService
         await EnsureOutletAccessibleAsync(trx.OutletId, ct);
 
         return MapToDto(trx);
+    }
+
+    public async Task<PricingBreakdownDto> PreviewPricingAsync(PricingPreviewRequest request, CancellationToken ct = default)
+    {
+        await EnsureOperationalRoleAsync();
+        await EnsureOutletAccessibleAsync(request.OutletId, ct);
+        return await _pricingService.CalculateAsync(request, ct);
     }
 
     public async Task<TransactionDto> VoidAsync(Guid id, VoidTransactionRequest request, CancellationToken ct = default)
@@ -344,9 +368,6 @@ public class TransactionService : ITransactionService
         using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
         try
         {
-            decimal recalculatedSubtotal = 0;
-            decimal recalculatedDiscountTotal = 0;
-            decimal recalculatedTaxTotal = 0;
             var validatedItems = new List<ValidatedCheckoutItem>();
 
             foreach (var itemReq in request.Items)
@@ -386,23 +407,19 @@ public class TransactionService : ITransactionService
                     throw new InvalidOperationException($"Diskon untuk produk {product.Name} melebihi nilai item.");
                 }
 
-                recalculatedSubtotal += lineSubtotal;
-                recalculatedDiscountTotal += itemReq.DiscountAmount;
                 validatedItems.Add(new ValidatedCheckoutItem(product, itemReq));
             }
 
-            var recalculatedGrandTotal = recalculatedSubtotal - recalculatedDiscountTotal + recalculatedTaxTotal;
-
-            if (request.Subtotal != recalculatedSubtotal ||
-                request.DiscountTotal != recalculatedDiscountTotal ||
-                request.TaxTotal != recalculatedTaxTotal ||
-                request.GrandTotal != recalculatedGrandTotal)
-            {
-                throw new InvalidOperationException("Ringkasan transaksi tidak sinkron. Silakan muat ulang keranjang sebelum checkout.");
-            }
+            var pricingBreakdown = await _pricingService.CalculateAsync(new PricingPreviewRequest(
+                request.OutletId,
+                string.IsNullOrWhiteSpace(request.Channel) ? TransactionChannel.Pos : request.Channel,
+                request.VoucherCode,
+                request.AppliedPromoCode,
+                request.Items
+            ), ct);
 
             var totalPayment = request.Payments.Sum(payment => payment.Amount);
-            if (totalPayment != recalculatedGrandTotal)
+            if (totalPayment != pricingBreakdown.GrandTotal)
             {
                 throw new InvalidOperationException("Total pembayaran harus sama dengan grand total transaksi.");
             }
@@ -432,10 +449,16 @@ public class TransactionService : ITransactionService
                 TransactionNumber = trxNumber,
                 Channel = string.IsNullOrWhiteSpace(request.Channel) ? TransactionChannel.Pos : request.Channel,
                 Status = TransactionStatus.Completed,
-                Subtotal = recalculatedSubtotal,
-                DiscountTotal = recalculatedDiscountTotal,
-                TaxTotal = recalculatedTaxTotal,
-                GrandTotal = recalculatedGrandTotal,
+                Subtotal = pricingBreakdown.Subtotal,
+                DiscountTotal = pricingBreakdown.ManualDiscountTotal + pricingBreakdown.PromoDiscountTotal + pricingBreakdown.VoucherDiscountTotal,
+                ManualDiscountTotal = pricingBreakdown.ManualDiscountTotal,
+                PromoDiscountTotal = pricingBreakdown.PromoDiscountTotal,
+                VoucherDiscountTotal = pricingBreakdown.VoucherDiscountTotal,
+                ServiceChargeTotal = pricingBreakdown.ServiceChargeTotal,
+                TaxTotal = pricingBreakdown.TaxTotal,
+                GrandTotal = pricingBreakdown.GrandTotal,
+                AppliedVoucherCode = pricingBreakdown.AppliedVoucher?.Code,
+                AppliedPromoName = pricingBreakdown.AppliedPromo?.Name,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -536,6 +559,20 @@ public class TransactionService : ITransactionService
                 _dbContext.Payments.Add(payment);
             }
 
+            if (pricingBreakdown.AppliedVoucher is { } appliedVoucher)
+            {
+                var voucher = await _dbContext.Vouchers.FirstAsync(v => v.Id == appliedVoucher.VoucherId, ct);
+                voucher.UsedCount += 1;
+                _dbContext.VoucherRedemptions.Add(new VoucherRedemption
+                {
+                    Id = Guid.NewGuid(),
+                    VoucherId = voucher.Id,
+                    TransactionId = newTrx.Id,
+                    RedeemedAt = DateTime.UtcNow,
+                    RedeemedAmount = appliedVoucher.DiscountAmount
+                });
+            }
+
             await _dbContext.SaveChangesAsync(ct);
             await dbTx.CommitAsync(ct);
 
@@ -594,12 +631,45 @@ public class TransactionService : ITransactionService
             t.Status,
             t.Subtotal,
             t.DiscountTotal,
+            t.ManualDiscountTotal,
+            t.PromoDiscountTotal,
+            t.VoucherDiscountTotal,
+            t.ServiceChargeTotal,
             t.TaxTotal,
             t.GrandTotal,
+            t.AppliedVoucherCode,
+            t.AppliedPromoName,
             t.VoidedBy,
             t.VoidedByUser?.Name,
             t.VoidedReason,
             t.CreatedAt,
+            new PricingBreakdownDto(
+                t.Subtotal,
+                t.ManualDiscountTotal,
+                t.PromoDiscountTotal,
+                t.VoucherDiscountTotal,
+                t.ServiceChargeTotal,
+                t.TaxTotal,
+                t.GrandTotal,
+                string.IsNullOrWhiteSpace(t.AppliedVoucherCode)
+                    ? null
+                    : new AppliedVoucherDto(Guid.Empty, t.AppliedVoucherCode, t.AppliedVoucherCode, t.VoucherDiscountTotal),
+                string.IsNullOrWhiteSpace(t.AppliedPromoName)
+                    ? null
+                    : new AppliedPromoDto(Guid.Empty, null, t.AppliedPromoName, t.PromoDiscountTotal),
+                t.Items.Select(i => new PricingLineBreakdownDto(
+                    i.ProductId,
+                    i.Product?.Name ?? string.Empty,
+                    i.Qty,
+                    i.UnitPrice * i.Qty,
+                    i.DiscountAmount,
+                    0,
+                    0,
+                    0,
+                    0,
+                    i.LineTotal
+                )).ToList()
+            ),
             t.Items.Select(i => new TransactionItemDto(
                 i.Id,
                 i.ProductId,

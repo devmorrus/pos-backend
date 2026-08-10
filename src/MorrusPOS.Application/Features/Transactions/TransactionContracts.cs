@@ -26,12 +26,19 @@ public record TransactionDto(
     string Status,
     decimal Subtotal,
     decimal DiscountTotal,
+    decimal ManualDiscountTotal,
+    decimal PromoDiscountTotal,
+    decimal VoucherDiscountTotal,
+    decimal ServiceChargeTotal,
     decimal TaxTotal,
     decimal GrandTotal,
+    string? AppliedVoucherCode,
+    string? AppliedPromoName,
     Guid? VoidedBy,
     string? VoidedByName,
     string? VoidedReason,
     DateTime CreatedAt,
+    PricingBreakdownDto PricingBreakdown,
     IReadOnlyList<TransactionItemDto> Items,
     IReadOnlyList<PaymentDto> Payments,
     IReadOnlyList<TransactionReturnDto> Returns
@@ -94,7 +101,57 @@ public record CheckoutRequest(
     decimal TaxTotal,
     decimal GrandTotal,
     List<CheckoutItemRequest> Items,
-    List<PaymentRequest> Payments
+    List<PaymentRequest> Payments,
+    string? VoucherCode = null,
+    string? AppliedPromoCode = null
+);
+
+public record PricingPreviewRequest(
+    Guid OutletId,
+    string Channel,
+    string? VoucherCode,
+    string? SelectedPromoCode,
+    List<CheckoutItemRequest> Items
+);
+
+public record PricingBreakdownDto(
+    decimal Subtotal,
+    decimal ManualDiscountTotal,
+    decimal PromoDiscountTotal,
+    decimal VoucherDiscountTotal,
+    decimal ServiceChargeTotal,
+    decimal TaxTotal,
+    decimal GrandTotal,
+    AppliedVoucherDto? AppliedVoucher,
+    AppliedPromoDto? AppliedPromo,
+    IReadOnlyList<PricingLineBreakdownDto> LineBreakdowns
+);
+
+public record PricingLineBreakdownDto(
+    Guid ProductId,
+    string ProductName,
+    decimal Qty,
+    decimal Subtotal,
+    decimal ManualDiscount,
+    decimal PromoDiscount,
+    decimal VoucherDiscount,
+    decimal ServiceCharge,
+    decimal Tax,
+    decimal LineGrandTotal
+);
+
+public record AppliedVoucherDto(
+    Guid VoucherId,
+    string Code,
+    string Name,
+    decimal DiscountAmount
+);
+
+public record AppliedPromoDto(
+    Guid PromoCampaignId,
+    string? Code,
+    string Name,
+    decimal DiscountAmount
 );
 
 public record VoidTransactionRequest(
@@ -116,6 +173,7 @@ public interface ITransactionService
 {
     Task<IReadOnlyList<TransactionListItemDto>> GetRecentByOutletAsync(Guid outletId, int take, CancellationToken ct = default);
     Task<TransactionDto> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<PricingBreakdownDto> PreviewPricingAsync(PricingPreviewRequest request, CancellationToken ct = default);
     Task<TransactionDto> CheckoutAsync(CheckoutRequest request, CancellationToken ct = default);
     Task<TransactionDto> VoidAsync(Guid id, VoidTransactionRequest request, CancellationToken ct = default);
     Task<TransactionDto> RefundAsync(Guid id, RefundTransactionRequest request, CancellationToken ct = default);

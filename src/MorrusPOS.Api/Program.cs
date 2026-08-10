@@ -27,6 +27,8 @@ using MorrusPOS.Application.Features.Consignments;
 using MorrusPOS.Application.Features.Consignments.Validators;
 using MorrusPOS.Application.Features.Channels;
 using MorrusPOS.Application.Features.Channels.Validators;
+using MorrusPOS.Application.Features.Pricing;
+using MorrusPOS.Application.Features.Pricing.Validators;
 using MorrusPOS.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -46,6 +48,7 @@ builder.Services.AddScoped<IValidator<UpdateCategoryRequest>, UpdateCategoryRequ
 builder.Services.AddScoped<IValidator<OpenSessionRequest>, OpenSessionRequestValidator>();
 builder.Services.AddScoped<IValidator<CloseSessionRequest>, CloseSessionRequestValidator>();
 builder.Services.AddScoped<IValidator<CheckoutRequest>, CheckoutRequestValidator>();
+builder.Services.AddScoped<IValidator<PricingPreviewRequest>, PricingPreviewRequestValidator>();
 builder.Services.AddScoped<IValidator<VoidTransactionRequest>, VoidTransactionRequestValidator>();
 builder.Services.AddScoped<IValidator<RefundTransactionRequest>, RefundTransactionRequestValidator>();
 builder.Services.AddScoped<IValidator<CreateStockOpnameRequest>, CreateStockOpnameRequestValidator>();
@@ -69,6 +72,14 @@ builder.Services.AddScoped<IValidator<UpdateChannelAccountRequest>, UpdateChanne
 builder.Services.AddScoped<IValidator<CreateChannelSettlementRequest>, CreateChannelSettlementRequestValidator>();
 builder.Services.AddScoped<IValidator<UpdateChannelSettlementRequest>, UpdateChannelSettlementRequestValidator>();
 builder.Services.AddScoped<IValidator<UpdateChannelSettlementStatusRequest>, UpdateChannelSettlementStatusRequestValidator>();
+builder.Services.AddScoped<IValidator<CreateTaxRuleRequest>, CreateTaxRuleRequestValidator>();
+builder.Services.AddScoped<IValidator<UpdateTaxRuleRequest>, UpdateTaxRuleRequestValidator>();
+builder.Services.AddScoped<IValidator<CreateServiceChargeRuleRequest>, CreateServiceChargeRuleRequestValidator>();
+builder.Services.AddScoped<IValidator<UpdateServiceChargeRuleRequest>, UpdateServiceChargeRuleRequestValidator>();
+builder.Services.AddScoped<IValidator<CreatePromoCampaignRequest>, CreatePromoCampaignRequestValidator>();
+builder.Services.AddScoped<IValidator<UpdatePromoCampaignRequest>, UpdatePromoCampaignRequestValidator>();
+builder.Services.AddScoped<IValidator<CreateVoucherRequest>, CreateVoucherRequestValidator>();
+builder.Services.AddScoped<IValidator<UpdateVoucherRequest>, UpdateVoucherRequestValidator>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();

@@ -64,7 +64,8 @@ public class PermissionConfiguration : IEntityTypeConfiguration<Permission>
             new Permission { Id = Guid.Parse("66666666-6666-6666-6666-666666666666"), Code = "consignment.manage", Description = "Mengelola Barang Titipan/Konsinyasi" },
             new Permission { Id = Guid.Parse("77777777-7777-7777-7777-777777777777"), Code = "report.view", Description = "Melihat Laporan Laba Rugi & Dashboard" },
             new Permission { Id = Guid.Parse("88888888-8888-8888-8888-888888888888"), Code = "supplier_return.manage", Description = "Mengelola retur supplier" },
-            new Permission { Id = Guid.Parse("99999999-9999-9999-9999-999999999999"), Code = "channel_settlement.manage", Description = "Mengelola channel account dan settlement channel" }
+            new Permission { Id = Guid.Parse("99999999-9999-9999-9999-999999999999"), Code = "channel_settlement.manage", Description = "Mengelola channel account dan settlement channel" },
+            new Permission { Id = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), Code = "pricing.manage", Description = "Mengelola pricing rule, promo, voucher, pajak, dan service charge" }
         );
     }
 }
@@ -100,6 +101,7 @@ public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermissi
         var pReportView = Guid.Parse("77777777-7777-7777-7777-777777777777");
         var pSupplierReturnManage = Guid.Parse("88888888-8888-8888-8888-888888888888");
         var pChannelSettlementManage = Guid.Parse("99999999-9999-9999-9999-999999999999");
+        var pPricingManage = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
         builder.HasData(
             // Owner gets all
@@ -112,6 +114,7 @@ public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermissi
             new RolePermission { RoleId = ownerId, PermissionId = pReportView },
             new RolePermission { RoleId = ownerId, PermissionId = pSupplierReturnManage },
             new RolePermission { RoleId = ownerId, PermissionId = pChannelSettlementManage },
+            new RolePermission { RoleId = ownerId, PermissionId = pPricingManage },
 
             // Admin gets all
             new RolePermission { RoleId = adminId, PermissionId = pTxCreate },
@@ -123,6 +126,7 @@ public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermissi
             new RolePermission { RoleId = adminId, PermissionId = pReportView },
             new RolePermission { RoleId = adminId, PermissionId = pSupplierReturnManage },
             new RolePermission { RoleId = adminId, PermissionId = pChannelSettlementManage },
+            new RolePermission { RoleId = adminId, PermissionId = pPricingManage },
 
             // Kepala Cabang gets operational branch permissions
             new RolePermission { RoleId = kepalaCabangId, PermissionId = pTxCreate },
@@ -141,7 +145,8 @@ public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermissi
             new RolePermission { RoleId = keuanganId, PermissionId = pConsignmentManage },
             new RolePermission { RoleId = keuanganId, PermissionId = pReportView },
             new RolePermission { RoleId = keuanganId, PermissionId = pSupplierReturnManage },
-            new RolePermission { RoleId = keuanganId, PermissionId = pChannelSettlementManage }
+            new RolePermission { RoleId = keuanganId, PermissionId = pChannelSettlementManage },
+            new RolePermission { RoleId = keuanganId, PermissionId = pPricingManage }
         );
     }
 }

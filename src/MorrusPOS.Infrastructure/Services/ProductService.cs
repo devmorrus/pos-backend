@@ -90,6 +90,8 @@ public class ProductService : IProductService
             Unit = request.Unit,
             IsConsignment = request.IsConsignment,
             ImageUrl = request.ImageUrl,
+            IsTaxable = request.IsTaxable,
+            IsServiceChargeable = request.IsServiceChargeable,
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -222,6 +224,8 @@ public class ProductService : IProductService
         product.Unit = request.Unit;
         product.IsConsignment = request.IsConsignment;
         product.ImageUrl = request.ImageUrl;
+        product.IsTaxable = request.IsTaxable;
+        product.IsServiceChargeable = request.IsServiceChargeable;
         product.IsActive = request.IsActive;
         product.UpdatedAt = DateTime.UtcNow;
 
@@ -274,7 +278,9 @@ public class ProductService : IProductService
             p.Unit,
             p.IsConsignment,
             qtyOnHand,
-            p.ImageUrl
+            p.ImageUrl,
+            p.IsTaxable,
+            p.IsServiceChargeable
         );
     }
 }

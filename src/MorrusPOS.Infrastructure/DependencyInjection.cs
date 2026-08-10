@@ -12,6 +12,7 @@ using MorrusPOS.Application.Features.Consignments;
 using MorrusPOS.Application.Features.Dashboard;
 using MorrusPOS.Application.Features.Reports;
 using MorrusPOS.Application.Features.Channels;
+using MorrusPOS.Application.Features.Pricing;
 using MorrusPOS.Infrastructure.Persistence;
 using MorrusPOS.Infrastructure.Services;
 
@@ -37,6 +38,8 @@ public static class DependencyInjection
         services.AddScoped<IStockService, StockService>();
         services.AddScoped<ICashierSessionService, CashierSessionService>();
         services.AddScoped<ITransactionService, TransactionService>();
+        services.AddScoped<IPricingService, PricingService>();
+        services.AddScoped<IPricingAdminService, PricingAdminService>();
         services.AddScoped<IStockOpnameService, StockOpnameService>();
         services.AddScoped<IStockTransferService, StockTransferService>();
 
