@@ -176,7 +176,7 @@ public class SupplierReturnService : ISupplierReturnService
             SupplierId = request.SupplierId,
             PurchaseOrderId = request.PurchaseOrderId,
             ReturnNumber = $"SR-{DateTime.UtcNow:yyyyMMddHHmmss}-{Random.Shared.Next(1000, 9999)}",
-            ReturnDate = request.ReturnDate,
+            ReturnDate = DateTime.SpecifyKind(request.ReturnDate, DateTimeKind.Utc),
             Status = SupplierReturnStatus.Draft,
             Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim(),
             CreatedBy = userId,
@@ -211,7 +211,7 @@ public class SupplierReturnService : ISupplierReturnService
             throw new InvalidOperationException("Hanya retur supplier draft yang dapat diubah.");
         }
 
-        supplierReturn.ReturnDate = request.ReturnDate;
+        supplierReturn.ReturnDate = DateTime.SpecifyKind(request.ReturnDate, DateTimeKind.Utc);
         supplierReturn.Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
         supplierReturn.UpdatedAt = DateTime.UtcNow;
 
