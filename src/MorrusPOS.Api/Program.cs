@@ -25,6 +25,8 @@ using MorrusPOS.Application.Features.Suppliers;
 using MorrusPOS.Application.Features.Suppliers.Validators;
 using MorrusPOS.Application.Features.Consignments;
 using MorrusPOS.Application.Features.Consignments.Validators;
+using MorrusPOS.Application.Features.Channels;
+using MorrusPOS.Application.Features.Channels.Validators;
 using MorrusPOS.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -53,12 +55,20 @@ builder.Services.AddScoped<IValidator<UpdateSupplierRequest>, UpdateSupplierRequ
 builder.Services.AddScoped<IValidator<CreatePurchaseOrderRequest>, CreatePurchaseOrderRequestValidator>();
 builder.Services.AddScoped<IValidator<UpdatePoStatusRequest>, UpdatePoStatusRequestValidator>();
 builder.Services.AddScoped<IValidator<CreateSupplierPaymentRequest>, CreateSupplierPaymentRequestValidator>();
+builder.Services.AddScoped<IValidator<CreateSupplierReturnRequest>, CreateSupplierReturnRequestValidator>();
+builder.Services.AddScoped<IValidator<UpdateSupplierReturnRequest>, UpdateSupplierReturnRequestValidator>();
+builder.Services.AddScoped<IValidator<UpdateSupplierReturnStatusRequest>, UpdateSupplierReturnStatusRequestValidator>();
 builder.Services.AddScoped<IValidator<CreateConsignmentRequest>, CreateConsignmentRequestValidator>();
 builder.Services.AddScoped<IValidator<UpdateConsignmentStatusRequest>, UpdateConsignmentStatusRequestValidator>();
 builder.Services.AddScoped<IValidator<CreateConsignmentSettlementRequest>, CreateConsignmentSettlementRequestValidator>();
 builder.Services.AddScoped<IValidator<UpdateConsignmentSettlementStatusRequest>, UpdateConsignmentSettlementStatusRequestValidator>();
 builder.Services.AddScoped<IValidator<CreateConsignmentReturnRequest>, CreateConsignmentReturnRequestValidator>();
 builder.Services.AddScoped<IValidator<UpdateConsignmentReturnStatusRequest>, UpdateConsignmentReturnStatusRequestValidator>();
+builder.Services.AddScoped<IValidator<CreateChannelAccountRequest>, CreateChannelAccountRequestValidator>();
+builder.Services.AddScoped<IValidator<UpdateChannelAccountRequest>, UpdateChannelAccountRequestValidator>();
+builder.Services.AddScoped<IValidator<CreateChannelSettlementRequest>, CreateChannelSettlementRequestValidator>();
+builder.Services.AddScoped<IValidator<UpdateChannelSettlementRequest>, UpdateChannelSettlementRequestValidator>();
+builder.Services.AddScoped<IValidator<UpdateChannelSettlementStatusRequest>, UpdateChannelSettlementStatusRequestValidator>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();

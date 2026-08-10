@@ -125,7 +125,11 @@ public class SupplierReturnConfiguration : IEntityTypeConfiguration<SupplierRetu
     {
         builder.ToTable("supplier_returns");
         builder.HasKey(x => x.Id);
+        builder.Property(x => x.ReturnNumber).HasMaxLength(30).IsRequired();
+        builder.HasIndex(x => x.ReturnNumber).IsUnique();
         builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.TotalAmount).HasColumnType("decimal(14,2)");
+        builder.Property(x => x.Notes).HasMaxLength(500);
 
         builder.HasOne(x => x.Supplier)
             .WithMany()
@@ -153,6 +157,8 @@ public class SupplierReturnItemConfiguration : IEntityTypeConfiguration<Supplier
         builder.Property(x => x.Qty).HasColumnType("decimal(12,2)");
         builder.Property(x => x.UnitCost).HasColumnType("decimal(14,2)");
         builder.Property(x => x.TotalCost).HasColumnType("decimal(14,2)");
+
+        builder.HasIndex(x => new { x.SupplierReturnId, x.ProductId }).IsUnique();
 
         builder.HasOne(x => x.SupplierReturn)
             .WithMany(r => r.Items)

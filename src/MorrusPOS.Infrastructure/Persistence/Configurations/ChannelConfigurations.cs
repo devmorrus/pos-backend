@@ -10,9 +10,13 @@ public class ChannelAccountConfiguration : IEntityTypeConfiguration<ChannelAccou
     {
         builder.ToTable("channel_accounts");
         builder.HasKey(x => x.Id);
+        builder.Property(x => x.Name).HasMaxLength(100).IsRequired();
         builder.Property(x => x.ChannelName).HasMaxLength(50).IsRequired();
         builder.Property(x => x.MerchantId).HasMaxLength(100).IsRequired();
         builder.Property(x => x.ApiKey).HasMaxLength(250);
+        builder.Property(x => x.DefaultCommissionRate).HasColumnType("decimal(5,2)");
+
+        builder.HasIndex(x => new { x.OutletId, x.ChannelName, x.Name }).IsUnique();
 
         builder.HasOne(x => x.Outlet)
             .WithMany()
@@ -29,6 +33,8 @@ public class ChannelSettlementConfiguration : IEntityTypeConfiguration<ChannelSe
         builder.HasKey(x => x.Id);
         builder.Property(x => x.SettlementNumber).HasMaxLength(30).IsRequired();
         builder.HasIndex(x => x.SettlementNumber).IsUnique();
+        builder.Property(x => x.PeriodStartDate).IsRequired();
+        builder.Property(x => x.PeriodEndDate).IsRequired();
         builder.Property(x => x.GrossAmount).HasColumnType("decimal(14,2)");
         builder.Property(x => x.CommissionAmount).HasColumnType("decimal(14,2)");
         builder.Property(x => x.NetAmount).HasColumnType("decimal(14,2)");
@@ -55,6 +61,8 @@ public class ChannelSettlementItemConfiguration : IEntityTypeConfiguration<Chann
         builder.Property(x => x.GrossAmount).HasColumnType("decimal(14,2)");
         builder.Property(x => x.CommissionAmount).HasColumnType("decimal(14,2)");
         builder.Property(x => x.NetAmount).HasColumnType("decimal(14,2)");
+        builder.HasIndex(x => new { x.ChannelSettlementId, x.TransactionId }).IsUnique();
+        builder.HasIndex(x => x.TransactionId);
 
         builder.HasOne(x => x.ChannelSettlement)
             .WithMany(s => s.Items)

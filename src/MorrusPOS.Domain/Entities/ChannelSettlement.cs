@@ -16,6 +16,8 @@ public class ChannelSettlement : AuditableEntity
 
     public string SettlementNumber { get; set; } = default!; // e.g. SET-OL-20260731-0001
     public DateTime SettlementDate { get; set; } = DateTime.UtcNow;
+    public DateTime PeriodStartDate { get; set; }
+    public DateTime PeriodEndDate { get; set; }
 
     public decimal GrossAmount { get; set; }
     public decimal CommissionAmount { get; set; }

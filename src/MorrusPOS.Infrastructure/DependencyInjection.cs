@@ -11,6 +11,7 @@ using MorrusPOS.Application.Features.Suppliers;
 using MorrusPOS.Application.Features.Consignments;
 using MorrusPOS.Application.Features.Dashboard;
 using MorrusPOS.Application.Features.Reports;
+using MorrusPOS.Application.Features.Channels;
 using MorrusPOS.Infrastructure.Persistence;
 using MorrusPOS.Infrastructure.Services;
 
@@ -43,11 +44,14 @@ public static class DependencyInjection
         services.AddScoped<ISupplierService, SupplierService>();
         services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
         services.AddScoped<ISupplierDebtService, SupplierDebtService>();
+        services.AddScoped<ISupplierReturnService, SupplierReturnService>();
 
         // Fase 6 — Barang Titipan / Konsinyasi
         services.AddScoped<IConsignmentService, ConsignmentService>();
         services.AddScoped<IConsignmentSettlementService, ConsignmentSettlementService>();
         services.AddScoped<IConsignmentReturnService, ConsignmentReturnService>();
+        services.AddScoped<IChannelAccountService, ChannelAccountService>();
+        services.AddScoped<IChannelSettlementService, ChannelSettlementService>();
 
         // Fase 8 — Dashboard & Laporan
         services.AddScoped<IDashboardService, DashboardService>();

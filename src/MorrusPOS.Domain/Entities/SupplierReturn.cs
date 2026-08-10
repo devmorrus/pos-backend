@@ -17,8 +17,11 @@ public class SupplierReturn : AuditableEntity
     public Guid PurchaseOrderId { get; set; }
     public PurchaseOrder PurchaseOrder { get; set; } = default!;
 
+    public string ReturnNumber { get; set; } = default!;
     public DateTime ReturnDate { get; set; } = DateTime.UtcNow;
     public string Status { get; set; } = SupplierReturnStatus.Draft;
+    public decimal TotalAmount { get; set; }
+    public string? Notes { get; set; }
 
     public Guid CreatedBy { get; set; }
     public User CreatedByUser { get; set; } = default!;
