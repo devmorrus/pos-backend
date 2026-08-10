@@ -217,6 +217,27 @@ public class ConsignmentService : IConsignmentService
                                 CreatedAt = DateTime.UtcNow
                             });
                         }
+
+                        // Update BasePrice (Harga Jual) and log it if changed
+                        if (item.Product.BasePrice != item.UnitPrice)
+                        {
+                            var oldPrice = item.Product.BasePrice;
+                            item.Product.BasePrice = item.UnitPrice;
+                            item.Product.UpdatedAt = DateTime.UtcNow;
+
+                            _dbContext.AuditLogs.Add(new AuditLog
+                            {
+                                Id = Guid.NewGuid(),
+                                UserId = userId,
+                                OutletId = consignment.OutletId,
+                                EntityType = "product",
+                                EntityId = item.ProductId,
+                                Action = "price_change",
+                                OldValueJson = JsonSerializer.Serialize(new { BasePrice = oldPrice }),
+                                NewValueJson = JsonSerializer.Serialize(new { BasePrice = item.UnitPrice, ConsignmentNumber = consignment.ConsignmentNumber }),
+                                CreatedAt = DateTime.UtcNow
+                            });
+                        }
                     }
 
                     // 2. Add stock movement (consignment_in)
