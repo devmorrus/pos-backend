@@ -31,7 +31,7 @@ services:
       - Jwt__Issuer=MorrusPOS
       - Jwt__Audience=MorrusPOS.Client
       - Jwt__AccessTokenMinutes=60
-      - Frontend__Url=http://localhost
+      - Frontend__Url=https://pos.morrusdigitalconnecting.com,http://localhost:5173
       - ASPNETCORE_ENVIRONMENT=Development
     depends_on:
       database:
@@ -39,14 +39,14 @@ services:
 
   frontend:
     build:
-      context: ../frontend
+      context: ../pos-frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_BASE_URL=http://localhost:8085
-        - VITE_SIGNALR_URL=http://localhost:8085/hub/notifications
+        - VITE_API_BASE_URL=https://api-pos.morrusdigitalconnecting.com
+        - VITE_SIGNALR_URL=https://api-pos.morrusdigitalconnecting.com/hub/notifications
     container_name: morruspos_frontend
     ports:
-      - "80:80"
+      - "8086:80"
     depends_on:
       - backend
 
