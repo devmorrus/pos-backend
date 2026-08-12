@@ -1,13 +1,10 @@
 -- Trigger database untuk update inventory_stock.qty_on_hand otomatis
 -- setiap kali ada baris baru masuk ke stock_ledger.
 --
--- CARA PAKAI: setelah migration "InitialCreate" berhasil di-apply, jalankan
--- file ini secara manual sekali (psql -f StockLedgerTrigger.sql), ATAU
--- masukkan isi file ini ke migrationBuilder.Sql(...) di migration terpisah:
---
---   dotnet ef migrations add AddStockLedgerTrigger
---
--- lalu tempel isi file ini ke method Up() migration tersebut.
+-- CATATAN:
+-- Versi production sekarang sudah diformalisasi lewat migration
+-- 20260812093000_FixInventoryStockTrigger. File ini dipertahankan sebagai
+-- referensi SQL manual, dan harus selalu identik dengan body migration itu.
 
 CREATE OR REPLACE FUNCTION fn_update_inventory_stock()
 RETURNS TRIGGER AS $$
