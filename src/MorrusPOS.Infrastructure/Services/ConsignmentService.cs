@@ -302,7 +302,9 @@ public class ConsignmentService : IConsignmentService
                 i.Product?.Sku ?? string.Empty,
                 i.Qty,
                 i.UnitCost,
-                i.UnitPrice
+                i.UnitPrice,
+                i.SoldQty,
+                i.ReturnedQty
             )).ToList()
         );
     }

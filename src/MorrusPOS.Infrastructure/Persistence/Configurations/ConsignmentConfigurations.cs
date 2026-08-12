@@ -40,6 +40,8 @@ public class ConsignmentItemConfiguration : IEntityTypeConfiguration<Consignment
         builder.Property(x => x.Qty).HasColumnType("decimal(12,2)");
         builder.Property(x => x.UnitCost).HasColumnType("decimal(14,2)");
         builder.Property(x => x.UnitPrice).HasColumnType("decimal(14,2)");
+        builder.Property(x => x.SoldQty).HasColumnType("decimal(12,2)").HasDefaultValue(0m);
+        builder.Property(x => x.ReturnedQty).HasColumnType("decimal(12,2)").HasDefaultValue(0m);
 
         builder.HasOne(x => x.Consignment)
             .WithMany(c => c.Items)

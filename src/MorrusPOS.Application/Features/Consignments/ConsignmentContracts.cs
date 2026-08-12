@@ -12,7 +12,9 @@ public record ConsignmentItemDto(
     string Sku,
     decimal Qty,
     decimal UnitCost,
-    decimal UnitPrice
+    decimal UnitPrice,
+    decimal SoldQty,
+    decimal ReturnedQty
 );
 
 public record ConsignmentDto(

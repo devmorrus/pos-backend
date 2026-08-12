@@ -43,7 +43,7 @@ public class ConsignmentReturnServiceTests
         _currentUserMock.OutletId.Returns((Guid?)null);
     }
 
-    private async Task SeedBaseDataAsync(decimal initialStock = 10m)
+    private async Task SeedBaseDataAsync(decimal initialStock = 10m, decimal consignmentQty = 15m)
     {
         _dbContext.Outlets.Add(new Outlet { Id = _outletId, Code = "OUT-A", Name = "Outlet A", IsActive = true });
         _dbContext.Suppliers.Add(new Supplier { Id = _supplierId, Name = "Supplier A", IsActive = true });
@@ -68,6 +68,31 @@ public class ConsignmentReturnServiceTests
             OutletId = _outletId,
             QtyOnHand = initialStock
         });
+
+        var consignment = new Consignment
+        {
+            Id = Guid.NewGuid(),
+            SupplierId = _supplierId,
+            OutletId = _outletId,
+            ConsignmentNumber = "CSG-RET-001",
+            Status = ConsignmentStatus.Received,
+            CreatedBy = _userId,
+            ReceiveDate = DateTime.UtcNow
+        };
+        _dbContext.Consignments.Add(consignment);
+
+        var item = new ConsignmentItem
+        {
+            Id = Guid.NewGuid(),
+            ConsignmentId = consignment.Id,
+            ProductId = _productId,
+            Qty = consignmentQty,
+            UnitCost = 1000,
+            UnitPrice = 3000,
+            SoldQty = 0,
+            ReturnedQty = 0
+        };
+        _dbContext.ConsignmentItems.Add(item);
 
         await _dbContext.SaveChangesAsync();
     }
@@ -147,5 +172,28 @@ public class ConsignmentReturnServiceTests
             note: Arg.Any<string>(),
             ct: Arg.Any<CancellationToken>()
         );
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_ToCompleted_Should_Fail_When_ReturnQtyExceedsRemainingStock()
+    {
+        // Seed initialStock = 10, but consignmentQty is only 5!
+        await SeedBaseDataAsync(initialStock: 10, consignmentQty: 5);
+        var service = new ConsignmentReturnService(_dbContext, _stockServiceMock, _notificationServiceMock, _currentUserMock);
+
+        var request = new CreateConsignmentReturnRequest(
+            SupplierId: _supplierId,
+            OutletId: _outletId,
+            Items: new List<ConsignmentReturnItemRequest>
+            {
+                new(_productId, Qty: 8) // 8 > 5 (exceeds consignment!)
+            }
+        );
+
+        var draft = await service.CreateAsync(_userId, request);
+
+        Func<Task> act = () => service.UpdateStatusAsync(_userId, draft.Id, new UpdateConsignmentReturnStatusRequest("completed"));
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*melebihi kuantitas sisa*");
     }
 }

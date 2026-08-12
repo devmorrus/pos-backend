@@ -13,4 +13,6 @@ public class ConsignmentItem : BaseEntity
     public decimal Qty { get; set; }
     public decimal UnitCost { get; set; }
     public decimal UnitPrice { get; set; }
+    public decimal SoldQty { get; set; } = 0;
+    public decimal ReturnedQty { get; set; } = 0;
 }

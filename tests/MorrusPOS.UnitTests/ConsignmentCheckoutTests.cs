@@ -191,4 +191,198 @@ public class ConsignmentCheckoutTests
         var act = () => trxService.CheckoutAsync(request);
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*tidak memiliki tanda terima konsinyasi*");
     }
+
+    [Fact]
+    public async Task CheckoutAsync_Should_UpdateConsignmentItemSoldQty_FIFO()
+    {
+        // Seed base data without the default consignment receipt
+        await SeedBaseDataAsync(isConsignment: true, hasReceivedConsignment: false);
+        
+        // Let's seed two received consignment receipts with different dates
+        var csg1Id = Guid.NewGuid();
+        var consignment1 = new Consignment
+        {
+            Id = csg1Id,
+            SupplierId = _supplierId,
+            OutletId = _outletId,
+            ConsignmentNumber = "CSG-FIFO-001",
+            Status = ConsignmentStatus.Received,
+            CreatedBy = _userId,
+            ReceiveDate = DateTime.UtcNow.AddMinutes(-10) // Older
+        };
+        _dbContext.Consignments.Add(consignment1);
+
+        var item1 = new ConsignmentItem
+        {
+            Id = Guid.NewGuid(),
+            ConsignmentId = consignment1.Id,
+            ProductId = _productId,
+            Qty = 5, // Qty 5
+            UnitCost = 800,
+            UnitPrice = 3000,
+            SoldQty = 0,
+            ReturnedQty = 0
+        };
+        _dbContext.ConsignmentItems.Add(item1);
+
+        var csg2Id = Guid.NewGuid();
+        var consignment2 = new Consignment
+        {
+            Id = csg2Id,
+            SupplierId = _supplierId,
+            OutletId = _outletId,
+            ConsignmentNumber = "CSG-FIFO-002",
+            Status = ConsignmentStatus.Received,
+            CreatedBy = _userId,
+            ReceiveDate = DateTime.UtcNow.AddMinutes(-5) // Newer
+        };
+        _dbContext.Consignments.Add(consignment2);
+
+        var item2 = new ConsignmentItem
+        {
+            Id = Guid.NewGuid(),
+            ConsignmentId = consignment2.Id,
+            ProductId = _productId,
+            Qty = 10, // Qty 10
+            UnitCost = 900,
+            UnitPrice = 3000,
+            SoldQty = 0,
+            ReturnedQty = 0
+        };
+        _dbContext.ConsignmentItems.Add(item2);
+        await _dbContext.SaveChangesAsync();
+
+        var trxService = new TransactionService(_dbContext, _stockServiceMock, _currentUserServiceMock, _notificationServiceMock);
+
+        // Checkout 7 items
+        var trxId = Guid.NewGuid();
+        var request = new CheckoutRequest(
+            Id: trxId,
+            OutletId: _outletId,
+            CashierSessionId: _sessionId,
+            Channel: "walk_in",
+            Subtotal: 21000,
+            DiscountTotal: 0,
+            TaxTotal: 0,
+            GrandTotal: 21000,
+            Items: new List<CheckoutItemRequest>
+            {
+                new(_productId, Qty: 7, UnitPrice: 3000, DiscountAmount: 0)
+            },
+            Payments: new List<PaymentRequest>
+            {
+                new("cash", Amount: 21000, ReferenceNumber: null)
+            }
+        );
+
+        await trxService.CheckoutAsync(request);
+
+        // Verify: Older receipt item1 (Qty 5) should be fully sold (SoldQty = 5)
+        var updatedItem1 = await _dbContext.ConsignmentItems.FindAsync(item1.Id);
+        updatedItem1!.SoldQty.Should().Be(5);
+
+        // Verify: Newer receipt item2 (Qty 10) should have remaining sold quantity allocated (SoldQty = 2)
+        var updatedItem2 = await _dbContext.ConsignmentItems.FindAsync(item2.Id);
+        updatedItem2!.SoldQty.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task VoidAsync_Should_ReverseConsignmentItemSoldQty_LIFO()
+    {
+        // Seed base data without the default consignment receipt
+        await SeedBaseDataAsync(isConsignment: true, hasReceivedConsignment: false);
+
+        var csg1Id = Guid.NewGuid();
+        var consignment1 = new Consignment
+        {
+            Id = csg1Id,
+            SupplierId = _supplierId,
+            OutletId = _outletId,
+            ConsignmentNumber = "CSG-LIFO-001",
+            Status = ConsignmentStatus.Received,
+            CreatedBy = _userId,
+            ReceiveDate = DateTime.UtcNow.AddMinutes(-10) // Older
+        };
+        _dbContext.Consignments.Add(consignment1);
+
+        var item1 = new ConsignmentItem
+        {
+            Id = Guid.NewGuid(),
+            ConsignmentId = consignment1.Id,
+            ProductId = _productId,
+            Qty = 5,
+            UnitCost = 800,
+            UnitPrice = 3000,
+            SoldQty = 3, // Already sold 3
+            ReturnedQty = 0
+        };
+        _dbContext.ConsignmentItems.Add(item1);
+
+        var csg2Id = Guid.NewGuid();
+        var consignment2 = new Consignment
+        {
+            Id = csg2Id,
+            SupplierId = _supplierId,
+            OutletId = _outletId,
+            ConsignmentNumber = "CSG-LIFO-002",
+            Status = ConsignmentStatus.Received,
+            CreatedBy = _userId,
+            ReceiveDate = DateTime.UtcNow.AddMinutes(-5) // Newer
+        };
+        _dbContext.Consignments.Add(consignment2);
+
+        var item2 = new ConsignmentItem
+        {
+            Id = Guid.NewGuid(),
+            ConsignmentId = consignment2.Id,
+            ProductId = _productId,
+            Qty = 10,
+            UnitCost = 900,
+            UnitPrice = 3000,
+            SoldQty = 4, // Already sold 4
+            ReturnedQty = 0
+        };
+        _dbContext.ConsignmentItems.Add(item2);
+
+        // Add a Transaction to void
+        var trxId = Guid.NewGuid();
+        var transaction = new Transaction
+        {
+            Id = trxId,
+            OutletId = _outletId,
+            CashierSessionId = _sessionId,
+            TransactionNumber = "TRX-LIFO-001",
+            Status = TransactionStatus.Completed,
+            UserId = _userId,
+            Subtotal = 15000,
+            GrandTotal = 15000
+        };
+        _dbContext.Transactions.Add(transaction);
+
+        var trxItem = new TransactionItem
+        {
+            Id = Guid.NewGuid(),
+            TransactionId = trxId,
+            ProductId = _productId,
+            Qty = 5, // We are voiding a sale of 5 items
+            UnitPrice = 3000,
+            UnitCost = 900,
+            LineTotal = 15000
+        };
+        _dbContext.TransactionItems.Add(trxItem);
+        await _dbContext.SaveChangesAsync();
+
+        var trxService = new TransactionService(_dbContext, _stockServiceMock, _currentUserServiceMock, _notificationServiceMock);
+
+        // Act
+        await trxService.VoidAsync(trxId, new VoidTransactionRequest("Wrong transaction"));
+
+        // Verify: Newer receipt item2 (which has SoldQty = 4) should be reversed first (LIFO)
+        // 4 items reversed from item2, remaining 1 reversed from item1
+        var updatedItem2 = await _dbContext.ConsignmentItems.FindAsync(item2.Id);
+        updatedItem2!.SoldQty.Should().Be(0);
+
+        var updatedItem1 = await _dbContext.ConsignmentItems.FindAsync(item1.Id);
+        updatedItem1!.SoldQty.Should().Be(2); // 3 - 1 = 2
+    }
 }

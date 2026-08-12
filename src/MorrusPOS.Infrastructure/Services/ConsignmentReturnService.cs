@@ -182,6 +182,33 @@ public class ConsignmentReturnService : IConsignmentReturnService
                         throw new InvalidOperationException($"Stok produk '{item.Product?.Name}' tidak mencukupi untuk diretur (Stok tersedia: {currentStock}, Retur: {item.Qty}).");
                     }
 
+                    // Find all active received consignment items for this product, supplier, and outlet that have remaining quantity
+                    var consignmentItems = await _dbContext.ConsignmentItems
+                        .Include(ci => ci.Consignment)
+                        .Where(ci => ci.ProductId == item.ProductId &&
+                                     ci.Consignment.SupplierId == consignmentReturn.SupplierId &&
+                                     ci.Consignment.OutletId == consignmentReturn.OutletId &&
+                                     ci.Consignment.Status == ConsignmentStatus.Received &&
+                                     ci.Qty - ci.SoldQty - ci.ReturnedQty > 0)
+                        .OrderBy(ci => ci.Consignment.ReceiveDate) // FIFO
+                        .ToListAsync(ct);
+
+                    decimal remainingToReturn = item.Qty;
+                    foreach (var cItem in consignmentItems)
+                    {
+                        if (remainingToReturn <= 0) break;
+
+                        var remainingAvailable = cItem.Qty - cItem.SoldQty - cItem.ReturnedQty;
+                        var returnable = Math.Min(remainingToReturn, remainingAvailable);
+                        cItem.ReturnedQty += returnable;
+                        remainingToReturn -= returnable;
+                    }
+
+                    if (remainingToReturn > 0)
+                    {
+                        throw new InvalidOperationException($"Jumlah retur untuk '{item.Product?.Name}' melebihi kuantitas sisa yang belum terjual/retur pada tanda terima konsinyasi aktif (Kekurangan alokasi: {remainingToReturn}).");
+                    }
+
                     // 2. Reduce stock via ledger (consignment_return)
                     await _stockService.AddMovementAsync(
                         productId: item.ProductId,
