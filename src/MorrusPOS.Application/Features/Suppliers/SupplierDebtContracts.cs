@@ -10,7 +10,9 @@ public record SupplierDebtDto(
     decimal Amount,
     decimal PaidAmount,
     decimal RemainingAmount,
-    string Status
+    string Status,
+    decimal SoldAmount,
+    decimal MaxPayableAmount
 );
 
 public record SupplierPaymentDto(

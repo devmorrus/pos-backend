@@ -23,7 +23,7 @@ public class SupplierDebtService : ISupplierDebtService
 
         var query = _dbContext.SupplierDebts
             .Include(d => d.Supplier)
-            .Include(d => d.PurchaseOrder)
+            .Include(d => d.PurchaseOrder).ThenInclude(po => po.Items)
             .Where(d => d.PurchaseOrder.OutletId == outletId)
             .AsQueryable();
 
@@ -38,7 +38,7 @@ public class SupplierDebtService : ISupplierDebtService
     {
         var debt = await _dbContext.SupplierDebts
             .Include(d => d.Supplier)
-            .Include(d => d.PurchaseOrder)
+            .Include(d => d.PurchaseOrder).ThenInclude(po => po.Items)
             .FirstOrDefaultAsync(d => d.PurchaseOrderId == purchaseOrderId, ct);
 
         if (debt == null)
@@ -68,7 +68,7 @@ public class SupplierDebtService : ISupplierDebtService
         // 1. Find the debt for the given PO
         var debt = await _dbContext.SupplierDebts
             .Include(d => d.Supplier)
-            .Include(d => d.PurchaseOrder)
+            .Include(d => d.PurchaseOrder).ThenInclude(po => po.Items)
             .FirstOrDefaultAsync(d => d.PurchaseOrderId == request.PurchaseOrderId, ct);
 
         if (debt == null)
@@ -83,9 +83,10 @@ public class SupplierDebtService : ISupplierDebtService
         if (request.Amount <= 0)
             throw new InvalidOperationException("Jumlah pembayaran harus lebih dari 0.");
 
-        if (request.Amount > debt.RemainingAmount)
+        var dto = MapDebtToDto(debt);
+        if (request.Amount > dto.MaxPayableAmount)
             throw new InvalidOperationException(
-                $"Jumlah pembayaran (Rp {request.Amount:N0}) melebihi sisa utang (Rp {debt.RemainingAmount:N0}).");
+                $"Jumlah pembayaran (Rp {request.Amount:N0}) melebihi nilai barang yang sudah laku (Rp {dto.MaxPayableAmount:N0}).");
 
         // 3. Update debt balance
         debt.PaidAmount += request.Amount;
@@ -122,18 +123,30 @@ public class SupplierDebtService : ISupplierDebtService
         return MapPaymentToDto(payment);
     }
 
-    private static SupplierDebtDto MapDebtToDto(SupplierDebt d) => new(
-        d.Id,
-        d.SupplierId,
-        d.Supplier?.Name ?? string.Empty,
-        d.PurchaseOrderId,
-        d.PurchaseOrder?.PoNumber ?? string.Empty,
-        d.DueDate,
-        d.Amount,
-        d.PaidAmount,
-        d.RemainingAmount,
-        d.Status
-    );
+    private static SupplierDebtDto MapDebtToDto(SupplierDebt d)
+    {
+        decimal soldAmount = 0;
+        if (d.PurchaseOrder != null && d.PurchaseOrder.Items != null)
+        {
+            soldAmount = d.PurchaseOrder.Items.Sum(item => item.SoldQty * item.UnitCost);
+        }
+        var maxPayableAmount = Math.Max(0, soldAmount - d.PaidAmount);
+
+        return new SupplierDebtDto(
+            d.Id,
+            d.SupplierId,
+            d.Supplier?.Name ?? string.Empty,
+            d.PurchaseOrderId,
+            d.PurchaseOrder?.PoNumber ?? string.Empty,
+            d.DueDate,
+            d.Amount,
+            d.PaidAmount,
+            d.RemainingAmount,
+            d.Status,
+            soldAmount,
+            maxPayableAmount
+        );
+    }
 
     private static SupplierPaymentDto MapPaymentToDto(SupplierPayment p) => new(
         p.Id,

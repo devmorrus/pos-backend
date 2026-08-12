@@ -34,13 +34,19 @@ public class SupplierDebtServiceTests
         _currentUserServiceMock.UserId.Returns(_userId);
     }
 
-    private async Task<SupplierDebt> SeedDebtAsync(decimal amount = 100000m)
+    private async Task<SupplierDebt> SeedDebtAsync(decimal amount = 100000m, decimal soldQty = 10m)
     {
         var poId = Guid.NewGuid();
+        var catId = Guid.NewGuid();
+        var prodId = Guid.NewGuid();
 
         _dbContext.Suppliers.Add(new Supplier { Id = _supplierId, Name = "PT Maju Jaya", IsActive = true });
         _dbContext.Outlets.Add(new Outlet { Id = _outletId, Code = "OUT-1", Name = "Outlet A", IsActive = true });
         _dbContext.Users.Add(new User { Id = _userId, Name = "Admin", Email = "a@test.com", PasswordHash = "hash", RoleId = _roleId });
+        _dbContext.Categories.Add(new Category { Id = catId, Name = "Makanan" });
+
+        var product = new Product { Id = prodId, CategoryId = catId, Sku = $"SKU-{Guid.NewGuid()}", Name = "Chiki", BasePrice = 10000, CostPrice = amount / 10m, Unit = "pcs", IsActive = true };
+        _dbContext.Products.Add(product);
 
         _dbContext.PurchaseOrders.Add(new PurchaseOrder
         {
@@ -53,6 +59,17 @@ public class SupplierDebtServiceTests
             DueDate = DateTime.UtcNow.AddDays(30),
             TotalAmount = amount,
             CreatedBy = _userId
+        });
+
+        _dbContext.PurchaseOrderItems.Add(new PurchaseOrderItem
+        {
+            Id = Guid.NewGuid(),
+            PurchaseOrderId = poId,
+            ProductId = prodId,
+            Qty = 10m,
+            UnitCost = amount / 10m,
+            TotalCost = amount,
+            SoldQty = soldQty
         });
 
         var debt = new SupplierDebt
@@ -139,7 +156,7 @@ public class SupplierDebtServiceTests
         );
 
         var act = () => service.PayDebtAsync(_userId, request);
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*melebihi sisa utang*");
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*melebihi nilai barang yang sudah laku*");
     }
 
     // ===== PAYMENT ON ALREADY PAID DEBT =====
@@ -159,5 +176,48 @@ public class SupplierDebtServiceTests
             debt.PurchaseOrderId, 10000, "Cash", null));
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*sudah lunas*");
+    }
+
+    // ===== LAKU / SOLD QUANTITY PAYMENT GUARDS =====
+
+    [Fact]
+    public async Task PayDebtAsync_Should_ThrowException_When_NoItemsAreSold()
+    {
+        var debt = await SeedDebtAsync(amount: 100000, soldQty: 0);
+        var service = new SupplierDebtService(_dbContext, _currentUserServiceMock);
+
+        var request = new CreateSupplierPaymentRequest(
+            PurchaseOrderId: debt.PurchaseOrderId,
+            Amount: 10000,
+            PaymentMethod: "Cash",
+            ReferenceNumber: null
+        );
+
+        var act = () => service.PayDebtAsync(_userId, request);
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*melebihi nilai barang yang sudah laku*");
+    }
+
+    [Fact]
+    public async Task PayDebtAsync_Should_AllowPayment_UpTo_SoldAmount()
+    {
+        var debt = await SeedDebtAsync(amount: 100000, soldQty: 4);
+        var service = new SupplierDebtService(_dbContext, _currentUserServiceMock);
+
+        var request = new CreateSupplierPaymentRequest(
+            PurchaseOrderId: debt.PurchaseOrderId,
+            Amount: 40000,
+            PaymentMethod: "Cash",
+            ReferenceNumber: null
+        );
+
+        var result = await service.PayDebtAsync(_userId, request);
+
+        result.Should().NotBeNull();
+        result.Amount.Should().Be(40000);
+
+        var updatedDebt = await _dbContext.SupplierDebts.FindAsync(debt.Id);
+        updatedDebt!.PaidAmount.Should().Be(40000);
+        updatedDebt.RemainingAmount.Should().Be(60000);
     }
 }

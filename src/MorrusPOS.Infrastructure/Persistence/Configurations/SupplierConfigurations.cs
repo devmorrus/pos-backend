@@ -55,6 +55,7 @@ public class PurchaseOrderItemConfiguration : IEntityTypeConfiguration<PurchaseO
         builder.Property(x => x.Qty).HasColumnType("decimal(12,2)");
         builder.Property(x => x.UnitCost).HasColumnType("decimal(14,2)");
         builder.Property(x => x.TotalCost).HasColumnType("decimal(14,2)");
+        builder.Property(x => x.SoldQty).HasColumnType("decimal(12,2)").HasDefaultValue(0m);
 
         builder.HasOne(x => x.PurchaseOrder)
             .WithMany(po => po.Items)

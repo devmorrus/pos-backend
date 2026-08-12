@@ -143,6 +143,30 @@ public class TransactionService : ITransactionService
                 );
 
                 item.IsReturned = true;
+
+                // Reverse Tempo PO SoldQty allocation (LIFO)
+                if (item.Product != null && !item.Product.IsConsignment)
+                {
+                    var tempoPoItems = await _dbContext.PurchaseOrderItems
+                        .Include(poi => poi.PurchaseOrder)
+                        .Where(poi => poi.ProductId == item.ProductId &&
+                                     poi.PurchaseOrder.OutletId == transaction.OutletId &&
+                                     poi.PurchaseOrder.PaymentType == PurchaseOrderPaymentType.Tempo &&
+                                     poi.PurchaseOrder.Status == PurchaseOrderStatus.Completed &&
+                                     poi.SoldQty > 0)
+                        .OrderByDescending(poi => poi.PurchaseOrder.PoDate)
+                        .ToListAsync(ct);
+
+                    decimal remainingToReverse = item.Qty;
+                    foreach (var poItem in tempoPoItems)
+                    {
+                        if (remainingToReverse <= 0) break;
+
+                        var reversible = Math.Min(remainingToReverse, poItem.SoldQty);
+                        poItem.SoldQty -= reversible;
+                        remainingToReverse -= reversible;
+                    }
+                }
             }
 
             if (consignmentSales.Count > 0)
@@ -266,6 +290,30 @@ public class TransactionService : ITransactionService
                     note: $"Refund transaksi {transaction.TransactionNumber}",
                     ct: ct
                 );
+
+                // Reverse Tempo PO SoldQty allocation (LIFO)
+                if (transactionItem.Product != null && !transactionItem.Product.IsConsignment)
+                {
+                    var tempoPoItems = await _dbContext.PurchaseOrderItems
+                        .Include(poi => poi.PurchaseOrder)
+                        .Where(poi => poi.ProductId == transactionItem.ProductId &&
+                                     poi.PurchaseOrder.OutletId == transaction.OutletId &&
+                                     poi.PurchaseOrder.PaymentType == PurchaseOrderPaymentType.Tempo &&
+                                     poi.PurchaseOrder.Status == PurchaseOrderStatus.Completed &&
+                                     poi.SoldQty > 0)
+                        .OrderByDescending(poi => poi.PurchaseOrder.PoDate)
+                        .ToListAsync(ct);
+
+                    decimal remainingToReverse = refundItem.Qty;
+                    foreach (var poItem in tempoPoItems)
+                    {
+                        if (remainingToReverse <= 0) break;
+
+                        var reversible = Math.Min(remainingToReverse, poItem.SoldQty);
+                        poItem.SoldQty -= reversible;
+                        remainingToReverse -= reversible;
+                    }
+                }
 
                 var consignmentSale = consignmentSales.FirstOrDefault(sale => sale.TransactionItemId == transactionItem.Id);
                 if (consignmentSale != null)
@@ -554,6 +602,29 @@ public class TransactionService : ITransactionService
                         CreatedAt = DateTime.UtcNow
                     };
                     _dbContext.ConsignmentSales.Add(consignmentSale);
+                }
+                else
+                {
+                    // Allocate to Tempo PO items using FIFO
+                    var tempoPoItems = await _dbContext.PurchaseOrderItems
+                        .Include(poi => poi.PurchaseOrder)
+                        .Where(poi => poi.ProductId == product.Id &&
+                                     poi.PurchaseOrder.OutletId == request.OutletId &&
+                                     poi.PurchaseOrder.PaymentType == PurchaseOrderPaymentType.Tempo &&
+                                     poi.PurchaseOrder.Status == PurchaseOrderStatus.Completed &&
+                                     poi.SoldQty < poi.Qty)
+                        .OrderBy(poi => poi.PurchaseOrder.PoDate)
+                        .ToListAsync(ct);
+
+                    decimal remainingToAllocate = item.Qty;
+                    foreach (var poItem in tempoPoItems)
+                    {
+                        if (remainingToAllocate <= 0) break;
+
+                        var allocatable = Math.Min(remainingToAllocate, poItem.Qty - poItem.SoldQty);
+                        poItem.SoldQty += allocatable;
+                        remainingToAllocate -= allocatable;
+                    }
                 }
 
                 await _stockService.AddMovementAsync(
