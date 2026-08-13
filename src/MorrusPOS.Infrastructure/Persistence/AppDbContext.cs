@@ -89,6 +89,8 @@ public class AppDbContext : DbContext
     public DbSet<ModifierOption> ModifierOptions => Set<ModifierOption>();
     public DbSet<ProductRecipe> ProductRecipes => Set<ProductRecipe>();
     public DbSet<ProductBatch> ProductBatches => Set<ProductBatch>();
+    public DbSet<ReceivingNote> ReceivingNotes => Set<ReceivingNote>();
+    public DbSet<ReceivingNoteItem> ReceivingNoteItems => Set<ReceivingNoteItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -121,6 +123,7 @@ public class AppDbContext : DbContext
 
         // SaaS Scoping for Suppliers, Procurement, and Purchase Orders
         modelBuilder.Entity<PurchaseOrder>().HasQueryFilter(po => CurrentBusinessId == null || po.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<ReceivingNote>().HasQueryFilter(rn => CurrentBusinessId == null || rn.PurchaseOrder.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<SupplierDebt>().HasQueryFilter(sd => CurrentBusinessId == null || sd.Supplier.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<SupplierPayment>().HasQueryFilter(sp => CurrentBusinessId == null || sp.Supplier.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<SupplierReturn>().HasQueryFilter(sr => CurrentBusinessId == null || sr.PurchaseOrder.Outlet.BusinessId == CurrentBusinessId);

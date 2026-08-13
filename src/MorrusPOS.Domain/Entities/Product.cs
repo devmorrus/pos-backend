@@ -30,4 +30,5 @@ public class Product : AuditableEntity
     public ICollection<TransactionItem> TransactionItems { get; set; } = new List<TransactionItem>();
     public ICollection<InventoryStock> InventoryStocks { get; set; } = new List<InventoryStock>();
     public ICollection<StockLedger> StockLedgers { get; set; } = new List<StockLedger>();
+    public ICollection<ProductRecipe> Recipes { get; set; } = new List<ProductRecipe>();
 }

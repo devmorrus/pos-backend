@@ -64,6 +64,18 @@ public class PurchaseOrdersController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("{id}/receive")]
+    [HasPermission("supplier.manage")]
+    public async Task<ActionResult<PurchaseOrderDto>> ReceiveGoods(Guid id, ReceiveGoodsRequest request, CancellationToken ct)
+    {
+        var userId = _currentUser.UserId;
+        if (userId == null)
+            return BadRequest("User tidak valid.");
+
+        var result = await _poService.ReceiveGoodsAsync(userId.Value, id, request, ct);
+        return Ok(result);
+    }
+
     private Guid? ResolveTargetOutletId(Guid? requestedOutletId)
     {
         if (_currentUser.Role == "Owner")

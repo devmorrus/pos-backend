@@ -14,6 +14,7 @@ public class PurchaseOrderItem : BaseEntity
     public ProductVariant? ProductVariant { get; set; }
 
     public decimal Qty { get; set; }
+    public decimal QtyReceived { get; set; } = 0;
     public decimal UnitCost { get; set; }
     public decimal TotalCost { get; set; }
     public decimal SoldQty { get; set; } = 0;

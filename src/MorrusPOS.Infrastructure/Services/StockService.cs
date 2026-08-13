@@ -24,13 +24,15 @@ public class StockService : IStockService
         string referenceType,
         Guid referenceId,
         string? note = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Guid? productVariantId = null)
     {
         // 1. Insert StockLedger
         var ledger = new StockLedger
         {
             Id = Guid.NewGuid(),
             ProductId = productId,
+            ProductVariantId = productVariantId,
             OutletId = outletId,
             MovementType = movementType,
             QtyChange = qtyChange,
@@ -47,7 +49,7 @@ public class StockService : IStockService
         if (_dbContext.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
         {
             var stock = await _dbContext.InventoryStocks
-                .FirstOrDefaultAsync(s => s.ProductId == productId && s.OutletId == outletId, ct);
+                .FirstOrDefaultAsync(s => s.ProductId == productId && s.ProductVariantId == productVariantId && s.OutletId == outletId, ct);
 
             if (stock == null)
             {
@@ -55,6 +57,7 @@ public class StockService : IStockService
                 {
                     Id = Guid.NewGuid(),
                     ProductId = productId,
+                    ProductVariantId = productVariantId,
                     OutletId = outletId,
                     QtyOnHand = qtyChange,
                     MinStockAlert = 0,

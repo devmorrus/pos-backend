@@ -645,6 +645,7 @@ public class TransactionService : ITransactionService
                         Id = Guid.NewGuid(),
                         TransactionId = newTrx.Id,
                         ProductId = product.Id,
+                        ProductVariantId = itemReq.ProductVariantId,
                         Qty = itemReq.Qty,
                         UnitPrice = product.BasePrice,
                         UnitCost = itemUnitCost,
@@ -689,6 +690,7 @@ public class TransactionService : ITransactionService
                         Id = Guid.NewGuid(),
                         TransactionId = newTrx.Id,
                         ProductId = product.Id,
+                        ProductVariantId = itemReq.ProductVariantId,
                         Qty = itemReq.Qty,
                         UnitPrice = product.BasePrice,
                         UnitCost = itemUnitCost,
@@ -729,8 +731,30 @@ public class TransactionService : ITransactionService
                     referenceType: "transaction",
                     referenceId: newTrx.Id,
                     note: $"Penjualan kasir {trxNumber}",
-                    ct: ct
+                    ct: ct,
+                    productVariantId: itemReq.ProductVariantId
                 );
+
+                // --- Recipe / Ingredient Deduction ---
+                var recipes = await _dbContext.ProductRecipes
+                    .Where(r => r.ProductId == product.Id && (r.ProductVariantId == null || r.ProductVariantId == itemReq.ProductVariantId))
+                    .ToListAsync(ct);
+
+                foreach (var ingredient in recipes)
+                {
+                    var qtyToDeduct = ingredient.QuantityRequired * itemReq.Qty;
+
+                    await _stockService.AddMovementAsync(
+                        productId: ingredient.RawMaterialProductId,
+                        outletId: request.OutletId,
+                        qtyChange: -qtyToDeduct,
+                        movementType: "recipe_out",
+                        referenceType: "transaction_recipe",
+                        referenceId: newTrx.Id,
+                        note: $"Recipe deduction untuk produk {product.Name} (Kuantitas penjualan: {itemReq.Qty})",
+                        ct: ct
+                    );
+                }
             }
 
             foreach (var payReq in request.Payments)
@@ -880,13 +904,16 @@ public class TransactionService : ITransactionService
                     0,
                     0,
                     i.LineTotal
-                )).ToList()
+                )
+                {
+                    ProductVariantId = i.ProductVariantId
+                }).ToList()
             ),
             t.Items.Select(i => new TransactionItemDto(
                 i.Id,
                 i.ProductId,
                 i.Product?.Name ?? string.Empty,
-                i.Product?.Sku ?? string.Empty,
+                i.ProductVariant?.Sku ?? i.Product?.Sku ?? string.Empty,
                 i.Qty,
                 returnedQtyByItemId.GetValueOrDefault(i.Id),
                 i.Qty - returnedQtyByItemId.GetValueOrDefault(i.Id),
@@ -894,7 +921,10 @@ public class TransactionService : ITransactionService
                 i.UnitCost,
                 i.DiscountAmount,
                 i.LineTotal
-            )).ToList(),
+            )
+            {
+                ProductVariantId = i.ProductVariantId
+            }).ToList(),
             t.Payments.Select(p => new PaymentDto(
                 p.Method,
                 p.Amount,
@@ -914,7 +944,10 @@ public class TransactionService : ITransactionService
                     itemReturn.ProcessedBy,
                     itemReturn.ProcessedByUser?.Name ?? string.Empty,
                     itemReturn.CreatedAt
-                ))
+                )
+                {
+                    ProductVariantId = itemReturn.TransactionItem.ProductVariantId
+                })
                 .ToList()
         );
     }

@@ -6,6 +6,7 @@ public static class PurchaseOrderStatus
 {
     public const string Draft = "draft";
     public const string Pending = "pending";
+    public const string PartiallyReceived = "partially_received";
     public const string Completed = "completed";
     public const string Cancelled = "cancelled";
 }

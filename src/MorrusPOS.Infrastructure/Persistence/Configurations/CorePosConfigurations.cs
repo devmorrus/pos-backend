@@ -232,3 +232,23 @@ public class CashierSessionConfiguration : IEntityTypeConfiguration<CashierSessi
             .OnDelete(DeleteBehavior.Restrict);
     }
 }
+
+public class ProductRecipeConfiguration : IEntityTypeConfiguration<ProductRecipe>
+{
+    public void Configure(EntityTypeBuilder<ProductRecipe> builder)
+    {
+        builder.ToTable("ProductRecipes");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.QuantityRequired).HasColumnType("decimal(10,4)");
+
+        builder.HasOne(x => x.Product)
+            .WithMany(p => p.Recipes)
+            .HasForeignKey(x => x.ProductId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.RawMaterialProduct)
+            .WithMany()
+            .HasForeignKey(x => x.RawMaterialProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}

@@ -26,6 +26,8 @@ public class ProductService : IProductService
             .Include(p => p.Variants)
                 .ThenInclude(v => v.AttributeValues)
                     .ThenInclude(av => av.Attribute)
+            .Include(p => p.Recipes)
+                .ThenInclude(r => r.RawMaterialProduct)
             .FirstOrDefaultAsync(p => p.Id == id, ct);
 
         if (product == null)
@@ -46,6 +48,8 @@ public class ProductService : IProductService
             .Include(p => p.Variants)
                 .ThenInclude(v => v.AttributeValues)
                     .ThenInclude(av => av.Attribute)
+            .Include(p => p.Recipes)
+                .ThenInclude(r => r.RawMaterialProduct)
             .Where(p => p.IsActive)
             .AsNoTracking()
             .ToListAsync(ct);
@@ -54,6 +58,19 @@ public class ProductService : IProductService
             var stock = p.InventoryStocks.FirstOrDefault(s => s.OutletId == outletId);
             return MapToDto(p, stock?.QtyOnHand ?? 0);
         }).ToList();
+    }
+
+    public async Task<IReadOnlyList<ProductDto>> GetRawMaterialsAsync(CancellationToken ct = default)
+    {
+        var products = await _dbContext.Products
+            .Include(p => p.Variants)
+                .ThenInclude(v => v.AttributeValues)
+                    .ThenInclude(av => av.Attribute)
+            .Where(p => p.IsActive && p.IsRawMaterial)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        return products.Select(p => MapToDto(p, 0)).ToList();
     }
 
     public async Task<ProductDto> CreateAsync(CreateProductRequest request, CancellationToken ct = default)
@@ -188,6 +205,33 @@ public class ProductService : IProductService
                         UpdatedAt = DateTime.UtcNow
                     });
                 }
+            }
+        }
+
+        // 5.5 Handle recipes
+        if (!request.IsRawMaterial && request.Recipes != null)
+        {
+            foreach (var rReq in request.Recipes)
+            {
+                Guid? variantId = null;
+                if (!string.IsNullOrEmpty(rReq.ProductVariantSku))
+                {
+                    var matchingVariant = _dbContext.ProductVariants.Local
+                        .FirstOrDefault(v => v.ProductId == newProduct.Id && v.Sku.ToLower() == rReq.ProductVariantSku.ToLower());
+                    if (matchingVariant != null)
+                    {
+                        variantId = matchingVariant.Id;
+                    }
+                }
+
+                _dbContext.ProductRecipes.Add(new ProductRecipe
+                {
+                    Id = Guid.NewGuid(),
+                    ProductId = newProduct.Id,
+                    ProductVariantId = variantId,
+                    RawMaterialProductId = rReq.RawMaterialProductId,
+                    QuantityRequired = rReq.QuantityRequired
+                });
             }
         }
 
@@ -416,6 +460,44 @@ public class ProductService : IProductService
             }
         }
 
+        // 5.5 Sync recipes
+        if (!request.IsRawMaterial)
+        {
+            var existingRecipes = await _dbContext.ProductRecipes
+                .Where(r => r.ProductId == id)
+                .ToListAsync(ct);
+            _dbContext.ProductRecipes.RemoveRange(existingRecipes);
+
+            if (request.Recipes != null)
+            {
+                foreach (var rReq in request.Recipes)
+                {
+                    Guid? variantId = null;
+                    if (!string.IsNullOrEmpty(rReq.ProductVariantSku))
+                    {
+                        var matchingVariant = _dbContext.ProductVariants.Local
+                            .FirstOrDefault(v => v.ProductId == id && v.Sku.ToLower() == rReq.ProductVariantSku.ToLower())
+                            ?? await _dbContext.ProductVariants
+                                .FirstOrDefaultAsync(v => v.ProductId == id && v.Sku.ToLower() == rReq.ProductVariantSku.ToLower(), ct);
+                        
+                        if (matchingVariant != null)
+                        {
+                            variantId = matchingVariant.Id;
+                        }
+                    }
+
+                    _dbContext.ProductRecipes.Add(new ProductRecipe
+                    {
+                        Id = Guid.NewGuid(),
+                        ProductId = id,
+                        ProductVariantId = variantId,
+                        RawMaterialProductId = rReq.RawMaterialProductId,
+                        QuantityRequired = rReq.QuantityRequired
+                    });
+                }
+            }
+        }
+
         await _dbContext.SaveChangesAsync(ct);
 
         var outletId = _currentUserService.OutletId ?? DefaultOutletId;
@@ -470,6 +552,15 @@ public class ProductService : IProductService
             )).ToList()
         )).ToList();
 
+        var recipeDtos = p.Recipes?.Select(r => new ProductRecipeDto(
+            r.Id,
+            r.ProductId,
+            r.ProductVariantId,
+            r.RawMaterialProductId,
+            r.RawMaterialProduct?.Name ?? string.Empty,
+            r.QuantityRequired
+        )).ToList();
+
         return new ProductDto(
             p.Id,
             p.CategoryId,
@@ -487,6 +578,9 @@ public class ProductService : IProductService
             p.HasVariants,
             p.IsRawMaterial,
             variantDtos
-        );
+        )
+        {
+            Recipes = recipeDtos
+        };
     }
 }

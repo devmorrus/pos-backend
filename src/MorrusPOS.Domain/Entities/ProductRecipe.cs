@@ -4,9 +4,11 @@ namespace MorrusPOS.Domain.Entities;
 
 public class ProductRecipe : BaseEntity
 {
-    // The finished product variant
-    public Guid ProductVariantId { get; set; }
-    public ProductVariant ProductVariant { get; set; } = default!;
+    public Guid ProductId { get; set; }
+    public Product Product { get; set; } = default!;
+
+    public Guid? ProductVariantId { get; set; }
+    public ProductVariant? ProductVariant { get; set; }
 
     // The raw material/ingredient (which is also modeled as a Product, but with IsRawMaterial = true)
     public Guid RawMaterialProductId { get; set; }

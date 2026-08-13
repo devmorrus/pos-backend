@@ -34,6 +34,18 @@ public record ProductDto(
     bool HasVariants = false,
     bool IsRawMaterial = false,
     IReadOnlyList<ProductVariantDto>? Variants = null
+)
+{
+    public IReadOnlyList<ProductRecipeDto>? Recipes { get; init; }
+}
+
+public record ProductRecipeDto(
+    Guid Id,
+    Guid ProductId,
+    Guid? ProductVariantId,
+    Guid RawMaterialProductId,
+    string RawMaterialProductName,
+    decimal QuantityRequired
 );
 
 public record CreateProductAttributeValueRequest(
@@ -65,6 +77,15 @@ public record CreateProductRequest(
     bool HasVariants = false,
     bool IsRawMaterial = false,
     IReadOnlyList<CreateProductVariantRequest>? Variants = null
+)
+{
+    public IReadOnlyList<ProductRecipeRequest>? Recipes { get; init; }
+}
+
+public record ProductRecipeRequest(
+    Guid RawMaterialProductId,
+    decimal QuantityRequired,
+    string? ProductVariantSku = null
 );
 
 public record UpdateProductRequest(
@@ -83,12 +104,16 @@ public record UpdateProductRequest(
     bool HasVariants = false,
     bool IsRawMaterial = false,
     IReadOnlyList<CreateProductVariantRequest>? Variants = null
-);
+)
+{
+    public IReadOnlyList<ProductRecipeRequest>? Recipes { get; init; }
+}
 
 public interface IProductService
 {
     Task<ProductDto> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<ProductDto>> GetByOutletAsync(Guid outletId, CancellationToken ct = default);
+    Task<IReadOnlyList<ProductDto>> GetRawMaterialsAsync(CancellationToken ct = default);
     Task<ProductDto> CreateAsync(CreateProductRequest request, CancellationToken ct = default);
     Task<ProductDto> UpdateAsync(Guid id, UpdateProductRequest request, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);

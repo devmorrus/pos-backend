@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MorrusPOS.Infrastructure.Persistence;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MorrusPOS.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260813164529_AddReceivingNotesAndQtyReceived")]
+    partial class AddReceivingNotesAndQtyReceived
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1453,27 +1456,22 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ProductVariantId")
+                    b.Property<Guid>("ProductVariantId")
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("QuantityRequired")
-                        .HasColumnType("decimal(10,4)");
+                        .HasColumnType("numeric");
 
                     b.Property<Guid>("RawMaterialProductId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ProductId");
-
                     b.HasIndex("ProductVariantId");
 
                     b.HasIndex("RawMaterialProductId");
 
-                    b.ToTable("ProductRecipes", (string)null);
+                    b.ToTable("ProductRecipes");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductVariant", b =>
@@ -3557,23 +3555,17 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductRecipe", b =>
                 {
-                    b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
-                        .WithMany("Recipes")
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("MorrusPOS.Domain.Entities.ProductVariant", "ProductVariant")
                         .WithMany()
-                        .HasForeignKey("ProductVariantId");
+                        .HasForeignKey("ProductVariantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("MorrusPOS.Domain.Entities.Product", "RawMaterialProduct")
                         .WithMany()
                         .HasForeignKey("RawMaterialProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Product");
 
                     b.Navigation("ProductVariant");
 
@@ -4263,8 +4255,6 @@ namespace MorrusPOS.Infrastructure.Migrations
             modelBuilder.Entity("MorrusPOS.Domain.Entities.Product", b =>
                 {
                     b.Navigation("InventoryStocks");
-
-                    b.Navigation("Recipes");
 
                     b.Navigation("StockLedgers");
 

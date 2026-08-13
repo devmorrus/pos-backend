@@ -10,5 +10,6 @@ public interface IStockService
         string referenceType,
         Guid referenceId,
         string? note = null,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        Guid? productVariantId = null);
 }

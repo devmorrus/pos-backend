@@ -37,6 +37,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             .Include(p => p.Outlet)
             .Include(p => p.CreatedByUser)
             .Include(p => p.Items).ThenInclude(i => i.Product)
+            .Include(p => p.Items).ThenInclude(i => i.ProductVariant)
             .FirstOrDefaultAsync(p => p.Id == id, ct);
 
         if (po == null)
@@ -54,6 +55,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             .Include(p => p.Outlet)
             .Include(p => p.CreatedByUser)
             .Include(p => p.Items).ThenInclude(i => i.Product)
+            .Include(p => p.Items).ThenInclude(i => i.ProductVariant)
             .Where(p => p.OutletId == outletId)
             .OrderByDescending(p => p.PoDate)
             .ToListAsync(ct);
@@ -132,7 +134,9 @@ public class PurchaseOrderService : IPurchaseOrderService
                 Id = Guid.NewGuid(),
                 PurchaseOrderId = po.Id,
                 ProductId = itemReq.ProductId,
+                ProductVariantId = itemReq.ProductVariantId,
                 Qty = itemReq.Qty,
+                QtyReceived = 0,
                 UnitCost = itemReq.UnitCost,
                 TotalCost = lineTotal
             });
@@ -325,6 +329,132 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
     }
 
+    public async Task<PurchaseOrderDto> ReceiveGoodsAsync(Guid userId, Guid poId, ReceiveGoodsRequest request, CancellationToken ct = default)
+    {
+        var po = await _dbContext.PurchaseOrders
+            .Include(p => p.Items).ThenInclude(i => i.Product)
+            .Include(p => p.Items).ThenInclude(i => i.ProductVariant)
+            .Include(p => p.Outlet)
+            .FirstOrDefaultAsync(p => p.Id == poId, ct);
+
+        if (po == null)
+            throw new InvalidOperationException("Purchase Order tidak ditemukan.");
+
+        await EnsureOutletAccessibleAsync(po.OutletId, ct);
+
+        if (po.Status == PurchaseOrderStatus.Completed || po.Status == PurchaseOrderStatus.Cancelled)
+            throw new InvalidOperationException($"Purchase Order sudah berstatus '{po.Status}', tidak bisa menerima barang lagi.");
+
+        using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
+        try
+        {
+            var receivingNote = new ReceivingNote
+            {
+                Id = Guid.NewGuid(),
+                PurchaseOrderId = po.Id,
+                ReceivingNumber = $"RCV-{po.PoNumber}-{DateTime.UtcNow:HHmmss}",
+                ReceivedDate = DateTime.UtcNow,
+                Notes = request.Notes,
+                ReceivedBy = userId,
+                ReceivedByUser = default!
+            };
+            
+            _dbContext.Entry(receivingNote).Property("ReceivedByUserId").CurrentValue = userId;
+            _dbContext.ReceivingNotes.Add(receivingNote);
+
+            bool allCompleted = true;
+
+            foreach (var itemReq in request.Items)
+            {
+                if (itemReq.QtyReceived <= 0) continue;
+
+                var poItem = po.Items.FirstOrDefault(i => i.ProductId == itemReq.ProductId && i.ProductVariantId == itemReq.ProductVariantId);
+                if (poItem == null)
+                    throw new InvalidOperationException("Item yang diterima tidak cocok dengan item di Purchase Order.");
+
+                poItem.QtyReceived += itemReq.QtyReceived;
+
+                var receivingItem = new ReceivingNoteItem
+                {
+                    Id = Guid.NewGuid(),
+                    ReceivingNoteId = receivingNote.Id,
+                    ProductId = itemReq.ProductId,
+                    ProductVariantId = itemReq.ProductVariantId,
+                    QtyReceived = itemReq.QtyReceived,
+                    BatchNumber = itemReq.BatchNumber,
+                    ExpiryDate = itemReq.ExpiryDate
+                };
+                _dbContext.ReceivingNoteItems.Add(receivingItem);
+
+                await _stockService.AddMovementAsync(
+                    productId: itemReq.ProductId,
+                    outletId: po.OutletId,
+                    qtyChange: itemReq.QtyReceived,
+                    movementType: "purchase_in",
+                    referenceType: "receiving_note",
+                    referenceId: receivingNote.Id,
+                    note: $"Penerimaan barang dari PO {po.PoNumber} (No. RCV: {receivingNote.ReceivingNumber})",
+                    ct: ct,
+                    productVariantId: itemReq.ProductVariantId
+                );
+
+                if (!string.IsNullOrEmpty(itemReq.BatchNumber) && itemReq.ExpiryDate.HasValue)
+                {
+                    var productBatch = new ProductBatch
+                    {
+                        Id = Guid.NewGuid(),
+                        ProductId = itemReq.ProductId,
+                        ProductVariantId = itemReq.ProductVariantId,
+                        BatchNumber = itemReq.BatchNumber,
+                        ExpiryDate = itemReq.ExpiryDate.Value,
+                        QtyProduction = itemReq.QtyReceived,
+                        QtyRemaining = itemReq.QtyReceived,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    _dbContext.ProductBatches.Add(productBatch);
+                }
+            }
+
+            foreach (var item in po.Items)
+            {
+                if (item.QtyReceived < item.Qty)
+                {
+                    allCompleted = false;
+                    break;
+                }
+            }
+
+            po.Status = allCompleted ? PurchaseOrderStatus.Completed : PurchaseOrderStatus.PartiallyReceived;
+            po.UpdatedAt = DateTime.UtcNow;
+
+            await _dbContext.SaveChangesAsync(ct);
+
+            var productIds = request.Items.Select(i => i.ProductId).ToList();
+            var stocks = await _dbContext.InventoryStocks
+                .Where(s => s.OutletId == po.OutletId && productIds.Contains(s.ProductId))
+                .ToListAsync(ct);
+
+            var stockUpdates = stocks
+                .Select(s => new StockUpdateItem(s.ProductId, s.QtyOnHand))
+                .ToList();
+
+            if (stockUpdates.Any())
+            {
+                await _notificationService.SendStockUpdateAsync(po.OutletId, stockUpdates, ct);
+            }
+
+            await dbTx.CommitAsync(ct);
+
+            return await GetByIdAsync(po.Id, ct);
+        }
+        catch (Exception)
+        {
+            await dbTx.RollbackAsync(ct);
+            throw;
+        }
+    }
+
     private static PurchaseOrderDto MapToDto(PurchaseOrder po) => new(
         po.Id,
         po.SupplierId,
@@ -340,12 +470,16 @@ public class PurchaseOrderService : IPurchaseOrderService
         po.Items.Select(i => new PurchaseOrderItemDto(
             i.ProductId,
             i.Product?.Name ?? string.Empty,
-            i.Product?.Sku ?? string.Empty,
+            i.ProductVariant?.Sku ?? i.Product?.Sku ?? string.Empty,
             i.Qty,
             i.UnitCost,
             i.TotalCost,
             i.Product?.BasePrice ?? 0
-        )).ToList()
+        )
+        {
+            ProductVariantId = i.ProductVariantId,
+            QtyReceived = i.QtyReceived
+        }).ToList()
     );
 
     private async Task EnsureOutletAccessibleAsync(Guid outletId, CancellationToken ct)
