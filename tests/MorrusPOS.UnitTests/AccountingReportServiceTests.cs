@@ -200,6 +200,47 @@ public class AccountingReportServiceTests
         report.Summary.NetProfit.Should().Be(0);
     }
 
+    [Fact]
+    public async Task GetAccountingProfitLossReportAsync_Should_FilterByOutletAndKeyword()
+    {
+        var revenueA = AddAccount("4100", "Pendapatan Outlet A", ChartOfAccountType.Revenue, false, _outletAId);
+        var revenueB = AddAccount("4101", "Pendapatan Outlet B", ChartOfAccountType.Revenue, false, _outletBId);
+
+        AddAccountTransaction(revenueA, new DateTime(2026, 8, 10, 9, 0, 0, DateTimeKind.Utc), "REV-A", debit: 0, credit: 100, outletId: _outletAId, note: "Alpha");
+        AddAccountTransaction(revenueB, new DateTime(2026, 8, 10, 9, 5, 0, DateTimeKind.Utc), "REV-B", debit: 0, credit: 200, outletId: _outletBId, note: "Bravo");
+        await _dbContext.SaveChangesAsync();
+
+        var service = new ReportService(_dbContext, _currentUser);
+        var report = await service.GetAccountingProfitLossReportAsync(new AccountingProfitLossReportFilters(
+            DateFrom: new DateTime(2026, 8, 1),
+            DateTo: new DateTime(2026, 8, 31),
+            OutletId: _outletAId,
+            Keyword: "Alpha"));
+
+        report.Revenue.Accounts.Should().HaveCount(1);
+        report.Revenue.Accounts[0].AccountCode.Should().Be("4100");
+        report.Summary.RevenueTotal.Should().Be(100);
+    }
+
+    [Fact]
+    public async Task ExportAccountingProfitLossExcelAsync_Should_ReturnXlsxPayload()
+    {
+        var revenue = AddAccount("4100", "Pendapatan Toko", ChartOfAccountType.Revenue, false);
+        AddAccountTransaction(revenue, new DateTime(2026, 8, 5, 9, 0, 0, DateTimeKind.Utc), "REV-1", debit: 0, credit: 1000, note: "Penjualan");
+        await _dbContext.SaveChangesAsync();
+
+        var service = new ReportService(_dbContext, _currentUser);
+        var result = await service.ExportAccountingProfitLossExcelAsync(new AccountingProfitLossReportFilters(
+            DateFrom: new DateTime(2026, 8, 1),
+            DateTo: new DateTime(2026, 8, 31),
+            OutletId: null,
+            Keyword: null));
+
+        result.ContentType.Should().Be("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        result.FileName.Should().Be("Laporan_Laba_Rugi_Akuntansi_20260801_20260831.xlsx");
+        result.FileBytes.Should().NotBeEmpty();
+    }
+
     private ChartOfAccount AddAccount(string code, string name, string type, bool isCashBank, Guid? outletId = null)
     {
         var account = new ChartOfAccount

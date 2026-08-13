@@ -46,7 +46,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("profit-loss")]
-    [HasPermission("report.view")]
+    [HasPermission("report.profitloss_accounting.view")]
     public async Task<ActionResult<AccountingProfitLossReportDto>> GetProfitLoss(
         [FromQuery] AccountingProfitLossReportFilters filters,
         CancellationToken ct = default)
@@ -57,15 +57,13 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("profit-loss/export-excel")]
-    [HasPermission("report.view")]
+    [HasPermission("report.profitloss_accounting.view")]
     public async Task<IActionResult> ExportProfitLossExcel(
-        [FromQuery] Guid? outletId,
-        [FromQuery] DateTime startDate,
-        [FromQuery] DateTime endDate,
+        [FromQuery] AccountingProfitLossReportFilters filters,
         CancellationToken ct = default)
     {
-        var resolvedOutletId = ResolveTargetOutletId(outletId);
-        var response = await _reportService.ExportProfitLossExcelAsync(resolvedOutletId, startDate, endDate, ct);
+        var resolvedFilters = filters with { OutletId = ResolveTargetOutletId(filters.OutletId) };
+        var response = await _reportService.ExportAccountingProfitLossExcelAsync(resolvedFilters, ct);
         return File(response.FileBytes, response.ContentType, response.FileName);
     }
 

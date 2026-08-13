@@ -270,6 +270,62 @@ public class ReportService : IReportService
         );
     }
 
+    public async Task<ExportReportResponse> ExportAccountingProfitLossExcelAsync(
+        AccountingProfitLossReportFilters filters,
+        CancellationToken ct = default)
+    {
+        var report = await GetAccountingProfitLossReportAsync(filters, ct);
+        var periodStart = report.Filters.DateFrom?.Date ?? DateTime.UtcNow.Date;
+        var periodEnd = report.Filters.DateTo?.Date ?? DateTime.UtcNow.Date;
+        var outletLabel = report.Filters.OutletId.HasValue
+            ? "Outlet terpilih"
+            : "Semua outlet";
+
+        using var stream = new MemoryStream();
+        using (var document = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook, true))
+        {
+            var workbookPart = document.AddWorkbookPart();
+            workbookPart.Workbook = new Workbook();
+
+            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            var sheetData = new SheetData();
+            worksheetPart.Worksheet = new Worksheet(sheetData);
+
+            AppendTextRow(sheetData, "Laporan Laba Rugi Akuntansi MorrusPOS");
+            AppendTextRow(sheetData, $"Periode: {periodStart:yyyy-MM-dd} s/d {periodEnd:yyyy-MM-dd}");
+            AppendTextRow(sheetData, $"Outlet: {outletLabel}");
+            AppendEmptyRow(sheetData);
+
+            AppendTextRow(sheetData, "Ringkasan");
+            AppendTextRow(sheetData, "Metrik", "Nilai");
+            AppendTextRow(sheetData, "Pendapatan", report.Summary.RevenueTotal);
+            AppendTextRow(sheetData, "HPP", report.Summary.CogsTotal);
+            AppendTextRow(sheetData, "Laba Kotor", report.Summary.GrossProfit);
+            AppendTextRow(sheetData, "Biaya", report.Summary.ExpenseTotal);
+            AppendTextRow(sheetData, "Laba Bersih", report.Summary.NetProfit);
+            AppendEmptyRow(sheetData);
+
+            AppendProfitLossSection(sheetData, "Pendapatan", report.Revenue);
+            AppendProfitLossSection(sheetData, "Harga Pokok Penjualan", report.Cogs);
+            AppendProfitLossSection(sheetData, "Biaya Operasional", report.Expense);
+
+            var sheets = workbookPart.Workbook.AppendChild(new Sheets());
+            sheets.Append(new Sheet
+            {
+                Id = workbookPart.GetIdOfPart(worksheetPart),
+                SheetId = 1,
+                Name = "Laba Rugi"
+            });
+
+            workbookPart.Workbook.Save();
+        }
+
+        return new ExportReportResponse(
+            stream.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"Laporan_Laba_Rugi_Akuntansi_{periodStart:yyyyMMdd}_{periodEnd:yyyyMMdd}.xlsx");
+    }
+
     public async Task<ProfitLossReportDto> GetProfitLossReportAsync(
         Guid? outletId,
         DateTime startDate,
@@ -796,6 +852,23 @@ public class ReportService : IReportService
         }
 
         sheetData.AppendChild(row);
+    }
+
+    private static void AppendProfitLossSection(
+        SheetData sheetData,
+        string title,
+        AccountingProfitLossSectionDto section)
+    {
+        AppendTextRow(sheetData, title);
+        AppendTextRow(sheetData, "Kode Akun", "Nama Akun", "Nominal");
+
+        foreach (var account in section.Accounts)
+        {
+            AppendTextRow(sheetData, account.AccountCode, account.AccountName, account.Amount);
+        }
+
+        AppendTextRow(sheetData, "Total", string.Empty, section.Total);
+        AppendEmptyRow(sheetData);
     }
 
     private static Cell CreateCell(object? value)

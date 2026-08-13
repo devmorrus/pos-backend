@@ -182,6 +182,10 @@ public interface IReportService
         AccountingProfitLossReportFilters filters,
         CancellationToken ct = default);
 
+    Task<ExportReportResponse> ExportAccountingProfitLossExcelAsync(
+        AccountingProfitLossReportFilters filters,
+        CancellationToken ct = default);
+
     Task<ProfitLossReportDto> GetProfitLossReportAsync(
         Guid? outletId,
         DateTime startDate,
