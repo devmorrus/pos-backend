@@ -24,4 +24,5 @@ public class User : AuditableEntity
     public ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
     public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+    public ICollection<CashFlow> CashFlowsCreated { get; set; } = new List<CashFlow>();
 }

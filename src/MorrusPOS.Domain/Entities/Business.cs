@@ -21,4 +21,7 @@ public class Business : AuditableEntity
     // Navigation Properties
     public ICollection<User> Users { get; set; } = new List<User>();
     public ICollection<Outlet> Outlets { get; set; } = new List<Outlet>();
+    public ICollection<ChartOfAccount> ChartOfAccounts { get; set; } = new List<ChartOfAccount>();
+    public ICollection<CashFlow> CashFlows { get; set; } = new List<CashFlow>();
+    public ICollection<AccountTransaction> AccountTransactions { get; set; } = new List<AccountTransaction>();
 }

@@ -67,7 +67,12 @@ public class PermissionConfiguration : IEntityTypeConfiguration<Permission>
             new Permission { Id = Guid.Parse("99999999-9999-9999-9999-999999999999"), Code = "channel_settlement.manage", Description = "Mengelola channel account dan settlement channel" },
             new Permission { Id = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), Code = "pricing.manage", Description = "Mengelola pricing rule, promo, voucher, pajak, dan service charge" },
             new Permission { Id = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), Code = "customer.manage", Description = "Mengelola master customer dan member dasar" },
-            new Permission { Id = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"), Code = "customer.view", Description = "Melihat dan lookup customer untuk transaksi kasir" }
+            new Permission { Id = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"), Code = "customer.view", Description = "Melihat dan lookup customer untuk transaksi kasir" },
+            new Permission { Id = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"), Code = "account.manage", Description = "Mengelola master chart of accounts" },
+            new Permission { Id = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"), Code = "cashflow.create", Description = "Membuat transaksi pemasukan dan pengeluaran toko" },
+            new Permission { Id = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff"), Code = "cashflow.view", Description = "Melihat histori transaksi cash flow manual" },
+            new Permission { Id = Guid.Parse("12121212-1212-1212-1212-121212121212"), Code = "report.cashflow.view", Description = "Melihat laporan arus kas" },
+            new Permission { Id = Guid.Parse("13131313-1313-1313-1313-131313131313"), Code = "report.profitloss_accounting.view", Description = "Melihat laporan laba rugi akuntansi" }
         );
     }
 }
@@ -106,6 +111,11 @@ public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermissi
         var pPricingManage = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
         var pCustomerManage = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
         var pCustomerView = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+        var pAccountManage = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
+        var pCashflowCreate = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
+        var pCashflowView = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff");
+        var pCashflowReport = Guid.Parse("12121212-1212-1212-1212-121212121212");
+        var pProfitLossAccountingReport = Guid.Parse("13131313-1313-1313-1313-131313131313");
 
         builder.HasData(
             // Owner gets all
@@ -121,6 +131,11 @@ public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermissi
             new RolePermission { RoleId = ownerId, PermissionId = pPricingManage },
             new RolePermission { RoleId = ownerId, PermissionId = pCustomerManage },
             new RolePermission { RoleId = ownerId, PermissionId = pCustomerView },
+            new RolePermission { RoleId = ownerId, PermissionId = pAccountManage },
+            new RolePermission { RoleId = ownerId, PermissionId = pCashflowCreate },
+            new RolePermission { RoleId = ownerId, PermissionId = pCashflowView },
+            new RolePermission { RoleId = ownerId, PermissionId = pCashflowReport },
+            new RolePermission { RoleId = ownerId, PermissionId = pProfitLossAccountingReport },
 
             // Admin gets all
             new RolePermission { RoleId = adminId, PermissionId = pTxCreate },
@@ -135,6 +150,11 @@ public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermissi
             new RolePermission { RoleId = adminId, PermissionId = pPricingManage },
             new RolePermission { RoleId = adminId, PermissionId = pCustomerManage },
             new RolePermission { RoleId = adminId, PermissionId = pCustomerView },
+            new RolePermission { RoleId = adminId, PermissionId = pAccountManage },
+            new RolePermission { RoleId = adminId, PermissionId = pCashflowCreate },
+            new RolePermission { RoleId = adminId, PermissionId = pCashflowView },
+            new RolePermission { RoleId = adminId, PermissionId = pCashflowReport },
+            new RolePermission { RoleId = adminId, PermissionId = pProfitLossAccountingReport },
 
             // Kepala Cabang gets operational branch permissions
             new RolePermission { RoleId = kepalaCabangId, PermissionId = pTxCreate },
@@ -159,7 +179,12 @@ public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermissi
             new RolePermission { RoleId = keuanganId, PermissionId = pChannelSettlementManage },
             new RolePermission { RoleId = keuanganId, PermissionId = pPricingManage },
             new RolePermission { RoleId = keuanganId, PermissionId = pCustomerManage },
-            new RolePermission { RoleId = keuanganId, PermissionId = pCustomerView }
+            new RolePermission { RoleId = keuanganId, PermissionId = pCustomerView },
+            new RolePermission { RoleId = keuanganId, PermissionId = pAccountManage },
+            new RolePermission { RoleId = keuanganId, PermissionId = pCashflowCreate },
+            new RolePermission { RoleId = keuanganId, PermissionId = pCashflowView },
+            new RolePermission { RoleId = keuanganId, PermissionId = pCashflowReport },
+            new RolePermission { RoleId = keuanganId, PermissionId = pProfitLossAccountingReport }
         );
     }
 }

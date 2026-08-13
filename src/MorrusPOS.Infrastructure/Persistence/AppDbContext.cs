@@ -19,6 +19,9 @@ public class AppDbContext : DbContext
 
     // SaaS Entities
     public DbSet<Business> Businesses => Set<Business>();
+    public DbSet<ChartOfAccount> ChartOfAccounts => Set<ChartOfAccount>();
+    public DbSet<CashFlow> CashFlows => Set<CashFlow>();
+    public DbSet<AccountTransaction> AccountTransactions => Set<AccountTransaction>();
 
     // Fase 0 — Fondasi
     public DbSet<Outlet> Outlets => Set<Outlet>();
@@ -89,6 +92,9 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Customer>().HasQueryFilter(c => CurrentBusinessId == null || c.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<Category>().HasQueryFilter(c => CurrentBusinessId == null || c.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<Supplier>().HasQueryFilter(s => CurrentBusinessId == null || s.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<ChartOfAccount>().HasQueryFilter(a => CurrentBusinessId == null || a.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<CashFlow>().HasQueryFilter(cf => CurrentBusinessId == null || cf.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<AccountTransaction>().HasQueryFilter(at => CurrentBusinessId == null || at.BusinessId == CurrentBusinessId);
 
         // SaaS Scoping for Operational Transactions & POS Sessions
         modelBuilder.Entity<Transaction>().HasQueryFilter(t => CurrentBusinessId == null || t.Outlet.BusinessId == CurrentBusinessId);

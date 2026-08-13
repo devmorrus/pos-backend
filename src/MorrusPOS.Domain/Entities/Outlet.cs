@@ -21,4 +21,7 @@ public class Outlet : AuditableEntity
     public ICollection<ServiceChargeRule> ServiceChargeRules { get; set; } = new List<ServiceChargeRule>();
     public ICollection<PromoCampaign> PromoCampaigns { get; set; } = new List<PromoCampaign>();
     public ICollection<Voucher> Vouchers { get; set; } = new List<Voucher>();
+    public ICollection<ChartOfAccount> ChartOfAccounts { get; set; } = new List<ChartOfAccount>();
+    public ICollection<CashFlow> CashFlows { get; set; } = new List<CashFlow>();
+    public ICollection<AccountTransaction> AccountTransactions { get; set; } = new List<AccountTransaction>();
 }
