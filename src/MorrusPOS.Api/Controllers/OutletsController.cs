@@ -8,7 +8,7 @@ namespace MorrusPOS.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Owner,Admin")]
+[Authorize(Roles = "Owner,Admin,Keuangan")]
 public class OutletsController : ControllerBase
 {
     private readonly AppDbContext _dbContext;

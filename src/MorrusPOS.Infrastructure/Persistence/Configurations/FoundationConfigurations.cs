@@ -18,6 +18,7 @@ public class OutletConfiguration : IEntityTypeConfiguration<Outlet>
         builder.HasData(new Outlet
         {
             Id = Guid.Parse("8bba5427-017e-40fb-886f-5e4c6c9a3809"),
+            BusinessId = BusinessConfiguration.SeedBusinessId,
             Name = "Outlet Utama",
             Code = "OUT001",
             IsActive = true,
@@ -215,6 +216,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.HasData(new User
         {
             Id = Guid.Parse("a4f78de1-8a9d-4e96-857e-399fa5b5f25a"),
+            BusinessId = BusinessConfiguration.SeedBusinessId,
             OutletId = null, // Owner access to all outlets
             RoleId = Guid.Parse("e1a7b077-44a3-4b63-95e0-59a8501170ea"), // Owner Role
             Name = "Morrus Owner",

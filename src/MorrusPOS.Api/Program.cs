@@ -31,6 +31,8 @@ using MorrusPOS.Application.Features.Pricing;
 using MorrusPOS.Application.Features.Pricing.Validators;
 using MorrusPOS.Application.Features.Customers;
 using MorrusPOS.Application.Features.Customers.Validators;
+using MorrusPOS.Application.Features.Accounting;
+using MorrusPOS.Application.Features.Accounting.Validators;
 using MorrusPOS.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -84,6 +86,9 @@ builder.Services.AddScoped<IValidator<CreateVoucherRequest>, CreateVoucherReques
 builder.Services.AddScoped<IValidator<UpdateVoucherRequest>, UpdateVoucherRequestValidator>();
 builder.Services.AddScoped<IValidator<CreateCustomerRequest>, CreateCustomerRequestValidator>();
 builder.Services.AddScoped<IValidator<UpdateCustomerRequest>, UpdateCustomerRequestValidator>();
+builder.Services.AddScoped<IValidator<CreateChartOfAccountRequest>, CreateChartOfAccountRequestValidator>();
+builder.Services.AddScoped<IValidator<UpdateChartOfAccountRequest>, UpdateChartOfAccountRequestValidator>();
+builder.Services.AddScoped<IValidator<UpdateChartOfAccountStatusRequest>, UpdateChartOfAccountStatusRequestValidator>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
