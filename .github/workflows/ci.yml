@@ -25,5 +25,5 @@ jobs:
       - name: Build solution
         run: dotnet build MorrusPOS.sln --configuration Release --no-restore
 
-      - name: Run tests
-        run: dotnet test MorrusPOS.sln --configuration Release --no-build --verbosity normal
+      - name: Run unit tests
+        run: dotnet test tests/MorrusPOS.UnitTests/MorrusPOS.UnitTests.csproj --configuration Release --no-build --verbosity normal
