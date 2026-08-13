@@ -13,9 +13,14 @@ public class InventoryStockConfiguration : IEntityTypeConfiguration<InventorySto
         builder.Property(x => x.QtyOnHand).HasColumnType("decimal(12,2)");
         builder.Property(x => x.MinStockAlert).HasColumnType("decimal(12,2)");
 
-        // Unique constraint (product_id, outlet_id) — dipakai juga sebagai target
-        // ON CONFLICT oleh trigger database di StockLedgerTrigger.sql
-        builder.HasIndex(x => new { x.ProductId, x.OutletId }).IsUnique();
+        // Unique constraints to support both parent stock and variant stock
+        builder.HasIndex(x => new { x.ProductId, x.OutletId })
+            .IsUnique()
+            .HasFilter("\"ProductVariantId\" IS NULL");
+
+        builder.HasIndex(x => new { x.ProductId, x.ProductVariantId, x.OutletId })
+            .IsUnique()
+            .HasFilter("\"ProductVariantId\" IS NOT NULL");
 
         builder.HasOne(x => x.Product)
             .WithMany(p => p.InventoryStocks)

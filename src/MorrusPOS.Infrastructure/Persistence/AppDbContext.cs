@@ -81,6 +81,15 @@ public class AppDbContext : DbContext
     public DbSet<Voucher> Vouchers => Set<Voucher>();
     public DbSet<VoucherRedemption> VoucherRedemptions => Set<VoucherRedemption>();
 
+    // Varian, Modifier, Resep & Batch UMKM
+    public DbSet<ProductAttribute> ProductAttributes => Set<ProductAttribute>();
+    public DbSet<ProductAttributeValue> ProductAttributeValues => Set<ProductAttributeValue>();
+    public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
+    public DbSet<ModifierGroup> ModifierGroups => Set<ModifierGroup>();
+    public DbSet<ModifierOption> ModifierOptions => Set<ModifierOption>();
+    public DbSet<ProductRecipe> ProductRecipes => Set<ProductRecipe>();
+    public DbSet<ProductBatch> ProductBatches => Set<ProductBatch>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
@@ -95,6 +104,8 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<ChartOfAccount>().HasQueryFilter(a => CurrentBusinessId == null || a.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<CashFlow>().HasQueryFilter(cf => CurrentBusinessId == null || cf.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<AccountTransaction>().HasQueryFilter(at => CurrentBusinessId == null || at.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<ProductAttribute>().HasQueryFilter(pa => CurrentBusinessId == null || pa.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<ModifierGroup>().HasQueryFilter(mg => CurrentBusinessId == null || mg.BusinessId == CurrentBusinessId);
 
         // SaaS Scoping for Operational Transactions & POS Sessions
         modelBuilder.Entity<Transaction>().HasQueryFilter(t => CurrentBusinessId == null || t.Outlet.BusinessId == CurrentBusinessId);
