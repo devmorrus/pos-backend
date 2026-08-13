@@ -202,9 +202,15 @@ public class OutletsController : ControllerBase
             return "Kode cabang wajib diisi.";
         }
 
-        if (request.Code.Length > 20)
+        var trimmedCode = request.Code.Trim();
+        if (trimmedCode.Length < 3 || trimmedCode.Length > 20)
         {
-            return "Kode cabang maksimal 20 karakter.";
+            return "Kode cabang harus berkisar antara 3 sampai 20 karakter.";
+        }
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(trimmedCode, "^[a-zA-Z0-9\\-_]+$"))
+        {
+            return "Kode cabang hanya boleh berisi huruf, angka, strip (-), dan underscore (_).";
         }
 
         if (string.IsNullOrWhiteSpace(request.Name))
@@ -212,14 +218,23 @@ public class OutletsController : ControllerBase
             return "Nama cabang wajib diisi.";
         }
 
-        if (request.Name.Length > 150)
+        var trimmedName = request.Name.Trim();
+        if (trimmedName.Length < 3 || trimmedName.Length > 150)
         {
-            return "Nama cabang maksimal 150 karakter.";
+            return "Nama cabang harus berkisar antara 3 sampai 150 karakter.";
         }
 
-        if (request.Phone is not null && request.Phone.Length > 20)
+        if (request.Phone is not null && request.Phone.Trim().Length > 0)
         {
-            return "Nomor telepon maksimal 20 karakter.";
+            var trimmedPhone = request.Phone.Trim();
+            if (!System.Text.RegularExpressions.Regex.IsMatch(trimmedPhone, "^[0-9+\\-\\s()]+$"))
+            {
+                return "Nomor telepon tidak valid.";
+            }
+            if (trimmedPhone.Length > 20)
+            {
+                return "Nomor telepon maksimal 20 karakter.";
+            }
         }
 
         return null;
