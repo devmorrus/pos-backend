@@ -1,0 +1,51 @@
+name: Deploy Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Verify production SSH reachability
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_HOST }}
+          SSH_PORT: ${{ secrets.PRODUCTION_PORT }}
+        run: |
+          set -euo pipefail
+          timeout 15 bash -c "cat < /dev/null > /dev/tcp/${SSH_HOST}/${SSH_PORT}" || {
+            echo "::error::GitHub Actions runner could not reach the configured production SSH host/port. Check DNS, port, firewall, and any IP allowlist."
+            exit 1
+          }
+
+      - name: Deploy to VPS production
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.PRODUCTION_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          port: ${{ secrets.PRODUCTION_PORT }}
+          timeout: 60s
+          command_timeout: 30m
+          script: |
+            cd /home/morrusdigital/pos-backend
+            git -c pack.threads=1 -c fetch.unpackLimit=1 fetch --prune --no-tags origin main
+            git checkout -f main
+            git reset --hard origin/main
+            BASH_ENV=/dev/null ENV=/dev/null bash ./deploy.sh production
+
+      - name: Health check production
+        run: |
+          curl --fail --silent --show-error --location \
+            --retry 5 \
+            --retry-delay 5 \
+            --max-time 30 \
+            https://api-pos.morrusdigitalconnecting.com/api/public/categories >/dev/null
