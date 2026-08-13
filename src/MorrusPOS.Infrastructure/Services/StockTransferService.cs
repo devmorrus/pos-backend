@@ -80,45 +80,80 @@ public class StockTransferService : IStockTransferService
             throw new InvalidOperationException("Outlet asal dan tujuan tidak boleh sama.");
         }
 
-        var rand = new Random();
-        var transferNumber = $"TRF-{DateTime.UtcNow:yyyyMMddHHmmss}-{rand.Next(1000, 9999)}";
-
-        var transfer = new StockTransfer
+        using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
+        try
         {
-            Id = Guid.NewGuid(),
-            FromOutletId = request.FromOutletId,
-            ToOutletId = request.ToOutletId,
-            TransferNumber = transferNumber,
-            Status = StockTransferStatus.Pending,
-            RequestedBy = userId,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
+            var rand = new Random();
+            var transferNumber = $"TRF-{DateTime.UtcNow:yyyyMMddHHmmss}-{rand.Next(1000, 9999)}";
 
-        _dbContext.StockTransfers.Add(transfer);
-
-        foreach (var itemReq in request.Items)
-        {
-            var product = await _dbContext.Products.FindAsync(new object[] { itemReq.ProductId }, ct);
-            if (product == null || !product.IsActive)
-            {
-                throw new InvalidOperationException($"Produk tidak valid.");
-            }
-
-            var item = new StockTransferItem
+            var transfer = new StockTransfer
             {
                 Id = Guid.NewGuid(),
-                StockTransferId = transfer.Id,
-                ProductId = itemReq.ProductId,
-                Qty = itemReq.Qty
+                FromOutletId = request.FromOutletId,
+                ToOutletId = request.ToOutletId,
+                TransferNumber = transferNumber,
+                Status = StockTransferStatus.Pending,
+                RequestedBy = userId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
 
-            _dbContext.StockTransferItems.Add(item);
+            _dbContext.StockTransfers.Add(transfer);
+
+            foreach (var itemReq in request.Items)
+            {
+                var product = await _dbContext.Products.FindAsync(new object[] { itemReq.ProductId }, ct);
+                if (product == null || !product.IsActive)
+                {
+                    throw new InvalidOperationException($"Produk tidak valid.");
+                }
+
+                // Validate stock levels in FromOutlet immediately on creation
+                var stock = await _dbContext.InventoryStocks
+                    .FirstOrDefaultAsync(s => s.ProductId == itemReq.ProductId && s.OutletId == request.FromOutletId, ct);
+
+                if (stock == null || stock.QtyOnHand < itemReq.Qty)
+                {
+                    throw new InvalidOperationException($"Stok tidak mencukupi di outlet asal untuk produk {product.Name}. (Stok tersedia: {stock?.QtyOnHand ?? 0}, Dibutuhkan: {itemReq.Qty})");
+                }
+
+                var item = new StockTransferItem
+                {
+                    Id = Guid.NewGuid(),
+                    StockTransferId = transfer.Id,
+                    ProductId = itemReq.ProductId,
+                    Qty = itemReq.Qty
+                };
+
+                _dbContext.StockTransferItems.Add(item);
+
+                // Deduct stock from source immediately (TransferOut)
+                await _stockService.AddMovementAsync(
+                    productId: itemReq.ProductId,
+                    outletId: request.FromOutletId,
+                    qtyChange: -itemReq.Qty,
+                    movementType: StockMovementType.TransferOut,
+                    referenceType: "stock_transfer",
+                    referenceId: transfer.Id,
+                    note: $"Transfer keluar ke cabang via {transferNumber}",
+                    ct: ct
+                );
+            }
+
+            await _dbContext.SaveChangesAsync(ct);
+            await dbTx.CommitAsync(ct);
+
+            // Broadcast real-time stock updates to source outlet
+            var fromUpdates = request.Items.Select(i => new StockUpdateItem(i.ProductId, -i.Qty)).ToList();
+            await _notificationService.SendStockUpdateAsync(request.FromOutletId, fromUpdates, ct);
+
+            return await GetByIdAsync(transfer.Id, ct);
         }
-
-        await _dbContext.SaveChangesAsync(ct);
-
-        return await GetByIdAsync(transfer.Id, ct);
+        catch (Exception)
+        {
+            await dbTx.RollbackAsync(ct);
+            throw;
+        }
     }
 
     public async Task<StockTransferDto> ApproveAsync(Guid userId, Guid transferId, CancellationToken ct = default)
@@ -142,35 +177,9 @@ public class StockTransferService : IStockTransferService
         using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
         try
         {
-            // Validate stock levels in FromOutlet
+            // Add stock to destination branch
             foreach (var item in transfer.Items)
             {
-                var stock = await _dbContext.InventoryStocks
-                    .FirstOrDefaultAsync(s => s.ProductId == item.ProductId && s.OutletId == transfer.FromOutletId, ct);
-
-                if (stock == null || stock.QtyOnHand < item.Qty)
-                {
-                    var product = await _dbContext.Products.FindAsync(new object[] { item.ProductId }, ct);
-                    throw new InvalidOperationException($"Stok tidak mencukupi di outlet asal untuk produk {product?.Name ?? "Unknown"}.");
-                }
-            }
-
-            // Deduct and Add stock
-            foreach (var item in transfer.Items)
-            {
-                // Deduct from source
-                await _stockService.AddMovementAsync(
-                    productId: item.ProductId,
-                    outletId: transfer.FromOutletId,
-                    qtyChange: -item.Qty,
-                    movementType: StockMovementType.TransferOut,
-                    referenceType: "stock_transfer",
-                    referenceId: transfer.Id,
-                    note: $"Transfer keluar ke cabang via {transfer.TransferNumber}",
-                    ct: ct
-                );
-
-                // Add to destination
                 await _stockService.AddMovementAsync(
                     productId: item.ProductId,
                     outletId: transfer.ToOutletId,
@@ -190,10 +199,7 @@ public class StockTransferService : IStockTransferService
             await _dbContext.SaveChangesAsync(ct);
             await dbTx.CommitAsync(ct);
 
-            // Broadcast real-time stock updates to both groups
-            var fromUpdates = transfer.Items.Select(i => new StockUpdateItem(i.ProductId, -i.Qty)).ToList();
-            await _notificationService.SendStockUpdateAsync(transfer.FromOutletId, fromUpdates, ct);
-
+            // Broadcast real-time stock updates to destination outlet
             var toUpdates = transfer.Items.Select(i => new StockUpdateItem(i.ProductId, i.Qty)).ToList();
             await _notificationService.SendStockUpdateAsync(transfer.ToOutletId, toUpdates, ct);
 
@@ -209,6 +215,7 @@ public class StockTransferService : IStockTransferService
     public async Task<StockTransferDto> RejectAsync(Guid userId, Guid transferId, CancellationToken ct = default)
     {
         var transfer = await _dbContext.StockTransfers
+            .Include(t => t.Items)
             .FirstOrDefaultAsync(t => t.Id == transferId, ct);
 
         if (transfer == null)
@@ -223,13 +230,42 @@ public class StockTransferService : IStockTransferService
 
         EnsureTransferApprovalAccess(transfer.ToOutletId);
 
-        transfer.Status = StockTransferStatus.Rejected;
-        transfer.ApprovedBy = userId;
-        transfer.UpdatedAt = DateTime.UtcNow;
+        using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
+        try
+        {
+            // Restore/Return stock to FromOutlet
+            foreach (var item in transfer.Items)
+            {
+                await _stockService.AddMovementAsync(
+                    productId: item.ProductId,
+                    outletId: transfer.FromOutletId,
+                    qtyChange: item.Qty, // Add back
+                    movementType: StockMovementType.TransferIn, // Put it back as TransferIn
+                    referenceType: "stock_transfer",
+                    referenceId: transfer.Id,
+                    note: $"Pengembalian stok akibat transfer ditolak {transfer.TransferNumber}",
+                    ct: ct
+                );
+            }
 
-        await _dbContext.SaveChangesAsync(ct);
+            transfer.Status = StockTransferStatus.Rejected;
+            transfer.ApprovedBy = userId;
+            transfer.UpdatedAt = DateTime.UtcNow;
 
-        return await GetByIdAsync(transfer.Id, ct);
+            await _dbContext.SaveChangesAsync(ct);
+            await dbTx.CommitAsync(ct);
+
+            // Broadcast real-time stock updates to source outlet
+            var fromUpdates = transfer.Items.Select(i => new StockUpdateItem(i.ProductId, i.Qty)).ToList();
+            await _notificationService.SendStockUpdateAsync(transfer.FromOutletId, fromUpdates, ct);
+
+            return await GetByIdAsync(transfer.Id, ct);
+        }
+        catch (Exception)
+        {
+            await dbTx.RollbackAsync(ct);
+            throw;
+        }
     }
 
     private static StockTransferDto MapToDto(StockTransfer t)
