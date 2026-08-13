@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MorrusPOS.Api.Security;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Reports;
 
@@ -10,7 +11,7 @@ namespace MorrusPOS.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Owner,Admin,Keuangan,KepalaCabang")]
+[Authorize]
 public class ReportsController : ControllerBase
 {
     private readonly IReportService _reportService;
@@ -22,19 +23,30 @@ public class ReportsController : ControllerBase
         _currentUser = currentUser;
     }
 
-    [HttpGet("profit-loss")]
-    public async Task<ActionResult<ProfitLossReportDto>> GetProfitLoss(
-        [FromQuery] Guid? outletId,
-        [FromQuery] DateTime startDate,
-        [FromQuery] DateTime endDate,
+    [HttpGet("cash-flow")]
+    [HasPermission("report.view")]
+    public async Task<ActionResult<AccountingCashFlowReportDto>> GetCashFlow(
+        [FromQuery] AccountingCashFlowReportFilters filters,
         CancellationToken ct = default)
     {
-        var resolvedOutletId = ResolveTargetOutletId(outletId);
-        var report = await _reportService.GetProfitLossReportAsync(resolvedOutletId, startDate, endDate, ct);
+        var resolvedFilters = filters with { OutletId = ResolveTargetOutletId(filters.OutletId) };
+        var report = await _reportService.GetCashFlowReportAsync(resolvedFilters, ct);
+        return Ok(report);
+    }
+
+    [HttpGet("profit-loss")]
+    [HasPermission("report.view")]
+    public async Task<ActionResult<AccountingProfitLossReportDto>> GetProfitLoss(
+        [FromQuery] AccountingProfitLossReportFilters filters,
+        CancellationToken ct = default)
+    {
+        var resolvedFilters = filters with { OutletId = ResolveTargetOutletId(filters.OutletId) };
+        var report = await _reportService.GetAccountingProfitLossReportAsync(resolvedFilters, ct);
         return Ok(report);
     }
 
     [HttpGet("profit-loss/export-excel")]
+    [HasPermission("report.view")]
     public async Task<IActionResult> ExportProfitLossExcel(
         [FromQuery] Guid? outletId,
         [FromQuery] DateTime startDate,
@@ -47,6 +59,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("purchases")]
+    [HasPermission("report.view")]
     public async Task<ActionResult<PurchaseRecapReportDto>> GetPurchaseRecap(
         [FromQuery] Guid? outletId,
         [FromQuery] DateTime startDate,
@@ -59,6 +72,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("purchases/export-excel")]
+    [HasPermission("report.view")]
     public async Task<IActionResult> ExportPurchaseRecapExcel(
         [FromQuery] Guid? outletId,
         [FromQuery] DateTime startDate,
@@ -71,6 +85,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("sales")]
+    [HasPermission("report.view")]
     public async Task<ActionResult<SalesRecapReportDto>> GetSalesRecap(
         [FromQuery] Guid? outletId,
         [FromQuery] DateTime startDate,
@@ -83,6 +98,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("sales/export-excel")]
+    [HasPermission("report.view")]
     public async Task<IActionResult> ExportSalesRecapExcel(
         [FromQuery] Guid? outletId,
         [FromQuery] DateTime startDate,

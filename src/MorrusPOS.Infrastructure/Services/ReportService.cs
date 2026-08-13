@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Reports;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -14,10 +15,175 @@ namespace MorrusPOS.Infrastructure.Services;
 public class ReportService : IReportService
 {
     private readonly AppDbContext _dbContext;
+    private readonly ICurrentUserService? _currentUserService;
 
     public ReportService(AppDbContext dbContext)
+        : this(dbContext, null)
+    {
+    }
+
+    public ReportService(AppDbContext dbContext, ICurrentUserService? currentUserService)
     {
         _dbContext = dbContext;
+        _currentUserService = currentUserService;
+    }
+
+    public async Task<AccountingCashFlowReportDto> GetCashFlowReportAsync(
+        AccountingCashFlowReportFilters filters,
+        CancellationToken ct = default)
+    {
+        var businessId = EnsureBusinessContext();
+        var (startUtc, endUtc) = NormalizePeriod(filters.DateFrom, filters.DateTo);
+        var outletId = await ResolveAccessibleOutletIdAsync(filters.OutletId, ct);
+
+        if (filters.ChartOfAccountId.HasValue)
+        {
+            var accountExists = await _dbContext.ChartOfAccounts
+                .AsNoTracking()
+                .AnyAsync(account => account.Id == filters.ChartOfAccountId.Value, ct);
+            if (!accountExists)
+            {
+                throw new InvalidOperationException("Akun filter tidak ditemukan.");
+            }
+        }
+
+        var baseQuery = _dbContext.AccountTransactions
+            .Include(entry => entry.ChartOfAccount)
+            .Include(entry => entry.Outlet)
+            .AsNoTracking()
+            .Where(entry => entry.BusinessId == businessId)
+            .Where(entry => entry.TrxEntity == AccountingTransactionEntity.Business)
+            .Where(entry => entry.ChartOfAccount.AccountType == ChartOfAccountType.Asset)
+            .Where(entry => entry.ChartOfAccount.IsCashBank);
+
+        if (outletId.HasValue)
+        {
+            baseQuery = baseQuery.Where(entry => entry.OutletId == outletId.Value);
+        }
+
+        if (filters.ChartOfAccountId.HasValue)
+        {
+            baseQuery = baseQuery.Where(entry => entry.ChartOfAccountId == filters.ChartOfAccountId.Value);
+        }
+
+        var openingBalance = await baseQuery
+            .Where(entry => entry.TrxDate < startUtc)
+            .SumAsync(entry => entry.DebitAmount - entry.CreditAmount, ct);
+
+        var periodQuery = baseQuery
+            .Where(entry => entry.TrxDate >= startUtc && entry.TrxDate <= endUtc);
+
+        if (!string.IsNullOrWhiteSpace(filters.Keyword))
+        {
+            var keyword = filters.Keyword.Trim().ToLowerInvariant();
+            periodQuery = periodQuery.Where(entry =>
+                entry.TrxNumber.ToLower().Contains(keyword)
+                || (entry.Note != null && entry.Note.ToLower().Contains(keyword))
+                || entry.ChartOfAccount.AccountCode.ToLower().Contains(keyword)
+                || entry.ChartOfAccount.AccountName.ToLower().Contains(keyword));
+        }
+
+        var entries = await periodQuery
+            .OrderBy(entry => entry.TrxDate)
+            .ThenBy(entry => entry.CreatedAt)
+            .ThenBy(entry => entry.TrxNumber)
+            .ThenBy(entry => entry.Id)
+            .ToListAsync(ct);
+
+        var runningBalance = openingBalance;
+        var lines = entries.Select(entry =>
+        {
+            var movementAmount = entry.DebitAmount - entry.CreditAmount;
+            runningBalance += movementAmount;
+
+            return new AccountingCashFlowReportLineDto(
+                entry.Id,
+                entry.TrxDate,
+                entry.TrxNumber,
+                entry.ReferenceType,
+                entry.ReferenceId,
+                entry.ChartOfAccountId,
+                entry.ChartOfAccount.AccountCode,
+                entry.ChartOfAccount.AccountName,
+                entry.OutletId,
+                entry.Outlet?.Name,
+                entry.Note,
+                entry.DebitAmount,
+                entry.CreditAmount,
+                movementAmount,
+                runningBalance
+            );
+        }).ToList();
+
+        var summary = new AccountingCashFlowReportSummaryDto(
+            OpeningBalance: openingBalance,
+            CashIn: entries.Sum(entry => entry.DebitAmount),
+            CashOut: entries.Sum(entry => entry.CreditAmount),
+            ClosingBalance: openingBalance + entries.Sum(entry => entry.DebitAmount - entry.CreditAmount)
+        );
+
+        return new AccountingCashFlowReportDto(
+            new AccountingCashFlowReportFilters(filters.DateFrom, filters.DateTo, outletId, filters.ChartOfAccountId, filters.Keyword?.Trim()),
+            summary,
+            lines);
+    }
+
+    public async Task<AccountingProfitLossReportDto> GetAccountingProfitLossReportAsync(
+        AccountingProfitLossReportFilters filters,
+        CancellationToken ct = default)
+    {
+        var businessId = EnsureBusinessContext();
+        var (startUtc, endUtc) = NormalizePeriod(filters.DateFrom, filters.DateTo);
+        var outletId = await ResolveAccessibleOutletIdAsync(filters.OutletId, ct);
+
+        var query = _dbContext.AccountTransactions
+            .Include(entry => entry.ChartOfAccount)
+            .Include(entry => entry.Outlet)
+            .AsNoTracking()
+            .Where(entry => entry.BusinessId == businessId)
+            .Where(entry => entry.TrxEntity == AccountingTransactionEntity.Business)
+            .Where(entry => entry.TrxDate >= startUtc && entry.TrxDate <= endUtc)
+            .Where(entry =>
+                entry.ChartOfAccount.AccountType == ChartOfAccountType.Revenue
+                || entry.ChartOfAccount.AccountType == ChartOfAccountType.Cogs
+                || entry.ChartOfAccount.AccountType == ChartOfAccountType.Expense);
+
+        if (outletId.HasValue)
+        {
+            query = query.Where(entry => entry.OutletId == outletId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filters.Keyword))
+        {
+            var keyword = filters.Keyword.Trim().ToLowerInvariant();
+            query = query.Where(entry =>
+                entry.TrxNumber.ToLower().Contains(keyword)
+                || (entry.Note != null && entry.Note.ToLower().Contains(keyword))
+                || entry.ChartOfAccount.AccountCode.ToLower().Contains(keyword)
+                || entry.ChartOfAccount.AccountName.ToLower().Contains(keyword));
+        }
+
+        var entries = await query.ToListAsync(ct);
+
+        var revenueAccounts = BuildProfitLossSection(entries, ChartOfAccountType.Revenue);
+        var cogsAccounts = BuildProfitLossSection(entries, ChartOfAccountType.Cogs);
+        var expenseAccounts = BuildProfitLossSection(entries, ChartOfAccountType.Expense);
+
+        var summary = new AccountingProfitLossReportSummaryDto(
+            RevenueTotal: revenueAccounts.Total,
+            CogsTotal: cogsAccounts.Total,
+            ExpenseTotal: expenseAccounts.Total,
+            GrossProfit: revenueAccounts.Total - cogsAccounts.Total,
+            NetProfit: revenueAccounts.Total - cogsAccounts.Total - expenseAccounts.Total
+        );
+
+        return new AccountingProfitLossReportDto(
+            new AccountingProfitLossReportFilters(filters.DateFrom, filters.DateTo, outletId, filters.Keyword?.Trim()),
+            revenueAccounts,
+            cogsAccounts,
+            expenseAccounts,
+            summary
+        );
     }
 
     public async Task<ProfitLossReportDto> GetProfitLossReportAsync(
@@ -419,5 +585,116 @@ public class ReportService : IReportService
         var fileName = $"Rekap_Penjualan_{report.StartDate:yyyyMMdd}_{report.EndDate:yyyyMMdd}.csv";
 
         return new ExportReportResponse(csvBytes, "text/csv", fileName);
+    }
+
+    private AccountingProfitLossSectionDto BuildProfitLossSection(
+        IReadOnlyCollection<AccountTransaction> entries,
+        string accountType)
+    {
+        var accounts = entries
+            .Where(entry => entry.ChartOfAccount.AccountType == accountType)
+            .GroupBy(entry => new
+            {
+                entry.ChartOfAccountId,
+                entry.ChartOfAccount.AccountCode,
+                entry.ChartOfAccount.AccountName,
+                entry.ChartOfAccount.AccountType
+            })
+            .Select(group =>
+            {
+                var amount = accountType == ChartOfAccountType.Revenue
+                    ? group.Sum(entry => entry.CreditAmount - entry.DebitAmount)
+                    : group.Sum(entry => entry.DebitAmount - entry.CreditAmount);
+
+                return new AccountingProfitLossAccountLineDto(
+                    group.Key.ChartOfAccountId,
+                    group.Key.AccountCode,
+                    group.Key.AccountName,
+                    group.Key.AccountType,
+                    amount
+                );
+            })
+            .OrderBy(account => account.AccountCode)
+            .ToList();
+
+        return new AccountingProfitLossSectionDto(
+            accountType,
+            accounts.Sum(account => account.Amount),
+            accounts);
+    }
+
+    private Guid EnsureBusinessContext()
+    {
+        if (!_currentUserService?.BusinessId.HasValue ?? true)
+        {
+            throw new UnauthorizedAccessException("Business context tidak ditemukan.");
+        }
+
+        return _currentUserService.BusinessId.Value;
+    }
+
+    private (DateTime StartUtc, DateTime EndUtc) NormalizePeriod(DateTime? dateFrom, DateTime? dateTo)
+    {
+        if (!dateFrom.HasValue)
+        {
+            throw new InvalidOperationException("Tanggal mulai wajib diisi.");
+        }
+
+        if (!dateTo.HasValue)
+        {
+            throw new InvalidOperationException("Tanggal akhir wajib diisi.");
+        }
+
+        if (dateTo.Value.Date < dateFrom.Value.Date)
+        {
+            throw new InvalidOperationException("Tanggal akhir tidak boleh sebelum tanggal mulai.");
+        }
+
+        var startUtc = DateTime.SpecifyKind(dateFrom.Value.Date, DateTimeKind.Utc);
+        var endUtc = DateTime.SpecifyKind(dateTo.Value.Date.AddDays(1).AddTicks(-1), DateTimeKind.Utc);
+        return (startUtc, endUtc);
+    }
+
+    private async Task<Guid?> ResolveAccessibleOutletIdAsync(Guid? requestedOutletId, CancellationToken ct)
+    {
+        if (!_currentUserService?.BusinessId.HasValue ?? true)
+        {
+            throw new UnauthorizedAccessException("Business context tidak ditemukan.");
+        }
+
+        var isPrivilegedRole = _currentUserService.Role is "Owner" or "Admin" or "Keuangan";
+        var effectiveOutletId = requestedOutletId;
+
+        if (!isPrivilegedRole)
+        {
+            if (_currentUserService.OutletId.HasValue)
+            {
+                if (requestedOutletId.HasValue && requestedOutletId != _currentUserService.OutletId.Value)
+                {
+                    throw new UnauthorizedAccessException("Anda tidak memiliki akses ke outlet tersebut.");
+                }
+
+                effectiveOutletId = _currentUserService.OutletId.Value;
+            }
+            else
+            {
+                effectiveOutletId = null;
+            }
+        }
+
+        if (!effectiveOutletId.HasValue)
+        {
+            return null;
+        }
+
+        var outletExists = await _dbContext.Outlets
+            .AsNoTracking()
+            .AnyAsync(outlet => outlet.Id == effectiveOutletId.Value, ct);
+        if (!outletExists)
+        {
+            throw new InvalidOperationException("Outlet tidak ditemukan.");
+        }
+
+        return effectiveOutletId;
     }
 }

@@ -19,6 +19,82 @@ public record ProfitLossReportDto(
     IReadOnlyList<ProfitLossCategorySummaryDto> CategoryBreakdown
 );
 
+public record AccountingCashFlowReportFilters(
+    DateTime? DateFrom,
+    DateTime? DateTo,
+    Guid? OutletId,
+    Guid? ChartOfAccountId,
+    string? Keyword
+);
+
+public record AccountingCashFlowReportSummaryDto(
+    decimal OpeningBalance,
+    decimal CashIn,
+    decimal CashOut,
+    decimal ClosingBalance
+);
+
+public record AccountingCashFlowReportLineDto(
+    Guid AccountTransactionId,
+    DateTime TrxDate,
+    string TrxNumber,
+    string ReferenceType,
+    Guid? ReferenceId,
+    Guid AccountId,
+    string AccountCode,
+    string AccountName,
+    Guid? OutletId,
+    string? OutletName,
+    string? Note,
+    decimal DebitAmount,
+    decimal CreditAmount,
+    decimal MovementAmount,
+    decimal RunningBalance
+);
+
+public record AccountingCashFlowReportDto(
+    AccountingCashFlowReportFilters Filters,
+    AccountingCashFlowReportSummaryDto Summary,
+    IReadOnlyList<AccountingCashFlowReportLineDto> Lines
+);
+
+public record AccountingProfitLossReportFilters(
+    DateTime? DateFrom,
+    DateTime? DateTo,
+    Guid? OutletId,
+    string? Keyword
+);
+
+public record AccountingProfitLossAccountLineDto(
+    Guid ChartOfAccountId,
+    string AccountCode,
+    string AccountName,
+    string AccountType,
+    decimal Amount
+);
+
+public record AccountingProfitLossSectionDto(
+    string AccountType,
+    decimal Total,
+    IReadOnlyList<AccountingProfitLossAccountLineDto> Accounts
+);
+
+public record AccountingProfitLossReportSummaryDto(
+    decimal RevenueTotal,
+    decimal CogsTotal,
+    decimal ExpenseTotal,
+    decimal GrossProfit,
+    decimal NetProfit
+);
+
+public record AccountingProfitLossReportDto(
+    AccountingProfitLossReportFilters Filters,
+    AccountingProfitLossSectionDto Revenue,
+    AccountingProfitLossSectionDto Cogs,
+    AccountingProfitLossSectionDto Expense,
+    AccountingProfitLossReportSummaryDto Summary
+);
+
 public record ProfitLossCategorySummaryDto(
     Guid CategoryId,
     string CategoryName,
@@ -94,6 +170,14 @@ public record ExportReportResponse(
 
 public interface IReportService
 {
+    Task<AccountingCashFlowReportDto> GetCashFlowReportAsync(
+        AccountingCashFlowReportFilters filters,
+        CancellationToken ct = default);
+
+    Task<AccountingProfitLossReportDto> GetAccountingProfitLossReportAsync(
+        AccountingProfitLossReportFilters filters,
+        CancellationToken ct = default);
+
     Task<ProfitLossReportDto> GetProfitLossReportAsync(
         Guid? outletId,
         DateTime startDate,

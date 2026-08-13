@@ -33,6 +33,7 @@ using MorrusPOS.Application.Features.Customers;
 using MorrusPOS.Application.Features.Customers.Validators;
 using MorrusPOS.Application.Features.Accounting;
 using MorrusPOS.Application.Features.Accounting.Validators;
+using MorrusPOS.Application.Features.Reports;
 using MorrusPOS.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -91,6 +92,8 @@ builder.Services.AddScoped<IValidator<UpdateChartOfAccountRequest>, UpdateChartO
 builder.Services.AddScoped<IValidator<UpdateChartOfAccountStatusRequest>, UpdateChartOfAccountStatusRequestValidator>();
 builder.Services.AddScoped<IValidator<CreateBusinessIncomeRequest>, CreateBusinessIncomeRequestValidator>();
 builder.Services.AddScoped<IValidator<CreateBusinessOutcomeRequest>, CreateBusinessOutcomeRequestValidator>();
+builder.Services.AddScoped<IValidator<AccountingCashFlowReportFilters>, AccountingCashFlowReportFiltersValidator>();
+builder.Services.AddScoped<IValidator<AccountingProfitLossReportFilters>, AccountingProfitLossReportFiltersValidator>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
