@@ -82,8 +82,15 @@ docker compose build backend
 docker compose up -d --no-deps backend
 docker compose ps
 
-curl --fail --silent --show-error --location \
-  --retry 10 \
-  --retry-delay 5 \
-  --max-time 30 \
-  "${HEALTHCHECK_URL}" >/dev/null
+for attempt in {1..30}; do
+  if curl --fail --silent --show-error --location --max-time 10 "${HEALTHCHECK_URL}" >/dev/null; then
+    echo "Health check passed."
+    exit 0
+  fi
+
+  echo "Health check failed (attempt ${attempt}/30), retrying in 5s..."
+  sleep 5
+done
+
+echo "Health check failed after 30 attempts." >&2
+exit 1
