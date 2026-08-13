@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Features.Accounting;
 using MorrusPOS.Application.Features.Customers;
 using MorrusPOS.Application.Features.Transactions;
 using MorrusPOS.Domain.Entities;
@@ -14,18 +15,21 @@ public class TransactionService : ITransactionService
     private readonly ICurrentUserService _currentUserService;
     private readonly IPosNotificationService _notificationService;
     private readonly IPricingService _pricingService;
+    private readonly IAccountingIntegrationService? _accountingIntegrationService;
 
     public TransactionService(
         AppDbContext dbContext,
         IStockService stockService,
         ICurrentUserService currentUserService,
-        IPosNotificationService notificationService)
+        IPosNotificationService notificationService,
+        IAccountingIntegrationService? accountingIntegrationService = null)
         : this(
             dbContext,
             stockService,
             currentUserService,
             notificationService,
-            new PricingService(dbContext))
+            new PricingService(dbContext),
+            accountingIntegrationService)
     {
     }
 
@@ -34,13 +38,15 @@ public class TransactionService : ITransactionService
         IStockService stockService,
         ICurrentUserService currentUserService,
         IPosNotificationService notificationService,
-        IPricingService pricingService)
+        IPricingService pricingService,
+        IAccountingIntegrationService? accountingIntegrationService = null)
     {
         _dbContext = dbContext;
         _stockService = stockService;
         _currentUserService = currentUserService;
         _notificationService = notificationService;
         _pricingService = pricingService;
+        _accountingIntegrationService = accountingIntegrationService;
     }
 
     public async Task<IReadOnlyList<TransactionListItemDto>> GetRecentByOutletAsync(
@@ -764,6 +770,10 @@ public class TransactionService : ITransactionService
             }
 
             await _dbContext.SaveChangesAsync(ct);
+            if (_accountingIntegrationService != null)
+            {
+                await _accountingIntegrationService.EnsureTransactionPostedAsync(newTrx.Id, ct);
+            }
             await dbTx.CommitAsync(ct);
 
             var stockUpdates = request.Items.Select(i => new StockUpdateItem(i.ProductId, i.Qty)).ToList();

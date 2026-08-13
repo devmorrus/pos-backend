@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Features.Accounting;
 using MorrusPOS.Application.Features.Suppliers;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -13,13 +14,20 @@ public class PurchaseOrderService : IPurchaseOrderService
     private readonly IStockService _stockService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IPosNotificationService _notificationService;
+    private readonly IAccountingIntegrationService? _accountingIntegrationService;
 
-    public PurchaseOrderService(AppDbContext dbContext, IStockService stockService, ICurrentUserService currentUserService, IPosNotificationService notificationService)
+    public PurchaseOrderService(
+        AppDbContext dbContext,
+        IStockService stockService,
+        ICurrentUserService currentUserService,
+        IPosNotificationService notificationService,
+        IAccountingIntegrationService? accountingIntegrationService = null)
     {
         _dbContext = dbContext;
         _stockService = stockService;
         _currentUserService = currentUserService;
         _notificationService = notificationService;
+        _accountingIntegrationService = accountingIntegrationService;
     }
 
     public async Task<PurchaseOrderDto> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -282,6 +290,10 @@ public class PurchaseOrderService : IPurchaseOrderService
             po.UpdatedAt = DateTime.UtcNow;
 
             await _dbContext.SaveChangesAsync(ct);
+            if (request.Status == PurchaseOrderStatus.Completed && _accountingIntegrationService != null)
+            {
+                await _accountingIntegrationService.EnsurePurchaseOrderPostedAsync(po.Id, ct);
+            }
 
             // After SaveChangesAsync, PostgreSQL trigger has already updated InventoryStock.
             // Now query the latest stock values and broadcast to connected POS clients via SignalR.

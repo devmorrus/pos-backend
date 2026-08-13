@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Features.Accounting;
 using MorrusPOS.Application.Features.Consignments;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -15,11 +16,16 @@ public class ConsignmentSettlementService : IConsignmentSettlementService
 {
     private readonly AppDbContext _dbContext;
     private readonly ICurrentUserService _currentUser;
+    private readonly IAccountingIntegrationService? _accountingIntegrationService;
 
-    public ConsignmentSettlementService(AppDbContext dbContext, ICurrentUserService currentUser)
+    public ConsignmentSettlementService(
+        AppDbContext dbContext,
+        ICurrentUserService currentUser,
+        IAccountingIntegrationService? accountingIntegrationService = null)
     {
         _dbContext = dbContext;
         _currentUser = currentUser;
+        _accountingIntegrationService = accountingIntegrationService;
     }
 
     public async Task<ConsignmentSettlementDto> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -190,6 +196,10 @@ public class ConsignmentSettlementService : IConsignmentSettlementService
             settlement.UpdatedAt = DateTime.UtcNow;
 
             await _dbContext.SaveChangesAsync(ct);
+            if (sanitizedStatus == ConsignmentSettlementStatus.Settled && _accountingIntegrationService != null)
+            {
+                await _accountingIntegrationService.EnsureConsignmentSettlementPostedAsync(settlement.Id, ct);
+            }
             await dbTx.CommitAsync(ct);
 
             return await GetByIdAsync(settlement.Id, ct);

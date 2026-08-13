@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Features.Accounting;
 using MorrusPOS.Application.Features.Suppliers;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -10,11 +11,16 @@ public class SupplierDebtService : ISupplierDebtService
 {
     private readonly AppDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IAccountingIntegrationService? _accountingIntegrationService;
 
-    public SupplierDebtService(AppDbContext dbContext, ICurrentUserService currentUserService)
+    public SupplierDebtService(
+        AppDbContext dbContext,
+        ICurrentUserService currentUserService,
+        IAccountingIntegrationService? accountingIntegrationService = null)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
+        _accountingIntegrationService = accountingIntegrationService;
     }
 
     public async Task<IReadOnlyList<SupplierDebtDto>> GetDebtsAsync(Guid outletId, string? status = null, CancellationToken ct = default)
@@ -115,6 +121,10 @@ public class SupplierDebtService : ISupplierDebtService
 
         _dbContext.SupplierPayments.Add(payment);
         await _dbContext.SaveChangesAsync(ct);
+        if (_accountingIntegrationService != null)
+        {
+            await _accountingIntegrationService.EnsureSupplierPaymentPostedAsync(payment.Id, ct);
+        }
 
         // Reload with navigation properties for response
         await _dbContext.Entry(payment).Reference(p => p.Supplier).LoadAsync(ct);

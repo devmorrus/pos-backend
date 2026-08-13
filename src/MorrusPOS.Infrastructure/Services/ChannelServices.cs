@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Features.Accounting;
 using MorrusPOS.Application.Features.Channels;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -122,11 +123,16 @@ public class ChannelSettlementService : IChannelSettlementService
 {
     private readonly AppDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IAccountingIntegrationService? _accountingIntegrationService;
 
-    public ChannelSettlementService(AppDbContext dbContext, ICurrentUserService currentUserService)
+    public ChannelSettlementService(
+        AppDbContext dbContext,
+        ICurrentUserService currentUserService,
+        IAccountingIntegrationService? accountingIntegrationService = null)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
+        _accountingIntegrationService = accountingIntegrationService;
     }
 
     public async Task<IReadOnlyList<ChannelSettlementListItemDto>> GetAsync(ChannelSettlementFilters filters, CancellationToken ct = default)
@@ -363,6 +369,10 @@ public class ChannelSettlementService : IChannelSettlementService
         settlement.Status = targetStatus;
         settlement.UpdatedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync(ct);
+        if (targetStatus == ChannelSettlementStatus.Settled && _accountingIntegrationService != null)
+        {
+            await _accountingIntegrationService.EnsureChannelSettlementPostedAsync(settlement.Id, ct);
+        }
 
         return await GetByIdAsync(id, ct);
     }

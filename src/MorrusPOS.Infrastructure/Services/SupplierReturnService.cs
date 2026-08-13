@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Features.Accounting;
 using MorrusPOS.Application.Features.Suppliers;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -12,17 +13,20 @@ public class SupplierReturnService : ISupplierReturnService
     private readonly ICurrentUserService _currentUserService;
     private readonly IStockService _stockService;
     private readonly IPosNotificationService _notificationService;
+    private readonly IAccountingIntegrationService? _accountingIntegrationService;
 
     public SupplierReturnService(
         AppDbContext dbContext,
         ICurrentUserService currentUserService,
         IStockService stockService,
-        IPosNotificationService notificationService)
+        IPosNotificationService notificationService,
+        IAccountingIntegrationService? accountingIntegrationService = null)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
         _stockService = stockService;
         _notificationService = notificationService;
+        _accountingIntegrationService = accountingIntegrationService;
     }
 
     public async Task<IReadOnlyList<SupplierReturnListItemDto>> GetAsync(SupplierReturnFilters filters, CancellationToken ct = default)
@@ -282,6 +286,10 @@ public class SupplierReturnService : ISupplierReturnService
                 supplierReturn.UpdatedAt = DateTime.UtcNow;
 
                 await _dbContext.SaveChangesAsync(ct);
+                if (_accountingIntegrationService != null)
+                {
+                    await _accountingIntegrationService.EnsureSupplierReturnPostedAsync(supplierReturn.Id, ct);
+                }
                 await dbTx.CommitAsync(ct);
             }
             catch
