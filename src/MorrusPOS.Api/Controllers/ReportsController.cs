@@ -24,7 +24,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("cash-flow")]
-    [HasPermission("report.view")]
+    [HasPermission("report.cashflow.view")]
     public async Task<ActionResult<AccountingCashFlowReportDto>> GetCashFlow(
         [FromQuery] AccountingCashFlowReportFilters filters,
         CancellationToken ct = default)
@@ -32,6 +32,17 @@ public class ReportsController : ControllerBase
         var resolvedFilters = filters with { OutletId = ResolveTargetOutletId(filters.OutletId) };
         var report = await _reportService.GetCashFlowReportAsync(resolvedFilters, ct);
         return Ok(report);
+    }
+
+    [HttpGet("cash-flow/export-excel")]
+    [HasPermission("report.cashflow.view")]
+    public async Task<IActionResult> ExportCashFlowExcel(
+        [FromQuery] AccountingCashFlowReportFilters filters,
+        CancellationToken ct = default)
+    {
+        var resolvedFilters = filters with { OutletId = ResolveTargetOutletId(filters.OutletId) };
+        var response = await _reportService.ExportCashFlowExcelAsync(resolvedFilters, ct);
+        return File(response.FileBytes, response.ContentType, response.FileName);
     }
 
     [HttpGet("profit-loss")]

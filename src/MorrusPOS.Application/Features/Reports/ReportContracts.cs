@@ -174,6 +174,10 @@ public interface IReportService
         AccountingCashFlowReportFilters filters,
         CancellationToken ct = default);
 
+    Task<ExportReportResponse> ExportCashFlowExcelAsync(
+        AccountingCashFlowReportFilters filters,
+        CancellationToken ct = default);
+
     Task<AccountingProfitLossReportDto> GetAccountingProfitLossReportAsync(
         AccountingProfitLossReportFilters filters,
         CancellationToken ct = default);

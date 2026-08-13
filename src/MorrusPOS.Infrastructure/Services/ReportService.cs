@@ -4,6 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Reports;
@@ -126,6 +129,87 @@ public class ReportService : IReportService
             new AccountingCashFlowReportFilters(filters.DateFrom, filters.DateTo, outletId, filters.ChartOfAccountId, filters.Keyword?.Trim()),
             summary,
             lines);
+    }
+
+    public async Task<ExportReportResponse> ExportCashFlowExcelAsync(
+        AccountingCashFlowReportFilters filters,
+        CancellationToken ct = default)
+    {
+        var report = await GetCashFlowReportAsync(filters, ct);
+        var periodStart = report.Filters.DateFrom?.Date ?? DateTime.UtcNow.Date;
+        var periodEnd = report.Filters.DateTo?.Date ?? DateTime.UtcNow.Date;
+        var outletLabel = report.Filters.OutletId.HasValue
+            ? report.Lines.Select(line => line.OutletName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? "Outlet terpilih"
+            : "Semua outlet";
+
+        using var stream = new MemoryStream();
+        using (var document = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook, true))
+        {
+            var workbookPart = document.AddWorkbookPart();
+            workbookPart.Workbook = new Workbook();
+
+            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            var sheetData = new SheetData();
+            worksheetPart.Worksheet = new Worksheet(sheetData);
+
+            AppendTextRow(sheetData, "Laporan Arus Kas MorrusPOS");
+            AppendTextRow(sheetData, $"Periode: {periodStart:yyyy-MM-dd} s/d {periodEnd:yyyy-MM-dd}");
+            AppendTextRow(sheetData, $"Outlet: {outletLabel}");
+            AppendEmptyRow(sheetData);
+
+            AppendTextRow(sheetData, "Ringkasan");
+            AppendTextRow(sheetData, "Metrik", "Nilai");
+            AppendTextRow(sheetData, "Kas Awal", report.Summary.OpeningBalance);
+            AppendTextRow(sheetData, "Kas Masuk", report.Summary.CashIn);
+            AppendTextRow(sheetData, "Kas Keluar", report.Summary.CashOut);
+            AppendTextRow(sheetData, "Kas Akhir", report.Summary.ClosingBalance);
+            AppendEmptyRow(sheetData);
+
+            AppendTextRow(sheetData, "Mutasi Kas");
+            AppendTextRow(
+                sheetData,
+                "Tanggal",
+                "No. Transaksi",
+                "Outlet",
+                "Kode Akun",
+                "Nama Akun",
+                "Catatan",
+                "Debit",
+                "Kredit",
+                "Mutasi",
+                "Saldo Berjalan");
+
+            foreach (var line in report.Lines)
+            {
+                AppendTextRow(
+                    sheetData,
+                    line.TrxDate.ToString("yyyy-MM-dd"),
+                    line.TrxNumber,
+                    line.OutletName ?? "Business",
+                    line.AccountCode,
+                    line.AccountName,
+                    line.Note ?? string.Empty,
+                    line.DebitAmount,
+                    line.CreditAmount,
+                    line.MovementAmount,
+                    line.RunningBalance);
+            }
+
+            var sheets = workbookPart.Workbook.AppendChild(new Sheets());
+            sheets.Append(new Sheet
+            {
+                Id = workbookPart.GetIdOfPart(worksheetPart),
+                SheetId = 1,
+                Name = "Arus Kas"
+            });
+
+            workbookPart.Workbook.Save();
+        }
+
+        return new ExportReportResponse(
+            stream.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"Laporan_Arus_Kas_{periodStart:yyyyMMdd}_{periodEnd:yyyyMMdd}.xlsx");
     }
 
     public async Task<AccountingProfitLossReportDto> GetAccountingProfitLossReportAsync(
@@ -625,12 +709,12 @@ public class ReportService : IReportService
 
     private Guid EnsureBusinessContext()
     {
-        if (!_currentUserService?.BusinessId.HasValue ?? true)
+        if (_currentUserService?.BusinessId.HasValue != true)
         {
             throw new UnauthorizedAccessException("Business context tidak ditemukan.");
         }
 
-        return _currentUserService.BusinessId.Value;
+        return _currentUserService.BusinessId!.Value;
     }
 
     private (DateTime StartUtc, DateTime EndUtc) NormalizePeriod(DateTime? dateFrom, DateTime? dateTo)
@@ -657,7 +741,7 @@ public class ReportService : IReportService
 
     private async Task<Guid?> ResolveAccessibleOutletIdAsync(Guid? requestedOutletId, CancellationToken ct)
     {
-        if (!_currentUserService?.BusinessId.HasValue ?? true)
+        if (_currentUserService?.BusinessId.HasValue != true)
         {
             throw new UnauthorizedAccessException("Business context tidak ditemukan.");
         }
@@ -696,5 +780,36 @@ public class ReportService : IReportService
         }
 
         return effectiveOutletId;
+    }
+
+    private static void AppendEmptyRow(SheetData sheetData)
+    {
+        sheetData.AppendChild(new Row());
+    }
+
+    private static void AppendTextRow(SheetData sheetData, params object[] values)
+    {
+        var row = new Row();
+        foreach (var value in values)
+        {
+            row.AppendChild(CreateCell(value));
+        }
+
+        sheetData.AppendChild(row);
+    }
+
+    private static Cell CreateCell(object? value)
+    {
+        return value switch
+        {
+            null => new Cell { DataType = CellValues.String, CellValue = new CellValue(string.Empty) },
+            decimal decimalValue => new Cell { DataType = CellValues.Number, CellValue = new CellValue(decimalValue.ToString(System.Globalization.CultureInfo.InvariantCulture)) },
+            int intValue => new Cell { DataType = CellValues.Number, CellValue = new CellValue(intValue.ToString(System.Globalization.CultureInfo.InvariantCulture)) },
+            long longValue => new Cell { DataType = CellValues.Number, CellValue = new CellValue(longValue.ToString(System.Globalization.CultureInfo.InvariantCulture)) },
+            double doubleValue => new Cell { DataType = CellValues.Number, CellValue = new CellValue(doubleValue.ToString(System.Globalization.CultureInfo.InvariantCulture)) },
+            float floatValue => new Cell { DataType = CellValues.Number, CellValue = new CellValue(floatValue.ToString(System.Globalization.CultureInfo.InvariantCulture)) },
+            DateTime dateTimeValue => new Cell { DataType = CellValues.String, CellValue = new CellValue(dateTimeValue.ToString("yyyy-MM-dd")) },
+            _ => new Cell { DataType = CellValues.String, CellValue = new CellValue(value.ToString() ?? string.Empty) }
+        };
     }
 }

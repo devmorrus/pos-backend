@@ -112,6 +112,47 @@ public class AccountingReportServiceTests
     }
 
     [Fact]
+    public async Task GetCashFlowReportAsync_Should_FilterByAccount()
+    {
+        var cashA = AddAccount("1010", "Kas Utama", ChartOfAccountType.Asset, true);
+        var cashB = AddAccount("1011", "Kas Kedua", ChartOfAccountType.Asset, true);
+        AddAccountTransaction(cashA, new DateTime(2026, 8, 10, 9, 0, 0, DateTimeKind.Utc), "CFI-20260810-0001", debit: 100, credit: 0, note: "Alpha");
+        AddAccountTransaction(cashB, new DateTime(2026, 8, 10, 10, 0, 0, DateTimeKind.Utc), "CFI-20260810-0002", debit: 200, credit: 0, note: "Bravo");
+        await _dbContext.SaveChangesAsync();
+
+        var service = new ReportService(_dbContext, _currentUser);
+        var report = await service.GetCashFlowReportAsync(new AccountingCashFlowReportFilters(
+            DateFrom: new DateTime(2026, 8, 1),
+            DateTo: new DateTime(2026, 8, 31),
+            OutletId: null,
+            ChartOfAccountId: cashA.Id,
+            Keyword: null));
+
+        report.Lines.Should().HaveCount(1);
+        report.Lines[0].AccountId.Should().Be(cashA.Id);
+    }
+
+    [Fact]
+    public async Task ExportCashFlowExcelAsync_Should_ReturnXlsxPayload()
+    {
+        var cashMain = AddAccount("1010", "Kas Utama", ChartOfAccountType.Asset, true);
+        AddAccountTransaction(cashMain, new DateTime(2026, 8, 2, 9, 0, 0, DateTimeKind.Utc), "CFI-20260802-0001", debit: 500, credit: 0, note: "Pemasukan");
+        await _dbContext.SaveChangesAsync();
+
+        var service = new ReportService(_dbContext, _currentUser);
+        var result = await service.ExportCashFlowExcelAsync(new AccountingCashFlowReportFilters(
+            DateFrom: new DateTime(2026, 8, 1),
+            DateTo: new DateTime(2026, 8, 31),
+            OutletId: null,
+            ChartOfAccountId: null,
+            Keyword: null));
+
+        result.ContentType.Should().Be("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        result.FileName.Should().Be("Laporan_Arus_Kas_20260801_20260831.xlsx");
+        result.FileBytes.Should().NotBeEmpty();
+    }
+
+    [Fact]
     public async Task GetAccountingProfitLossReportAsync_Should_GroupByAccountTypeAndCalculateSummary()
     {
         var revenue = AddAccount("4100", "Pendapatan Toko", ChartOfAccountType.Revenue, false);
