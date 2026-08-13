@@ -89,6 +89,8 @@ builder.Services.AddScoped<IValidator<UpdateCustomerRequest>, UpdateCustomerRequ
 builder.Services.AddScoped<IValidator<CreateChartOfAccountRequest>, CreateChartOfAccountRequestValidator>();
 builder.Services.AddScoped<IValidator<UpdateChartOfAccountRequest>, UpdateChartOfAccountRequestValidator>();
 builder.Services.AddScoped<IValidator<UpdateChartOfAccountStatusRequest>, UpdateChartOfAccountStatusRequestValidator>();
+builder.Services.AddScoped<IValidator<CreateBusinessIncomeRequest>, CreateBusinessIncomeRequestValidator>();
+builder.Services.AddScoped<IValidator<CreateBusinessOutcomeRequest>, CreateBusinessOutcomeRequestValidator>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
