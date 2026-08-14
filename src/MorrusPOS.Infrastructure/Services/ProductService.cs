@@ -537,30 +537,6 @@ public class ProductService : IProductService
 
     private static ProductDto MapToDto(Product p, decimal qtyOnHand)
     {
-        var variantDtos = p.Variants?.Select(v => new ProductVariantDto(
-            v.Id,
-            v.ProductId,
-            v.Sku,
-            v.Barcode,
-            v.BasePrice,
-            v.CostPrice,
-            v.ImageUrl,
-            v.IsActive,
-            v.AttributeValues.Select(av => new ProductAttributeValueDto(
-                av.Attribute?.Name ?? "",
-                av.Value
-            )).ToList()
-        )).ToList();
-
-        var recipeDtos = p.Recipes?.Select(r => new ProductRecipeDto(
-            r.Id,
-            r.ProductId,
-            r.ProductVariantId,
-            r.RawMaterialProductId,
-            r.RawMaterialProduct?.Name ?? string.Empty,
-            r.QuantityRequired
-        )).ToList();
-
         return new ProductDto(
             p.Id,
             p.CategoryId,
@@ -575,12 +551,12 @@ public class ProductService : IProductService
             p.ImageUrl,
             p.IsTaxable,
             p.IsServiceChargeable,
-            p.HasVariants,
-            p.IsRawMaterial,
-            variantDtos
+            false,
+            false,
+            new List<ProductVariantDto>()
         )
         {
-            Recipes = recipeDtos
+            Recipes = new List<ProductRecipeDto>()
         };
     }
 }

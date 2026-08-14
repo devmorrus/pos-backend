@@ -500,35 +500,13 @@ public class TransactionService : ITransactionService
                     throw new InvalidOperationException($"Harga produk {product.Name} sudah berubah. Silakan muat ulang data produk.");
                 }
 
-                var hasRecipe = product.Recipes != null && product.Recipes.Count > 0;
-                if (hasRecipe)
-                {
-                    // Cek ketersediaan setiap bahan baku resep di outlet
-                    foreach (var ingredient in product.Recipes!)
-                    {
-                        var qtyRequiredTotal = ingredient.QuantityRequired * itemReq.Qty;
-                        var ingredientStock = await _dbContext.InventoryStocks
-                            .Include(s => s.Product)
-                            .FirstOrDefaultAsync(s => s.ProductId == ingredient.RawMaterialProductId && s.OutletId == request.OutletId, ct);
-                        
-                        if (ingredientStock == null || ingredientStock.QtyOnHand < qtyRequiredTotal)
-                        {
-                            var rawMaterialName = ingredientStock?.Product?.Name ?? "Bahan baku";
-                            var available = ingredientStock?.QtyOnHand ?? 0;
-                            throw new InvalidOperationException($"Stok bahan baku tidak mencukupi untuk membuat {product.Name}. {rawMaterialName} dibutuhkan: {qtyRequiredTotal}, tersedia: {available}");
-                        }
-                    }
-                }
-                else
-                {
-                    // Cek stok produk biasa
-                    var stock = await _dbContext.InventoryStocks
-                        .FirstOrDefaultAsync(s => s.ProductId == itemReq.ProductId && s.OutletId == request.OutletId, ct);
+                // Cek stok produk
+                var stock = await _dbContext.InventoryStocks
+                    .FirstOrDefaultAsync(s => s.ProductId == itemReq.ProductId && s.OutletId == request.OutletId, ct);
 
-                    if (stock == null || stock.QtyOnHand < itemReq.Qty)
-                    {
-                        throw new InvalidOperationException($"Stok tidak mencukupi untuk produk {product.Name}. Stok tersedia: {(stock != null ? stock.QtyOnHand : 0)}");
-                    }
+                if (stock == null || stock.QtyOnHand < itemReq.Qty)
+                {
+                    throw new InvalidOperationException($"Stok tidak mencukupi untuk produk {product.Name}. Stok tersedia: {(stock != null ? stock.QtyOnHand : 0)}");
                 }
 
                 var lineSubtotal = product.BasePrice * itemReq.Qty;
@@ -749,42 +727,17 @@ public class TransactionService : ITransactionService
                     }
                 }
 
-                var hasRecipe = product.Recipes != null && product.Recipes.Count > 0;
-                if (!hasRecipe)
-                {
-                    await _stockService.AddMovementAsync(
-                        productId: product.Id,
-                        outletId: request.OutletId,
-                        qtyChange: -itemReq.Qty,
-                        movementType: StockMovementType.Sale,
-                        referenceType: "transaction",
-                        referenceId: newTrx.Id,
-                        note: $"Penjualan kasir {trxNumber}",
-                        ct: ct,
-                        productVariantId: itemReq.ProductVariantId
-                    );
-                }
-
-                // --- Recipe / Ingredient Deduction ---
-                var recipes = await _dbContext.ProductRecipes
-                    .Where(r => r.ProductId == product.Id && (r.ProductVariantId == null || r.ProductVariantId == itemReq.ProductVariantId))
-                    .ToListAsync(ct);
-
-                foreach (var ingredient in recipes)
-                {
-                    var qtyToDeduct = ingredient.QuantityRequired * itemReq.Qty;
-
-                    await _stockService.AddMovementAsync(
-                        productId: ingredient.RawMaterialProductId,
-                        outletId: request.OutletId,
-                        qtyChange: -qtyToDeduct,
-                        movementType: "recipe_out",
-                        referenceType: "transaction_recipe",
-                        referenceId: newTrx.Id,
-                        note: $"Recipe deduction untuk produk {product.Name} (Kuantitas penjualan: {itemReq.Qty})",
-                        ct: ct
-                    );
-                }
+                await _stockService.AddMovementAsync(
+                    productId: product.Id,
+                    outletId: request.OutletId,
+                    qtyChange: -itemReq.Qty,
+                    movementType: StockMovementType.Sale,
+                    referenceType: "transaction",
+                    referenceId: newTrx.Id,
+                    note: $"Penjualan kasir {trxNumber}",
+                    ct: ct,
+                    productVariantId: itemReq.ProductVariantId
+                );
             }
 
             foreach (var payReq in request.Payments)
