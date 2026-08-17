@@ -323,29 +323,41 @@ dotnet build
 
 Lalu ulangi command EF.
 
-## Catatan Implementasi
+## Fitur Utama & Modul Bisnis
 
-Bagian yang sudah ada:
+Sistem backend ini mengimplementasikan modul bisnis retail POS lengkap:
 
-- JWT authentication
-- Swagger dengan Bearer auth
-- Middleware multi-tenant
-- Global exception handling
-- Migration awal database
-- Trigger stok PostgreSQL
+1. **Autentikasi & Multi-tenant**:
+   - JWT authentication dengan role-based authorization.
+   - Tenant isolation berbasis outlet secara otomatis untuk mencegah kasir mengakses transaksi cabang lain.
 
-Bagian yang masih perlu dilanjutkan:
+2. **Katalog & Manajemen Stok**:
+   - Produk, varian produk, dan kategori.
+   - Pergerakan stok terintegrasi ke `StockLedger`.
+   - Update otomatis kuantitas stok produk (`QtyOnHand`) via PostgreSQL DB Trigger.
 
-- Beberapa service bisnis masih berupa kontrak / interface
-- Fase entity berikutnya di roadmap belum lengkap
-- Seed data development belum disediakan
+3. **Pending Due / Piutang Transaksi (Kasbon & Tempo)**:
+   - Fitur bayar nanti (kasbon/tempo) saat checkout POS.
+   - Validasi kelengkapan KTP dan Alamat pelanggan sebelum memberikan kredit/tempo.
+   - Pengecekan sisa batas utang pelanggan terhadap limit kredit (`CreditLimit`).
+   - Endpoint pelunasan bertahap/cicilan piutang (`PayDue`) yang mengurangi outstanding debt pelanggan secara real-time.
+
+4. **Sesi Kasir (Shift Control) & Rekonsiliasi**:
+   - Buka dan tutup shift kasir secara mandiri dengan verifikasi kas awal (`OpeningCash`).
+   - Rekonsiliasi kas otomatis di laci kas saat tutup sesi kasir (`ExpectedCash = OpeningCash + CashSales - PettyCashExpenses`).
+   - Perhitungan otomatis selisih kas aktual vs kas tercatat (*variance analysis*).
+   - Pengelompokkan summary penerimaan non-tunai (QRIS, EDC, Transfer) untuk pembukuan harian.
+
+5. **Kas Kecil (Petty Cash Expenses)**:
+   - Pencatatan pengeluaran operasional harian (seperti ATK, konsumsi, transportasi) langsung memotong saldo kas laci POS aktif.
+   - Validasi ketat: Kasir wajib memiliki sesi kasir aktif yang masih terbuka untuk dapat melakukan pencatatan kas keluar.
 
 ## Saran Setelah API Berjalan
 
 1. Buat data awal: outlet, role, permission, dan user.
 2. Uji login lewat Swagger.
 3. Tambahkan seeding untuk environment development.
-4. Lanjut implementasi service yang belum lengkap.
+4. Lanjut implementasi service yang belum lengkap (seperti Konsinyasi atau Supplier PO).
 
 ## File Penting
 
