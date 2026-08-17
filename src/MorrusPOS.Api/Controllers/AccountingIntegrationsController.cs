@@ -15,11 +15,11 @@ public class AccountingIntegrationsController : ControllerBase
         _accountingIntegrationService = accountingIntegrationService;
     }
 
-    [HttpGet("status/{referenceType}/{referenceId:guid}")]
+    [HttpGet("status/{referenceType}/{referenceIdentifier}")]
     [HasPermission("account.manage")]
-    public async Task<ActionResult<AccountingPostingStatusDto>> GetStatus(string referenceType, Guid referenceId, CancellationToken ct)
+    public async Task<ActionResult<AccountingPostingStatusDto>> GetStatus(string referenceType, string referenceIdentifier, CancellationToken ct)
     {
-        var result = await _accountingIntegrationService.GetPostingStatusAsync(referenceType, referenceId, ct);
+        var result = await _accountingIntegrationService.GetPostingStatusAsync(referenceType, referenceIdentifier, ct);
         return Ok(result);
     }
 
