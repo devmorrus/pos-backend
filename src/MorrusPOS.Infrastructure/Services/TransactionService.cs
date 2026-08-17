@@ -414,95 +414,7 @@ public class TransactionService : ITransactionService
         }
     }
 
-    public async Task<TransactionDto> PayDueAsync(Guid transactionId, PayDueRequest request, CancellationToken ct = default)
-    {
-        await EnsureOperationalRoleAsync();
 
-        var transaction = await _dbContext.Transactions
-            .Include(t => t.Customer)
-            .FirstOrDefaultAsync(t => t.Id == transactionId, ct);
-
-        if (transaction == null)
-        {
-            throw new InvalidOperationException("Transaksi tidak ditemukan.");
-        }
-
-        await EnsureOutletAccessibleAsync(transaction.OutletId, ct);
-
-        if (transaction.DueAmount <= 0)
-        {
-            throw new InvalidOperationException("Transaksi ini tidak memiliki piutang yang harus dibayar.");
-        }
-
-        if (request.Amount <= 0)
-        {
-            throw new InvalidOperationException("Nominal pelunasan harus lebih dari 0.");
-        }
-
-        if (request.Amount > transaction.DueAmount)
-        {
-            throw new InvalidOperationException($"Nominal pelunasan ({request.Amount}) tidak boleh melebihi sisa piutang ({transaction.DueAmount}).");
-        }
-
-        if (!IsSupportedPaymentMethod(request.Method))
-        {
-            throw new InvalidOperationException($"Metode pembayaran {request.Method} tidak didukung.");
-        }
-
-        using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
-        try
-        {
-            var currentUserId = _currentUserService.UserId ?? Guid.Empty;
-            var activeSession = await _dbContext.CashierSessions
-                .FirstOrDefaultAsync(s => s.UserId == currentUserId && s.OutletId == transaction.OutletId && s.Status == CashierSessionStatus.Open, ct);
-
-            if (activeSession == null && _currentUserService.Role is "Kasir" or "KepalaCabang")
-            {
-                throw new InvalidOperationException("Anda tidak memiliki sesi kasir yang aktif. Silakan buka sesi kasir terlebih dahulu.");
-            }
-
-            var payment = new Payment
-            {
-                Id = Guid.NewGuid(),
-                TransactionId = transaction.Id,
-                CashierSessionId = activeSession?.Id,
-                Method = request.Method,
-                Amount = request.Amount,
-                ReferenceNumber = request.ReferenceNumber,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _dbContext.Payments.Add(payment);
-
-            transaction.AmountPaid += request.Amount;
-            transaction.DueAmount -= request.Amount;
-
-            if (transaction.DueAmount == 0)
-            {
-                transaction.Status = TransactionStatus.Completed;
-            }
-
-            if (transaction.CustomerId.HasValue)
-            {
-                var customer = await _dbContext.Customers.FirstOrDefaultAsync(c => c.Id == transaction.CustomerId.Value, ct);
-                if (customer != null)
-                {
-                    customer.CurrentDebt = Math.Max(0, customer.CurrentDebt - request.Amount);
-                    customer.UpdatedAt = DateTime.UtcNow;
-                }
-            }
-
-            await _dbContext.SaveChangesAsync(ct);
-            await dbTx.CommitAsync(ct);
-
-            return await GetByIdAsync(transaction.Id, ct);
-        }
-        catch
-        {
-            await dbTx.RollbackAsync(ct);
-            throw;
-        }
-    }
 
     public async Task<TransactionDto> CheckoutAsync(CheckoutRequest request, CancellationToken ct = default)
     {
@@ -521,10 +433,7 @@ public class TransactionService : ITransactionService
 
         if (request.Payments == null || request.Payments.Count == 0)
         {
-            if (request.CustomerId == null)
-            {
-                throw new InvalidOperationException("Minimal satu pembayaran wajib diisi atau pilih pelanggan untuk transaksi piutang.");
-            }
+            throw new InvalidOperationException("Minimal satu pembayaran wajib diisi.");
         }
 
         var existing = await _dbContext.Transactions
@@ -636,42 +545,14 @@ public class TransactionService : ITransactionService
             }
 
             var totalPayment = request.Payments?.Sum(payment => payment.Amount) ?? 0;
-            string status;
-            decimal amountPaid;
-            decimal dueAmount;
-
-            if (totalPayment < pricingBreakdown.GrandTotal)
+            if (totalPayment != pricingBreakdown.GrandTotal)
             {
-                if (selectedCustomer == null)
-                {
-                    throw new InvalidOperationException("Pelanggan wajib dipilih untuk transaksi piutang (bayar nanti).");
-                }
-
-                if (string.IsNullOrWhiteSpace(selectedCustomer.KtpNumber) || string.IsNullOrWhiteSpace(selectedCustomer.Address))
-                {
-                    throw new InvalidOperationException("Pelanggan wajib memiliki nomor KTP (NIK) dan Alamat lengkap untuk transaksi piutang.");
-                }
-
-                dueAmount = pricingBreakdown.GrandTotal - totalPayment;
-                if (selectedCustomer.CurrentDebt + dueAmount > selectedCustomer.CreditLimit)
-                {
-                    throw new InvalidOperationException($"Batas limit kredit pelanggan terlampaui. Limit: Rp {selectedCustomer.CreditLimit:N0}, Hutang Berjalan: Rp {selectedCustomer.CurrentDebt:N0}, Piutang Baru: Rp {dueAmount:N0}.");
-                }
-
-                selectedCustomer.CurrentDebt += dueAmount;
-                amountPaid = totalPayment;
-                status = totalPayment > 0 ? TransactionStatus.PartiallyPaid : TransactionStatus.Unpaid;
+                throw new InvalidOperationException($"Total pembayaran ({totalPayment}) harus sama dengan grand total transaksi ({pricingBreakdown.GrandTotal}).");
             }
-            else if (totalPayment == pricingBreakdown.GrandTotal)
-            {
-                amountPaid = pricingBreakdown.GrandTotal;
-                dueAmount = 0;
-                status = TransactionStatus.Completed;
-            }
-            else
-            {
-                throw new InvalidOperationException("Total pembayaran melebihi grand total transaksi.");
-            }
+
+            var amountPaid = pricingBreakdown.GrandTotal;
+            var dueAmount = 0M;
+            var status = TransactionStatus.Completed;
 
             if (request.Payments != null)
             {
@@ -993,9 +874,9 @@ public class TransactionService : ITransactionService
             t.GrandTotal,
             t.AppliedVoucherCode,
             t.AppliedPromoName,
-            t.AmountPaid,
-            t.DueAmount,
-            t.PaymentDueDate,
+            t.GrandTotal,
+            0M,
+            null,
             t.VoidedBy,
             t.VoidedByUser?.Name,
             t.VoidedReason,

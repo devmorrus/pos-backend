@@ -336,12 +336,6 @@ Sistem backend ini mengimplementasikan modul bisnis retail POS lengkap:
    - Pergerakan stok terintegrasi ke `StockLedger`.
    - Update otomatis kuantitas stok produk (`QtyOnHand`) via PostgreSQL DB Trigger.
 
-3. **Pending Due / Piutang Transaksi (Kasbon & Tempo)**:
-   - Fitur bayar nanti (kasbon/tempo) saat checkout POS.
-   - Validasi kelengkapan KTP dan Alamat pelanggan sebelum memberikan kredit/tempo.
-   - Pengecekan sisa batas utang pelanggan terhadap limit kredit (`CreditLimit`).
-   - Endpoint pelunasan bertahap/cicilan piutang (`PayDue`) yang mengurangi outstanding debt pelanggan secara real-time.
-
 4. **Sesi Kasir (Shift Control) & Rekonsiliasi**:
    - Buka dan tutup shift kasir secara mandiri dengan verifikasi kas awal (`OpeningCash`).
    - Rekonsiliasi kas otomatis di laci kas saat tutup sesi kasir (`ExpectedCash = OpeningCash + CashSales - PettyCashExpenses`).
