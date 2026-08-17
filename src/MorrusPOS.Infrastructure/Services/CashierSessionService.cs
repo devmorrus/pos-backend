@@ -29,7 +29,7 @@ public class CashierSessionService : ICashierSessionService
             throw new InvalidOperationException("Sesi kasir tidak ditemukan.");
         }
 
-        return MapToDto(session);
+        return await BuildSessionDtoAsync(session, ct);
     }
 
     public async Task<CashierSessionDto?> GetActiveSessionAsync(Guid userId, Guid outletId, CancellationToken ct = default)
@@ -41,7 +41,7 @@ public class CashierSessionService : ICashierSessionService
             .Include(s => s.User)
             .FirstOrDefaultAsync(s => s.UserId == userId && s.OutletId == outletId && s.Status == CashierSessionStatus.Open, ct);
 
-        return session != null ? MapToDto(session) : null;
+        return session != null ? await BuildSessionDtoAsync(session, ct) : null;
     }
 
     public async Task<CashierSessionDto> OpenSessionAsync(Guid userId, Guid outletId, OpenSessionRequest request, CancellationToken ct = default)
@@ -102,14 +102,15 @@ public class CashierSessionService : ICashierSessionService
             }
         }
 
-        // Calculate expected cash in drawer (OpeningCash + Cash Payments)
-        var cashSales = await _dbContext.Transactions
-            .Where(t => t.CashierSessionId == sessionId && t.Status == TransactionStatus.Completed)
-            .SelectMany(t => t.Payments)
-            .Where(p => p.Method == PaymentMethod.Cash)
+        var totalCashReceived = await _dbContext.Payments
+            .Where(p => p.CashierSessionId == sessionId && p.Method == PaymentMethod.Cash)
             .SumAsync(p => p.Amount, ct);
 
-        session.ExpectedCash = session.OpeningCash + cashSales;
+        var totalPettyCashExpenses = await _dbContext.PettyCashExpenses
+            .Where(pe => pe.CashierSessionId == sessionId)
+            .SumAsync(pe => pe.Amount, ct);
+
+        session.ExpectedCash = session.OpeningCash + totalCashReceived - totalPettyCashExpenses;
         session.ActualCash = request.ActualCash;
         session.Variance = request.ActualCash - session.ExpectedCash;
         session.Status = CashierSessionStatus.Closed;
@@ -121,21 +122,155 @@ public class CashierSessionService : ICashierSessionService
         return await GetByIdAsync(sessionId, ct);
     }
 
-    private static CashierSessionDto MapToDto(CashierSession s)
+    public async Task<PettyCashExpenseDto> RecordPettyCashAsync(Guid sessionId, CreatePettyCashRequest request, CancellationToken ct = default)
     {
+        await EnsureOperationalRoleAsync();
+
+        var session = await _dbContext.CashierSessions
+            .Include(s => s.Outlet)
+            .FirstOrDefaultAsync(s => s.Id == sessionId, ct);
+
+        if (session == null)
+        {
+            throw new InvalidOperationException("Sesi kasir tidak ditemukan.");
+        }
+
+        if (session.Status == CashierSessionStatus.Closed)
+        {
+            throw new InvalidOperationException("Tidak dapat mencatat pengeluaran pada sesi kasir yang sudah ditutup.");
+        }
+
+        if (_currentUserService.Role != "Owner")
+        {
+            if (_currentUserService.UserId != session.UserId || _currentUserService.OutletId != session.OutletId)
+            {
+                throw new UnauthorizedAccessException("Anda tidak memiliki akses untuk mencatat pengeluaran di sesi kasir ini.");
+            }
+        }
+
+        if (request.Amount <= 0)
+        {
+            throw new InvalidOperationException("Nominal pengeluaran harus lebih dari 0.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Description))
+        {
+            throw new InvalidOperationException("Deskripsi pengeluaran wajib diisi.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Category))
+        {
+            throw new InvalidOperationException("Kategori pengeluaran wajib diisi.");
+        }
+
+        var expense = new PettyCashExpense
+        {
+            Id = Guid.NewGuid(),
+            OutletId = session.OutletId,
+            CashierSessionId = session.Id,
+            Amount = request.Amount,
+            Description = request.Description.Trim(),
+            Category = request.Category.Trim(),
+            ProcessedBy = _currentUserService.UserId ?? Guid.Empty,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        _dbContext.PettyCashExpenses.Add(expense);
+        await _dbContext.SaveChangesAsync(ct);
+
+        var saved = await _dbContext.PettyCashExpenses
+            .Include(pe => pe.Outlet)
+            .Include(pe => pe.ProcessedByUser)
+            .FirstAsync(pe => pe.Id == expense.Id, ct);
+
+        return MapPettyCashToDto(saved);
+    }
+
+    public async Task<IReadOnlyList<PettyCashExpenseDto>> GetPettyCashExpensesAsync(Guid sessionId, CancellationToken ct = default)
+    {
+        await EnsureOperationalRoleAsync();
+
+        var session = await _dbContext.CashierSessions.AsNoTracking().FirstOrDefaultAsync(s => s.Id == sessionId, ct);
+        if (session == null)
+        {
+            throw new InvalidOperationException("Sesi kasir tidak ditemukan.");
+        }
+
+        if (_currentUserService.Role != "Owner")
+        {
+            if (_currentUserService.UserId != session.UserId || _currentUserService.OutletId != session.OutletId)
+            {
+                throw new UnauthorizedAccessException("Anda tidak memiliki akses ke sesi kasir ini.");
+            }
+        }
+
+        var expenses = await _dbContext.PettyCashExpenses
+            .AsNoTracking()
+            .Include(pe => pe.Outlet)
+            .Include(pe => pe.ProcessedByUser)
+            .Where(pe => pe.CashierSessionId == sessionId)
+            .OrderByDescending(pe => pe.CreatedAt)
+            .ToListAsync(ct);
+
+        return expenses.Select(MapPettyCashToDto).ToList();
+    }
+
+    private async Task<CashierSessionDto> BuildSessionDtoAsync(CashierSession session, CancellationToken ct)
+    {
+        var payments = await _dbContext.Payments
+            .Where(p => p.CashierSessionId == session.Id)
+            .ToListAsync(ct);
+
+        var totalCashReceived = payments
+            .Where(p => p.Method == PaymentMethod.Cash)
+            .Sum(p => p.Amount);
+
+        var totalPettyCashExpenses = await _dbContext.PettyCashExpenses
+            .Where(pe => pe.CashierSessionId == session.Id)
+            .SumAsync(pe => pe.Amount, ct);
+
+        var summary = payments
+            .GroupBy(p => p.Method.ToLowerInvariant())
+            .ToDictionary(g => g.Key, g => g.Sum(p => p.Amount));
+
+        if (session.Status == CashierSessionStatus.Open)
+        {
+            session.ExpectedCash = session.OpeningCash + totalCashReceived - totalPettyCashExpenses;
+        }
+
         return new CashierSessionDto(
-            s.Id,
-            s.OutletId,
-            s.Outlet?.Name ?? string.Empty,
-            s.UserId,
-            s.User?.Name ?? string.Empty,
-            s.OpeningTime,
-            s.ClosingTime,
-            s.OpeningCash,
-            s.ExpectedCash,
-            s.ActualCash,
-            s.Variance,
-            s.Status
+            session.Id,
+            session.OutletId,
+            session.Outlet?.Name ?? string.Empty,
+            session.UserId,
+            session.User?.Name ?? string.Empty,
+            session.OpeningTime,
+            session.ClosingTime,
+            session.OpeningCash,
+            session.ExpectedCash,
+            session.ActualCash,
+            session.Variance,
+            session.Status,
+            totalCashReceived,
+            totalPettyCashExpenses,
+            summary
+        );
+    }
+
+    private static PettyCashExpenseDto MapPettyCashToDto(PettyCashExpense pe)
+    {
+        return new PettyCashExpenseDto(
+            pe.Id,
+            pe.OutletId,
+            pe.Outlet?.Name ?? string.Empty,
+            pe.CashierSessionId,
+            pe.Amount,
+            pe.Description,
+            pe.Category,
+            pe.ProcessedBy,
+            pe.ProcessedByUser?.Name ?? string.Empty,
+            pe.CreatedAt
         );
     }
 

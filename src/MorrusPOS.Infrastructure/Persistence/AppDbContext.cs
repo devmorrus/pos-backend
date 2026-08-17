@@ -41,6 +41,7 @@ public class AppDbContext : DbContext
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<Return> Returns => Set<Return>();
     public DbSet<CashierSession> CashierSessions => Set<CashierSession>();
+    public DbSet<PettyCashExpense> PettyCashExpenses => Set<PettyCashExpense>();
 
     // Fase 2 — Stok
     public DbSet<InventoryStock> InventoryStocks => Set<InventoryStock>();
@@ -114,6 +115,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<CashierSession>().HasQueryFilter(cs => CurrentBusinessId == null || cs.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<Payment>().HasQueryFilter(p => CurrentBusinessId == null || p.Transaction.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<Return>().HasQueryFilter(r => CurrentBusinessId == null || r.Transaction.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<PettyCashExpense>().HasQueryFilter(pe => CurrentBusinessId == null || pe.Outlet.BusinessId == CurrentBusinessId);
 
         // SaaS Scoping for Stocks & Inventory
         modelBuilder.Entity<InventoryStock>().HasQueryFilter(stock => CurrentBusinessId == null || stock.Outlet.BusinessId == CurrentBusinessId);

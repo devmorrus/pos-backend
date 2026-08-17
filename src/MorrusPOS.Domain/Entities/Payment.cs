@@ -15,6 +15,9 @@ public class Payment : BaseEntity
     public Guid TransactionId { get; set; }
     public Transaction Transaction { get; set; } = default!;
 
+    public Guid? CashierSessionId { get; set; }
+    public CashierSession? CashierSession { get; set; }
+
     public string Method { get; set; } = default!;
     public decimal Amount { get; set; }
     public string? ReferenceNumber { get; set; }

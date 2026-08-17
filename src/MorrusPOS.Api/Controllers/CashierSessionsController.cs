@@ -56,6 +56,20 @@ public class CashierSessionsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("{id:guid}/petty-cash")]
+    public async Task<ActionResult<PettyCashExpenseDto>> RecordPettyCash(Guid id, CreatePettyCashRequest request, CancellationToken ct)
+    {
+        var result = await _sessionService.RecordPettyCashAsync(id, request, ct);
+        return Ok(result);
+    }
+
+    [HttpGet("{id:guid}/petty-cash")]
+    public async Task<ActionResult<IReadOnlyList<PettyCashExpenseDto>>> GetPettyCash(Guid id, CancellationToken ct)
+    {
+        var result = await _sessionService.GetPettyCashExpensesAsync(id, ct);
+        return Ok(result);
+    }
+
     private Guid? ResolveTargetOutletId(Guid? requestedOutletId)
     {
         if (_currentUser.Role == "Owner")

@@ -452,10 +452,20 @@ public class TransactionService : ITransactionService
         using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
         try
         {
+            var currentUserId = _currentUserService.UserId ?? Guid.Empty;
+            var activeSession = await _dbContext.CashierSessions
+                .FirstOrDefaultAsync(s => s.UserId == currentUserId && s.OutletId == transaction.OutletId && s.Status == CashierSessionStatus.Open, ct);
+
+            if (activeSession == null && _currentUserService.Role is "Kasir" or "KepalaCabang")
+            {
+                throw new InvalidOperationException("Anda tidak memiliki sesi kasir yang aktif. Silakan buka sesi kasir terlebih dahulu.");
+            }
+
             var payment = new Payment
             {
                 Id = Guid.NewGuid(),
                 TransactionId = transaction.Id,
+                CashierSessionId = activeSession?.Id,
                 Method = request.Method,
                 Amount = request.Amount,
                 ReferenceNumber = request.ReferenceNumber,
@@ -869,6 +879,7 @@ public class TransactionService : ITransactionService
                     {
                         Id = Guid.NewGuid(),
                         TransactionId = newTrx.Id,
+                        CashierSessionId = request.CashierSessionId,
                         Method = payReq.Method,
                         Amount = payReq.Amount,
                         ReferenceNumber = payReq.ReferenceNumber,
