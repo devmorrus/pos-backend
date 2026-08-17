@@ -46,6 +46,9 @@ public record TransactionDto(
     decimal GrandTotal,
     string? AppliedVoucherCode,
     string? AppliedPromoName,
+    decimal AmountPaid,
+    decimal DueAmount,
+    DateTime? PaymentDueDate,
     Guid? VoidedBy,
     string? VoidedByName,
     string? VoidedReason,
@@ -126,7 +129,8 @@ public record CheckoutRequest(
     string? VoucherCode = null,
     string? AppliedPromoCode = null,
     Guid? CustomerId = null,
-    string? CustomerPhone = null
+    string? CustomerPhone = null,
+    DateTime? PaymentDueDate = null
 );
 
 public record PricingPreviewRequest(
@@ -198,6 +202,12 @@ public record RefundTransactionRequest(
     List<RefundTransactionItemRequest> Items
 );
 
+public record PayDueRequest(
+    decimal Amount,
+    string Method,
+    string? ReferenceNumber
+);
+
 public interface ITransactionService
 {
     Task<IReadOnlyList<TransactionListItemDto>> GetRecentByOutletAsync(Guid outletId, int take, CancellationToken ct = default);
@@ -206,4 +216,5 @@ public interface ITransactionService
     Task<TransactionDto> CheckoutAsync(CheckoutRequest request, CancellationToken ct = default);
     Task<TransactionDto> VoidAsync(Guid id, VoidTransactionRequest request, CancellationToken ct = default);
     Task<TransactionDto> RefundAsync(Guid id, RefundTransactionRequest request, CancellationToken ct = default);
+    Task<TransactionDto> PayDueAsync(Guid transactionId, PayDueRequest request, CancellationToken ct = default);
 }

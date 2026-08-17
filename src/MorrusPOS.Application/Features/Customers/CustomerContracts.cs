@@ -13,7 +13,11 @@ public record CustomerListItemDto(
     bool IsActive,
     decimal LifetimeSpend,
     DateTime? LastTransactionAt,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    decimal CreditLimit,
+    decimal CurrentDebt,
+    string? KtpNumber,
+    string? Address
 );
 
 public record CustomerDto(
@@ -35,7 +39,11 @@ public record CustomerDto(
     DateTime? JoinedAt,
     DateTime? LastTransactionAt,
     DateTime CreatedAt,
-    DateTime UpdatedAt
+    DateTime UpdatedAt,
+    decimal CreditLimit,
+    decimal CurrentDebt,
+    string? KtpNumber,
+    string? Address
 );
 
 public record CreateCustomerRequest(
@@ -45,7 +53,10 @@ public record CreateCustomerRequest(
     string? Gender,
     DateTime? BirthDate,
     string? Notes,
-    bool IsActive = true
+    bool IsActive = true,
+    decimal CreditLimit = 0,
+    string? KtpNumber = null,
+    string? Address = null
 );
 
 public record UpdateCustomerRequest(
@@ -55,7 +66,10 @@ public record UpdateCustomerRequest(
     string? Gender,
     DateTime? BirthDate,
     string? Notes,
-    bool IsActive
+    bool IsActive,
+    decimal CreditLimit,
+    string? KtpNumber,
+    string? Address
 );
 
 public record CustomerListQuery(

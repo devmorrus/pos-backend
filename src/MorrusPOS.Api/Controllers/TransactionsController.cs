@@ -73,6 +73,13 @@ public class TransactionsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("{id}/pay-due")]
+    public async Task<ActionResult<TransactionDto>> PayDue(Guid id, PayDueRequest request, CancellationToken ct)
+    {
+        var result = await _transactionService.PayDueAsync(id, request, ct);
+        return Ok(result);
+    }
+
     private Guid? ResolveTargetOutletId(Guid? requestedOutletId)
     {
         if (_currentUser.Role == "Owner")

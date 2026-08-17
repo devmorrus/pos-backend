@@ -8,6 +8,8 @@ public static class TransactionStatus
     public const string Completed = "completed";
     public const string Voided = "voided";
     public const string Refunded = "refunded";
+    public const string PartiallyPaid = "partially_paid";
+    public const string Unpaid = "unpaid";
 }
 
 public static class TransactionChannel
@@ -54,6 +56,10 @@ public class Transaction : BaseEntity
     public decimal GrandTotal { get; set; }
     public string? AppliedVoucherCode { get; set; }
     public string? AppliedPromoName { get; set; }
+
+    public decimal AmountPaid { get; set; }
+    public decimal DueAmount { get; set; }
+    public DateTime? PaymentDueDate { get; set; }
 
     public Guid? VoidedBy { get; set; }
     public User? VoidedByUser { get; set; }
