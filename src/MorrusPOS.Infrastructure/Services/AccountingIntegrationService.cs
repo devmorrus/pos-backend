@@ -340,9 +340,40 @@ public class AccountingIntegrationService : IAccountingIntegrationService
         return true;
     }
 
-    public async Task<AccountingPostingStatusDto> GetPostingStatusAsync(string referenceType, Guid referenceId, CancellationToken ct = default)
+    public async Task<AccountingPostingStatusDto> GetPostingStatusAsync(string referenceType, string referenceIdentifier, CancellationToken ct = default)
     {
         var normalizedReferenceType = NormalizeReferenceType(referenceType);
+        Guid referenceId = Guid.Empty;
+
+        if (Guid.TryParse(referenceIdentifier, out var parsedGuid))
+        {
+            referenceId = parsedGuid;
+        }
+        else
+        {
+            var cleanedIdentifier = referenceIdentifier.Trim();
+            if (normalizedReferenceType == TransactionSaleReference)
+            {
+                var transaction = await _dbContext.Transactions
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(t => t.TransactionNumber == cleanedIdentifier, ct);
+                if (transaction != null)
+                {
+                    referenceId = transaction.Id;
+                }
+            }
+            else if (normalizedReferenceType == PurchaseOrderReference)
+            {
+                var po = await _dbContext.PurchaseOrders
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.PoNumber == cleanedIdentifier, ct);
+                if (po != null)
+                {
+                    referenceId = po.Id;
+                }
+            }
+        }
+
         var entries = await _dbContext.AccountTransactions
             .AsNoTracking()
             .Where(entry => entry.ReferenceType == normalizedReferenceType && entry.ReferenceId == referenceId)
@@ -364,8 +395,12 @@ public class AccountingIntegrationService : IAccountingIntegrationService
     {
         EnsureBusinessContext();
 
-        var dateFrom = request.DateFrom?.Date;
-        var dateTo = request.DateTo?.Date.AddDays(1).AddTicks(-1);
+        var dateFrom = request.DateFrom.HasValue
+            ? DateTime.SpecifyKind(request.DateFrom.Value.Date, DateTimeKind.Utc)
+            : (DateTime?)null;
+        var dateTo = request.DateTo.HasValue
+            ? DateTime.SpecifyKind(request.DateTo.Value.Date.AddDays(1).AddTicks(-1), DateTimeKind.Utc)
+            : (DateTime?)null;
 
         var result = new AccountingBackfillResultDto(0, 0, 0, 0, 0, 0);
 

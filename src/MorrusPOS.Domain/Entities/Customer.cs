@@ -38,5 +38,10 @@ public class Customer : AuditableEntity
     public decimal LifetimeSpend { get; set; }
     public DateTime? LastTransactionAt { get; set; }
 
+    public decimal CreditLimit { get; set; }
+    public decimal CurrentDebt { get; set; }
+    public string? KtpNumber { get; set; }
+    public string? Address { get; set; }
+
     public ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
 }

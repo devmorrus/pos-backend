@@ -41,6 +41,7 @@ public class AppDbContext : DbContext
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<Return> Returns => Set<Return>();
     public DbSet<CashierSession> CashierSessions => Set<CashierSession>();
+    public DbSet<PettyCashExpense> PettyCashExpenses => Set<PettyCashExpense>();
 
     // Fase 2 — Stok
     public DbSet<InventoryStock> InventoryStocks => Set<InventoryStock>();
@@ -81,6 +82,17 @@ public class AppDbContext : DbContext
     public DbSet<Voucher> Vouchers => Set<Voucher>();
     public DbSet<VoucherRedemption> VoucherRedemptions => Set<VoucherRedemption>();
 
+    // Varian, Modifier, Resep & Batch UMKM
+    public DbSet<ProductAttribute> ProductAttributes => Set<ProductAttribute>();
+    public DbSet<ProductAttributeValue> ProductAttributeValues => Set<ProductAttributeValue>();
+    public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
+    public DbSet<ModifierGroup> ModifierGroups => Set<ModifierGroup>();
+    public DbSet<ModifierOption> ModifierOptions => Set<ModifierOption>();
+    public DbSet<ProductRecipe> ProductRecipes => Set<ProductRecipe>();
+    public DbSet<ProductBatch> ProductBatches => Set<ProductBatch>();
+    public DbSet<ReceivingNote> ReceivingNotes => Set<ReceivingNote>();
+    public DbSet<ReceivingNoteItem> ReceivingNoteItems => Set<ReceivingNoteItem>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
@@ -95,12 +107,15 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<ChartOfAccount>().HasQueryFilter(a => CurrentBusinessId == null || a.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<CashFlow>().HasQueryFilter(cf => CurrentBusinessId == null || cf.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<AccountTransaction>().HasQueryFilter(at => CurrentBusinessId == null || at.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<ProductAttribute>().HasQueryFilter(pa => CurrentBusinessId == null || pa.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<ModifierGroup>().HasQueryFilter(mg => CurrentBusinessId == null || mg.BusinessId == CurrentBusinessId);
 
         // SaaS Scoping for Operational Transactions & POS Sessions
         modelBuilder.Entity<Transaction>().HasQueryFilter(t => CurrentBusinessId == null || t.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<CashierSession>().HasQueryFilter(cs => CurrentBusinessId == null || cs.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<Payment>().HasQueryFilter(p => CurrentBusinessId == null || p.Transaction.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<Return>().HasQueryFilter(r => CurrentBusinessId == null || r.Transaction.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<PettyCashExpense>().HasQueryFilter(pe => CurrentBusinessId == null || pe.Outlet.BusinessId == CurrentBusinessId);
 
         // SaaS Scoping for Stocks & Inventory
         modelBuilder.Entity<InventoryStock>().HasQueryFilter(stock => CurrentBusinessId == null || stock.Outlet.BusinessId == CurrentBusinessId);
@@ -110,6 +125,7 @@ public class AppDbContext : DbContext
 
         // SaaS Scoping for Suppliers, Procurement, and Purchase Orders
         modelBuilder.Entity<PurchaseOrder>().HasQueryFilter(po => CurrentBusinessId == null || po.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<ReceivingNote>().HasQueryFilter(rn => CurrentBusinessId == null || rn.PurchaseOrder.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<SupplierDebt>().HasQueryFilter(sd => CurrentBusinessId == null || sd.Supplier.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<SupplierPayment>().HasQueryFilter(sp => CurrentBusinessId == null || sp.Supplier.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<SupplierReturn>().HasQueryFilter(sr => CurrentBusinessId == null || sr.PurchaseOrder.Outlet.BusinessId == CurrentBusinessId);

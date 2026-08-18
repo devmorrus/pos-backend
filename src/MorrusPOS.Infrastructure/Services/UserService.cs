@@ -72,11 +72,13 @@ public class UserService : IUserService
 
     public async Task<UserDto> CreateAsync(CreateUserRequest request, CancellationToken ct = default)
     {
-        // 1. Email uniqueness check
-        var emailExists = await _dbContext.Users.AnyAsync(u => u.Email.ToLower() == request.Email.ToLower(), ct);
+        // 1. Email uniqueness check (tanpa query filter agar cek di seluruh database)
+        var emailExists = await _dbContext.Users
+            .IgnoreQueryFilters()
+            .AnyAsync(u => u.Email.ToLower() == request.Email.ToLower(), ct);
         if (emailExists)
         {
-            throw new InvalidOperationException("Email sudah terdaftar.");
+            throw new InvalidOperationException("Email sudah terdaftar. Gunakan email lain.");
         }
 
         // 2. Validate Role

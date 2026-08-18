@@ -90,7 +90,7 @@ public class UserServiceTests
 
         // Act & Assert
         var act = () => service.CreateAsync(request);
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("Email sudah terdaftar.");
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Email sudah terdaftar*");
     }
 
     [Fact]

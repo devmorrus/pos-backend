@@ -122,6 +122,7 @@ public class CashierSessionServiceTests
         {
             Id = Guid.NewGuid(),
             TransactionId = trxId,
+            CashierSessionId = sessionId,
             Method = "cash",
             Amount = 50000,
             CreatedAt = DateTime.UtcNow

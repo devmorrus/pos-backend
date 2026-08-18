@@ -119,6 +119,28 @@ public class ReportsController : ControllerBase
         return File(response.FileBytes, response.ContentType, response.FileName);
     }
 
+    [HttpGet("general-ledger")]
+    [HasPermission("report.profitloss_accounting.view")]
+    public async Task<ActionResult<GeneralLedgerReportDto>> GetGeneralLedger(
+        [FromQuery] GeneralLedgerReportFilters filters,
+        CancellationToken ct = default)
+    {
+        var resolvedFilters = filters with { OutletId = ResolveTargetOutletId(filters.OutletId) };
+        var report = await _reportService.GetGeneralLedgerReportAsync(resolvedFilters, ct);
+        return Ok(report);
+    }
+
+    [HttpGet("general-ledger/export-excel")]
+    [HasPermission("report.profitloss_accounting.view")]
+    public async Task<IActionResult> ExportGeneralLedgerExcel(
+        [FromQuery] GeneralLedgerReportFilters filters,
+        CancellationToken ct = default)
+    {
+        var resolvedFilters = filters with { OutletId = ResolveTargetOutletId(filters.OutletId) };
+        var response = await _reportService.ExportGeneralLedgerExcelAsync(resolvedFilters, ct);
+        return File(response.FileBytes, response.ContentType, response.FileName);
+    }
+
     private Guid? ResolveTargetOutletId(Guid? requestedOutletId)
     {
         if (_currentUser.Role == "Owner" || _currentUser.Role == "Admin" || _currentUser.Role == "Keuangan")

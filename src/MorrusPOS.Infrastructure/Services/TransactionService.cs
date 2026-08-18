@@ -414,6 +414,8 @@ public class TransactionService : ITransactionService
         }
     }
 
+
+
     public async Task<TransactionDto> CheckoutAsync(CheckoutRequest request, CancellationToken ct = default)
     {
         await EnsureOperationalRoleAsync();
@@ -476,7 +478,10 @@ public class TransactionService : ITransactionService
 
             foreach (var itemReq in request.Items)
             {
-                var product = await _dbContext.Products.FindAsync(new object[] { itemReq.ProductId }, ct);
+                var product = await _dbContext.Products
+                    .Include(p => p.Recipes)
+                    .FirstOrDefaultAsync(p => p.Id == itemReq.ProductId, ct);
+
                 if (product == null || !product.IsActive)
                 {
                     throw new InvalidOperationException("Produk tidak valid atau tidak aktif.");
@@ -497,6 +502,7 @@ public class TransactionService : ITransactionService
                     throw new InvalidOperationException($"Harga produk {product.Name} sudah berubah. Silakan muat ulang data produk.");
                 }
 
+                // Cek stok produk
                 var stock = await _dbContext.InventoryStocks
                     .FirstOrDefaultAsync(s => s.ProductId == itemReq.ProductId && s.OutletId == request.OutletId, ct);
 
@@ -538,22 +544,29 @@ public class TransactionService : ITransactionService
                 }
             }
 
-            var totalPayment = request.Payments.Sum(payment => payment.Amount);
+            var totalPayment = request.Payments?.Sum(payment => payment.Amount) ?? 0;
             if (totalPayment != pricingBreakdown.GrandTotal)
             {
-                throw new InvalidOperationException("Total pembayaran harus sama dengan grand total transaksi.");
+                throw new InvalidOperationException($"Total pembayaran ({totalPayment}) harus sama dengan grand total transaksi ({pricingBreakdown.GrandTotal}).");
             }
 
-            foreach (var payment in request.Payments)
-            {
-                if (payment.Amount <= 0)
-                {
-                    throw new InvalidOperationException("Nominal pembayaran harus lebih dari 0.");
-                }
+            var amountPaid = pricingBreakdown.GrandTotal;
+            var dueAmount = 0M;
+            var status = TransactionStatus.Completed;
 
-                if (!IsSupportedPaymentMethod(payment.Method))
+            if (request.Payments != null)
+            {
+                foreach (var payment in request.Payments)
                 {
-                    throw new InvalidOperationException($"Metode pembayaran {payment.Method} tidak didukung.");
+                    if (payment.Amount <= 0)
+                    {
+                        throw new InvalidOperationException("Nominal pembayaran harus lebih dari 0.");
+                    }
+
+                    if (!IsSupportedPaymentMethod(payment.Method))
+                    {
+                        throw new InvalidOperationException($"Metode pembayaran {payment.Method} tidak didukung.");
+                    }
                 }
             }
 
@@ -569,7 +582,7 @@ public class TransactionService : ITransactionService
                 CustomerId = selectedCustomer?.Id,
                 TransactionNumber = trxNumber,
                 Channel = string.IsNullOrWhiteSpace(request.Channel) ? TransactionChannel.Pos : request.Channel,
-                Status = TransactionStatus.Completed,
+                Status = status,
                 CustomerType = selectedCustomer != null
                     ? TransactionCustomerType.Member
                     : TransactionCustomerType.Guest,
@@ -585,6 +598,9 @@ public class TransactionService : ITransactionService
                 GrandTotal = pricingBreakdown.GrandTotal,
                 AppliedVoucherCode = pricingBreakdown.AppliedVoucher?.Code,
                 AppliedPromoName = pricingBreakdown.AppliedPromo?.Name,
+                AmountPaid = amountPaid,
+                DueAmount = dueAmount,
+                PaymentDueDate = request.PaymentDueDate,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -645,6 +661,7 @@ public class TransactionService : ITransactionService
                         Id = Guid.NewGuid(),
                         TransactionId = newTrx.Id,
                         ProductId = product.Id,
+                        ProductVariantId = itemReq.ProductVariantId,
                         Qty = itemReq.Qty,
                         UnitPrice = product.BasePrice,
                         UnitCost = itemUnitCost,
@@ -689,6 +706,7 @@ public class TransactionService : ITransactionService
                         Id = Guid.NewGuid(),
                         TransactionId = newTrx.Id,
                         ProductId = product.Id,
+                        ProductVariantId = itemReq.ProductVariantId,
                         Qty = itemReq.Qty,
                         UnitPrice = product.BasePrice,
                         UnitCost = itemUnitCost,
@@ -729,23 +747,28 @@ public class TransactionService : ITransactionService
                     referenceType: "transaction",
                     referenceId: newTrx.Id,
                     note: $"Penjualan kasir {trxNumber}",
-                    ct: ct
+                    ct: ct,
+                    productVariantId: itemReq.ProductVariantId
                 );
             }
 
-            foreach (var payReq in request.Payments)
+            if (request.Payments != null)
             {
-                var payment = new Payment
+                foreach (var payReq in request.Payments)
                 {
-                    Id = Guid.NewGuid(),
-                    TransactionId = newTrx.Id,
-                    Method = payReq.Method,
-                    Amount = payReq.Amount,
-                    ReferenceNumber = payReq.ReferenceNumber,
-                    CreatedAt = DateTime.UtcNow
-                };
+                    var payment = new Payment
+                    {
+                        Id = Guid.NewGuid(),
+                        TransactionId = newTrx.Id,
+                        CashierSessionId = request.CashierSessionId,
+                        Method = payReq.Method,
+                        Amount = payReq.Amount,
+                        ReferenceNumber = payReq.ReferenceNumber,
+                        CreatedAt = DateTime.UtcNow
+                    };
 
-                _dbContext.Payments.Add(payment);
+                    _dbContext.Payments.Add(payment);
+                }
             }
 
             if (pricingBreakdown.AppliedVoucher is { } appliedVoucher)
@@ -851,6 +874,9 @@ public class TransactionService : ITransactionService
             t.GrandTotal,
             t.AppliedVoucherCode,
             t.AppliedPromoName,
+            t.GrandTotal,
+            0M,
+            null,
             t.VoidedBy,
             t.VoidedByUser?.Name,
             t.VoidedReason,
@@ -880,13 +906,16 @@ public class TransactionService : ITransactionService
                     0,
                     0,
                     i.LineTotal
-                )).ToList()
+                )
+                {
+                    ProductVariantId = i.ProductVariantId
+                }).ToList()
             ),
             t.Items.Select(i => new TransactionItemDto(
                 i.Id,
                 i.ProductId,
                 i.Product?.Name ?? string.Empty,
-                i.Product?.Sku ?? string.Empty,
+                i.ProductVariant?.Sku ?? i.Product?.Sku ?? string.Empty,
                 i.Qty,
                 returnedQtyByItemId.GetValueOrDefault(i.Id),
                 i.Qty - returnedQtyByItemId.GetValueOrDefault(i.Id),
@@ -894,7 +923,10 @@ public class TransactionService : ITransactionService
                 i.UnitCost,
                 i.DiscountAmount,
                 i.LineTotal
-            )).ToList(),
+            )
+            {
+                ProductVariantId = i.ProductVariantId
+            }).ToList(),
             t.Payments.Select(p => new PaymentDto(
                 p.Method,
                 p.Amount,
@@ -914,7 +946,10 @@ public class TransactionService : ITransactionService
                     itemReturn.ProcessedBy,
                     itemReturn.ProcessedByUser?.Name ?? string.Empty,
                     itemReturn.CreatedAt
-                ))
+                )
+                {
+                    ProductVariantId = itemReturn.TransactionItem.ProductVariantId
+                })
                 .ToList()
         );
     }

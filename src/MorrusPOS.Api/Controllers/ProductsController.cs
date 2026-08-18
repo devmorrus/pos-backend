@@ -26,8 +26,18 @@ public class ProductsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<ProductDto>>> GetAll([FromQuery] Guid? outletId, CancellationToken ct)
+    public async Task<ActionResult<IReadOnlyList<ProductDto>>> GetAll(
+        [FromQuery] Guid? outletId,
+        [FromQuery] bool? isRawMaterial,
+        CancellationToken ct)
     {
+        // Shortcut: kalau minta bahan baku, tidak perlu outletId
+        if (isRawMaterial == true)
+        {
+            var rawMaterials = await _productService.GetRawMaterialsAsync(ct);
+            return Ok(rawMaterials);
+        }
+
         var targetOutletId = outletId ?? _currentUser.OutletId;
         if (targetOutletId is null)
         {

@@ -8,6 +8,8 @@ public static class TransactionStatus
     public const string Completed = "completed";
     public const string Voided = "voided";
     public const string Refunded = "refunded";
+    public const string PartiallyPaid = "partially_paid";
+    public const string Unpaid = "unpaid";
 }
 
 public static class TransactionChannel
@@ -55,6 +57,10 @@ public class Transaction : BaseEntity
     public string? AppliedVoucherCode { get; set; }
     public string? AppliedPromoName { get; set; }
 
+    public decimal AmountPaid { get; set; }
+    public decimal DueAmount { get; set; }
+    public DateTime? PaymentDueDate { get; set; }
+
     public Guid? VoidedBy { get; set; }
     public User? VoidedByUser { get; set; }
     public string? VoidedReason { get; set; }
@@ -75,10 +81,15 @@ public class TransactionItem : BaseEntity
     public Guid ProductId { get; set; }
     public Product Product { get; set; } = default!;
 
+    public Guid? ProductVariantId { get; set; }
+    public ProductVariant? ProductVariant { get; set; }
+
     public decimal Qty { get; set; }
     public decimal UnitPrice { get; set; }   // snapshot harga jual saat transaksi
     public decimal UnitCost { get; set; }    // snapshot harga modal, untuk laporan margin
     public decimal DiscountAmount { get; set; }
     public decimal LineTotal { get; set; }
     public bool IsReturned { get; set; } = false;
+
+    public string? SelectedModifiersJson { get; set; } // Extra details like toppings or specific customization
 }

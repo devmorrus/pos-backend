@@ -212,6 +212,188 @@ public class ReportService : IReportService
             $"Laporan_Arus_Kas_{periodStart:yyyyMMdd}_{periodEnd:yyyyMMdd}.xlsx");
     }
 
+    public async Task<GeneralLedgerReportDto> GetGeneralLedgerReportAsync(
+        GeneralLedgerReportFilters filters,
+        CancellationToken ct = default)
+    {
+        var businessId = EnsureBusinessContext();
+        var (startUtc, endUtc) = NormalizePeriod(filters.DateFrom, filters.DateTo);
+        var outletId = await ResolveAccessibleOutletIdAsync(filters.OutletId, ct);
+
+        if (filters.ChartOfAccountId.HasValue)
+        {
+            var accountExists = await _dbContext.ChartOfAccounts
+                .AsNoTracking()
+                .AnyAsync(account => account.Id == filters.ChartOfAccountId.Value, ct);
+            if (!accountExists)
+            {
+                throw new InvalidOperationException("Akun filter tidak ditemukan.");
+            }
+        }
+
+        var baseQuery = _dbContext.AccountTransactions
+            .Include(entry => entry.ChartOfAccount)
+            .Include(entry => entry.Outlet)
+            .AsNoTracking()
+            .Where(entry => entry.BusinessId == businessId)
+            .Where(entry => entry.TrxEntity == AccountingTransactionEntity.Business);
+
+        if (outletId.HasValue)
+        {
+            baseQuery = baseQuery.Where(entry => entry.OutletId == outletId.Value);
+        }
+
+        if (filters.ChartOfAccountId.HasValue)
+        {
+            baseQuery = baseQuery.Where(entry => entry.ChartOfAccountId == filters.ChartOfAccountId.Value);
+        }
+
+        var openingBalance = await baseQuery
+            .Where(entry => entry.TrxDate < startUtc)
+            .SumAsync(entry => entry.DebitAmount - entry.CreditAmount, ct);
+
+        var periodQuery = baseQuery
+            .Where(entry => entry.TrxDate >= startUtc && entry.TrxDate <= endUtc);
+
+        if (!string.IsNullOrWhiteSpace(filters.Keyword))
+        {
+            var keyword = filters.Keyword.Trim().ToLowerInvariant();
+            periodQuery = periodQuery.Where(entry =>
+                entry.TrxNumber.ToLower().Contains(keyword)
+                || (entry.Note != null && entry.Note.ToLower().Contains(keyword))
+                || entry.ChartOfAccount.AccountCode.ToLower().Contains(keyword)
+                || entry.ChartOfAccount.AccountName.ToLower().Contains(keyword));
+        }
+
+        var entries = await periodQuery
+            .OrderBy(entry => entry.TrxDate)
+            .ThenBy(entry => entry.CreatedAt)
+            .ThenBy(entry => entry.TrxNumber)
+            .ThenBy(entry => entry.Id)
+            .ToListAsync(ct);
+
+        var runningBalance = openingBalance;
+        var lines = entries.Select(entry =>
+        {
+            var movementAmount = entry.DebitAmount - entry.CreditAmount;
+            runningBalance += movementAmount;
+
+            return new GeneralLedgerReportLineDto(
+                entry.Id,
+                entry.TrxDate,
+                entry.TrxNumber,
+                entry.ReferenceType,
+                entry.ReferenceId,
+                entry.ChartOfAccountId,
+                entry.ChartOfAccount.AccountCode,
+                entry.ChartOfAccount.AccountName,
+                entry.ChartOfAccount.AccountType.ToString(),
+                entry.OutletId,
+                entry.Outlet?.Name,
+                entry.Note,
+                entry.DebitAmount,
+                entry.CreditAmount,
+                movementAmount,
+                runningBalance
+            );
+        }).ToList();
+
+        var summary = new GeneralLedgerReportSummaryDto(
+            OpeningBalance: openingBalance,
+            TotalDebit: entries.Sum(entry => entry.DebitAmount),
+            TotalCredit: entries.Sum(entry => entry.CreditAmount),
+            ClosingBalance: openingBalance + entries.Sum(entry => entry.DebitAmount - entry.CreditAmount)
+        );
+
+        return new GeneralLedgerReportDto(
+            new GeneralLedgerReportFilters(filters.DateFrom, filters.DateTo, outletId, filters.ChartOfAccountId, filters.Keyword?.Trim()),
+            summary,
+            lines);
+    }
+
+    public async Task<ExportReportResponse> ExportGeneralLedgerExcelAsync(
+        GeneralLedgerReportFilters filters,
+        CancellationToken ct = default)
+    {
+        var report = await GetGeneralLedgerReportAsync(filters, ct);
+        var periodStart = report.Filters.DateFrom?.Date ?? DateTime.UtcNow.Date;
+        var periodEnd = report.Filters.DateTo?.Date ?? DateTime.UtcNow.Date;
+        var outletLabel = report.Filters.OutletId.HasValue
+            ? report.Lines.Select(line => line.OutletName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? "Outlet terpilih"
+            : "Semua outlet";
+
+        using var stream = new MemoryStream();
+        using (var document = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook, true))
+        {
+            var workbookPart = document.AddWorkbookPart();
+            workbookPart.Workbook = new Workbook();
+
+            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            var sheetData = new SheetData();
+            worksheetPart.Worksheet = new Worksheet(sheetData);
+
+            AppendTextRow(sheetData, "Laporan Buku Besar (General Ledger) MorrusPOS");
+            AppendTextRow(sheetData, $"Periode: {periodStart:yyyy-MM-dd} s/d {periodEnd:yyyy-MM-dd}");
+            AppendTextRow(sheetData, $"Outlet: {outletLabel}");
+            AppendEmptyRow(sheetData);
+
+            AppendTextRow(sheetData, "Ringkasan");
+            AppendTextRow(sheetData, "Metrik", "Nilai");
+            AppendTextRow(sheetData, "Saldo Awal", report.Summary.OpeningBalance);
+            AppendTextRow(sheetData, "Total Debit", report.Summary.TotalDebit);
+            AppendTextRow(sheetData, "Total Kredit", report.Summary.TotalCredit);
+            AppendTextRow(sheetData, "Saldo Akhir", report.Summary.ClosingBalance);
+            AppendEmptyRow(sheetData);
+
+            AppendTextRow(sheetData, "Rincian Transaksi Jurnal");
+            AppendTextRow(
+                sheetData,
+                "Tanggal",
+                "No. Jurnal",
+                "Tipe Referensi",
+                "Outlet",
+                "Kode Akun",
+                "Nama Akun",
+                "Tipe Akun",
+                "Catatan",
+                "Debit",
+                "Kredit",
+                "Saldo Berjalan");
+
+            foreach (var line in report.Lines)
+            {
+                AppendTextRow(
+                    sheetData,
+                    line.TrxDate.ToString("yyyy-MM-dd"),
+                    line.TrxNumber,
+                    line.ReferenceType,
+                    line.OutletName ?? "Business",
+                    line.AccountCode,
+                    line.AccountName,
+                    line.AccountType,
+                    line.Note ?? string.Empty,
+                    line.DebitAmount,
+                    line.CreditAmount,
+                    line.RunningBalance);
+            }
+
+            var sheets = workbookPart.Workbook.AppendChild(new Sheets());
+            sheets.Append(new Sheet
+            {
+                Id = workbookPart.GetIdOfPart(worksheetPart),
+                SheetId = 1,
+                Name = "Buku Besar"
+            });
+
+            workbookPart.Workbook.Save();
+        }
+
+        return new ExportReportResponse(
+            stream.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"Laporan_Buku_Besar_{periodStart:yyyyMMdd}_{periodEnd:yyyyMMdd}.xlsx");
+    }
+
     public async Task<AccountingProfitLossReportDto> GetAccountingProfitLossReportAsync(
         AccountingProfitLossReportFilters filters,
         CancellationToken ct = default)

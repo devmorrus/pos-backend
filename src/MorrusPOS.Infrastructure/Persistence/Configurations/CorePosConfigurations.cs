@@ -180,6 +180,11 @@ public class PaymentConfiguration : IEntityTypeConfiguration<Payment>
             .WithMany(t => t.Payments)
             .HasForeignKey(x => x.TransactionId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.CashierSession)
+            .WithMany()
+            .HasForeignKey(x => x.CashierSessionId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
 
@@ -229,6 +234,53 @@ public class CashierSessionConfiguration : IEntityTypeConfiguration<CashierSessi
         builder.HasOne(x => x.User)
             .WithMany()
             .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class ProductRecipeConfiguration : IEntityTypeConfiguration<ProductRecipe>
+{
+    public void Configure(EntityTypeBuilder<ProductRecipe> builder)
+    {
+        builder.ToTable("ProductRecipes");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.QuantityRequired).HasColumnType("decimal(10,4)");
+
+        builder.HasOne(x => x.Product)
+            .WithMany(p => p.Recipes)
+            .HasForeignKey(x => x.ProductId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.RawMaterialProduct)
+            .WithMany()
+            .HasForeignKey(x => x.RawMaterialProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class PettyCashExpenseConfiguration : IEntityTypeConfiguration<PettyCashExpense>
+{
+    public void Configure(EntityTypeBuilder<PettyCashExpense> builder)
+    {
+        builder.ToTable("petty_cash_expenses");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Amount).HasColumnType("decimal(14,2)");
+        builder.Property(x => x.Description).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.Category).HasMaxLength(50).IsRequired();
+
+        builder.HasOne(x => x.Outlet)
+            .WithMany()
+            .HasForeignKey(x => x.OutletId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.CashierSession)
+            .WithMany(cs => cs.PettyCashExpenses)
+            .HasForeignKey(x => x.CashierSessionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.ProcessedByUser)
+            .WithMany()
+            .HasForeignKey(x => x.ProcessedBy)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -46,6 +46,9 @@ public record TransactionDto(
     decimal GrandTotal,
     string? AppliedVoucherCode,
     string? AppliedPromoName,
+    decimal AmountPaid,
+    decimal DueAmount,
+    DateTime? PaymentDueDate,
     Guid? VoidedBy,
     string? VoidedByName,
     string? VoidedReason,
@@ -68,7 +71,10 @@ public record TransactionItemDto(
     decimal UnitCost,
     decimal DiscountAmount,
     decimal LineTotal
-);
+)
+{
+    public Guid? ProductVariantId { get; init; }
+}
 
 public record PaymentDto(
     string Method,
@@ -88,14 +94,20 @@ public record TransactionReturnDto(
     Guid ProcessedBy,
     string ProcessedByName,
     DateTime CreatedAt
-);
+)
+{
+    public Guid? ProductVariantId { get; init; }
+}
 
 public record CheckoutItemRequest(
     Guid ProductId,
     decimal Qty,
     decimal UnitPrice,
     decimal DiscountAmount
-);
+)
+{
+    public Guid? ProductVariantId { get; init; }
+}
 
 public record PaymentRequest(
     string Method,
@@ -117,7 +129,8 @@ public record CheckoutRequest(
     string? VoucherCode = null,
     string? AppliedPromoCode = null,
     Guid? CustomerId = null,
-    string? CustomerPhone = null
+    string? CustomerPhone = null,
+    DateTime? PaymentDueDate = null
 );
 
 public record PricingPreviewRequest(
@@ -152,7 +165,10 @@ public record PricingLineBreakdownDto(
     decimal ServiceCharge,
     decimal Tax,
     decimal LineGrandTotal
-);
+)
+{
+    public Guid? ProductVariantId { get; init; }
+}
 
 public record AppliedVoucherDto(
     Guid VoucherId,
@@ -175,7 +191,10 @@ public record VoidTransactionRequest(
 public record RefundTransactionItemRequest(
     Guid ProductId,
     decimal Qty
-);
+)
+{
+    public Guid? ProductVariantId { get; init; }
+}
 
 public record RefundTransactionRequest(
     string RefundMethod,

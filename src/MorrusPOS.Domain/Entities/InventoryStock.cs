@@ -12,6 +12,9 @@ public class InventoryStock : BaseEntity
     public Guid ProductId { get; set; }
     public Product Product { get; set; } = default!;
 
+    public Guid? ProductVariantId { get; set; }
+    public ProductVariant? ProductVariant { get; set; }
+
     public Guid OutletId { get; set; }
     public Outlet Outlet { get; set; } = default!;
 

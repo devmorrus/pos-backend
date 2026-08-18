@@ -73,6 +73,8 @@ public class TransactionsController : ControllerBase
         return Ok(result);
     }
 
+
+
     private Guid? ResolveTargetOutletId(Guid? requestedOutletId)
     {
         if (_currentUser.Role == "Owner")

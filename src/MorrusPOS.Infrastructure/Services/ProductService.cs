@@ -23,6 +23,11 @@ public class ProductService : IProductService
     {
         var product = await _dbContext.Products
             .Include(p => p.InventoryStocks)
+            .Include(p => p.Variants)
+                .ThenInclude(v => v.AttributeValues)
+                    .ThenInclude(av => av.Attribute)
+            .Include(p => p.Recipes)
+                .ThenInclude(r => r.RawMaterialProduct)
             .FirstOrDefaultAsync(p => p.Id == id, ct);
 
         if (product == null)
@@ -40,6 +45,11 @@ public class ProductService : IProductService
     {
         var products = await _dbContext.Products
             .Include(p => p.InventoryStocks)
+            .Include(p => p.Variants)
+                .ThenInclude(v => v.AttributeValues)
+                    .ThenInclude(av => av.Attribute)
+            .Include(p => p.Recipes)
+                .ThenInclude(r => r.RawMaterialProduct)
             .Where(p => p.IsActive)
             .AsNoTracking()
             .ToListAsync(ct);
@@ -48,6 +58,19 @@ public class ProductService : IProductService
             var stock = p.InventoryStocks.FirstOrDefault(s => s.OutletId == outletId);
             return MapToDto(p, stock?.QtyOnHand ?? 0);
         }).ToList();
+    }
+
+    public async Task<IReadOnlyList<ProductDto>> GetRawMaterialsAsync(CancellationToken ct = default)
+    {
+        var products = await _dbContext.Products
+            .Include(p => p.Variants)
+                .ThenInclude(v => v.AttributeValues)
+                    .ThenInclude(av => av.Attribute)
+            .Where(p => p.IsActive && p.IsRawMaterial)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        return products.Select(p => MapToDto(p, 0)).ToList();
     }
 
     public async Task<ProductDto> CreateAsync(CreateProductRequest request, CancellationToken ct = default)
@@ -93,6 +116,8 @@ public class ProductService : IProductService
             IsTaxable = request.IsTaxable,
             IsServiceChargeable = request.IsServiceChargeable,
             IsActive = true,
+            HasVariants = request.HasVariants,
+            IsRawMaterial = request.IsRawMaterial,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -114,7 +139,103 @@ public class ProductService : IProductService
             });
         }
 
-        // 5. Create Audit Log entry
+        // 5. Handle variants and attribute mapping
+        if (request.HasVariants && request.Variants != null)
+        {
+            foreach (var vReq in request.Variants)
+            {
+                var variant = new ProductVariant
+                {
+                    Id = Guid.NewGuid(),
+                    ProductId = newProduct.Id,
+                    Sku = vReq.Sku,
+                    Barcode = vReq.Barcode,
+                    BasePrice = vReq.BasePrice,
+                    CostPrice = vReq.CostPrice,
+                    ImageUrl = vReq.ImageUrl,
+                    IsActive = true
+                };
+
+                foreach (var avReq in vReq.AttributeValues)
+                {
+                    var attribute = await _dbContext.ProductAttributes
+                        .Include(a => a.Values)
+                        .FirstOrDefaultAsync(a => a.Name.ToLower() == avReq.AttributeName.ToLower(), ct);
+
+                    if (attribute == null)
+                    {
+                        attribute = new ProductAttribute
+                        {
+                            Id = Guid.NewGuid(),
+                            Name = avReq.AttributeName
+                        };
+                        _dbContext.ProductAttributes.Add(attribute);
+                    }
+
+                    var attrValue = attribute.Values
+                        .FirstOrDefault(v => v.Value.ToLower() == avReq.Value.ToLower());
+
+                    if (attrValue == null)
+                    {
+                        attrValue = new ProductAttributeValue
+                        {
+                            Id = Guid.NewGuid(),
+                            AttributeId = attribute.Id,
+                            Value = avReq.Value
+                        };
+                        _dbContext.ProductAttributeValues.Add(attrValue);
+                    }
+
+                    variant.AttributeValues.Add(attrValue);
+                }
+
+                _dbContext.ProductVariants.Add(variant);
+
+                // Seed stock for this variant
+                foreach (var outlet in outlets)
+                {
+                    _dbContext.InventoryStocks.Add(new InventoryStock
+                    {
+                        Id = Guid.NewGuid(),
+                        OutletId = outlet.Id,
+                        ProductId = newProduct.Id,
+                        ProductVariantId = variant.Id,
+                        QtyOnHand = 0,
+                        MinStockAlert = 0,
+                        UpdatedAt = DateTime.UtcNow
+                    });
+                }
+            }
+        }
+
+        // 5.5 Handle recipes
+        if (!request.IsRawMaterial && request.Recipes != null)
+        {
+            foreach (var rReq in request.Recipes)
+            {
+                Guid? variantId = null;
+                if (!string.IsNullOrEmpty(rReq.ProductVariantSku))
+                {
+                    var matchingVariant = _dbContext.ProductVariants.Local
+                        .FirstOrDefault(v => v.ProductId == newProduct.Id && v.Sku.ToLower() == rReq.ProductVariantSku.ToLower());
+                    if (matchingVariant != null)
+                    {
+                        variantId = matchingVariant.Id;
+                    }
+                }
+
+                _dbContext.ProductRecipes.Add(new ProductRecipe
+                {
+                    Id = Guid.NewGuid(),
+                    ProductId = newProduct.Id,
+                    ProductVariantId = variantId,
+                    RawMaterialProductId = rReq.RawMaterialProductId,
+                    QuantityRequired = rReq.QuantityRequired
+                });
+            }
+        }
+
+        // 6. Create Audit Log entry
         var auditLog = new AuditLog
         {
             Id = Guid.NewGuid(),
@@ -227,14 +348,162 @@ public class ProductService : IProductService
         product.IsTaxable = request.IsTaxable;
         product.IsServiceChargeable = request.IsServiceChargeable;
         product.IsActive = request.IsActive;
+        product.HasVariants = request.HasVariants;
+        product.IsRawMaterial = request.IsRawMaterial;
         product.UpdatedAt = DateTime.UtcNow;
+
+        // Sync product variants
+        if (request.HasVariants && request.Variants != null)
+        {
+            var existingVariants = await _dbContext.ProductVariants
+                .Include(v => v.AttributeValues)
+                .Where(v => v.ProductId == id)
+                .ToListAsync(ct);
+
+            // Mark inactive or remove deleted variants
+            foreach (var existing in existingVariants)
+            {
+                var reqVariant = request.Variants.FirstOrDefault(v => v.Sku.ToLower() == existing.Sku.ToLower());
+                if (reqVariant == null)
+                {
+                    var hasSales = await _dbContext.TransactionItems.AnyAsync(ti => ti.ProductVariantId == existing.Id, ct);
+                    if (hasSales)
+                    {
+                        existing.IsActive = false;
+                    }
+                    else
+                    {
+                        var stocks = await _dbContext.InventoryStocks.Where(s => s.ProductVariantId == existing.Id).ToListAsync(ct);
+                        _dbContext.InventoryStocks.RemoveRange(stocks);
+                        _dbContext.ProductVariants.Remove(existing);
+                    }
+                }
+                else
+                {
+                    existing.BasePrice = reqVariant.BasePrice;
+                    existing.CostPrice = reqVariant.CostPrice;
+                    existing.Barcode = reqVariant.Barcode;
+                    existing.ImageUrl = reqVariant.ImageUrl;
+                    existing.IsActive = true;
+                }
+            }
+
+            // Create new variants
+            foreach (var vReq in request.Variants)
+            {
+                var exists = existingVariants.Any(v => v.Sku.ToLower() == vReq.Sku.ToLower());
+                if (!exists)
+                {
+                    var variant = new ProductVariant
+                    {
+                        Id = Guid.NewGuid(),
+                        ProductId = product.Id,
+                        Sku = vReq.Sku,
+                        Barcode = vReq.Barcode,
+                        BasePrice = vReq.BasePrice,
+                        CostPrice = vReq.CostPrice,
+                        ImageUrl = vReq.ImageUrl,
+                        IsActive = true
+                    };
+
+                    foreach (var avReq in vReq.AttributeValues)
+                    {
+                        var attribute = await _dbContext.ProductAttributes
+                            .Include(a => a.Values)
+                            .FirstOrDefaultAsync(a => a.Name.ToLower() == avReq.AttributeName.ToLower(), ct);
+
+                        if (attribute == null)
+                        {
+                            attribute = new ProductAttribute
+                            {
+                                Id = Guid.NewGuid(),
+                                Name = avReq.AttributeName
+                            };
+                            _dbContext.ProductAttributes.Add(attribute);
+                        }
+
+                        var attrValue = attribute.Values
+                            .FirstOrDefault(v => v.Value.ToLower() == avReq.Value.ToLower());
+
+                        if (attrValue == null)
+                        {
+                            attrValue = new ProductAttributeValue
+                            {
+                                Id = Guid.NewGuid(),
+                                AttributeId = attribute.Id,
+                                Value = avReq.Value
+                            };
+                            _dbContext.ProductAttributeValues.Add(attrValue);
+                        }
+
+                        variant.AttributeValues.Add(attrValue);
+                    }
+
+                    _dbContext.ProductVariants.Add(variant);
+
+                    // Seed variant inventory stocks
+                    var outletsList = await _dbContext.Outlets.ToListAsync(ct);
+                    foreach (var outlet in outletsList)
+                    {
+                        _dbContext.InventoryStocks.Add(new InventoryStock
+                        {
+                            Id = Guid.NewGuid(),
+                            OutletId = outlet.Id,
+                            ProductId = product.Id,
+                            ProductVariantId = variant.Id,
+                            QtyOnHand = 0,
+                            MinStockAlert = 0,
+                            UpdatedAt = DateTime.UtcNow
+                        });
+                    }
+                }
+            }
+        }
+
+        // 5.5 Sync recipes
+        if (!request.IsRawMaterial)
+        {
+            var existingRecipes = await _dbContext.ProductRecipes
+                .Where(r => r.ProductId == id)
+                .ToListAsync(ct);
+            _dbContext.ProductRecipes.RemoveRange(existingRecipes);
+
+            if (request.Recipes != null)
+            {
+                foreach (var rReq in request.Recipes)
+                {
+                    Guid? variantId = null;
+                    if (!string.IsNullOrEmpty(rReq.ProductVariantSku))
+                    {
+                        var matchingVariant = _dbContext.ProductVariants.Local
+                            .FirstOrDefault(v => v.ProductId == id && v.Sku.ToLower() == rReq.ProductVariantSku.ToLower())
+                            ?? await _dbContext.ProductVariants
+                                .FirstOrDefaultAsync(v => v.ProductId == id && v.Sku.ToLower() == rReq.ProductVariantSku.ToLower(), ct);
+                        
+                        if (matchingVariant != null)
+                        {
+                            variantId = matchingVariant.Id;
+                        }
+                    }
+
+                    _dbContext.ProductRecipes.Add(new ProductRecipe
+                    {
+                        Id = Guid.NewGuid(),
+                        ProductId = id,
+                        ProductVariantId = variantId,
+                        RawMaterialProductId = rReq.RawMaterialProductId,
+                        QuantityRequired = rReq.QuantityRequired
+                    });
+                }
+            }
+        }
 
         await _dbContext.SaveChangesAsync(ct);
 
         var outletId = _currentUserService.OutletId ?? DefaultOutletId;
         var stock = product.InventoryStocks.FirstOrDefault(s => s.OutletId == outletId);
 
-        return MapToDto(product, stock?.QtyOnHand ?? 0);
+        return await GetByIdAsync(product.Id, ct);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
@@ -281,7 +550,13 @@ public class ProductService : IProductService
             qtyOnHand,
             p.ImageUrl,
             p.IsTaxable,
-            p.IsServiceChargeable
-        );
+            p.IsServiceChargeable,
+            false,
+            false,
+            new List<ProductVariantDto>()
+        )
+        {
+            Recipes = new List<ProductRecipeDto>()
+        };
     }
 }

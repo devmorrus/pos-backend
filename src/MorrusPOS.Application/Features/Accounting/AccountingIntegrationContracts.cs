@@ -37,6 +37,6 @@ public interface IAccountingIntegrationService
     Task<bool> EnsureSupplierReturnPostedAsync(Guid supplierReturnId, CancellationToken ct = default);
     Task<bool> EnsureChannelSettlementPostedAsync(Guid channelSettlementId, CancellationToken ct = default);
     Task<bool> EnsureConsignmentSettlementPostedAsync(Guid consignmentSettlementId, CancellationToken ct = default);
-    Task<AccountingPostingStatusDto> GetPostingStatusAsync(string referenceType, Guid referenceId, CancellationToken ct = default);
+    Task<AccountingPostingStatusDto> GetPostingStatusAsync(string referenceType, string referenceIdentifier, CancellationToken ct = default);
     Task<AccountingBackfillResultDto> BackfillAsync(AccountingBackfillRequest request, CancellationToken ct = default);
 }

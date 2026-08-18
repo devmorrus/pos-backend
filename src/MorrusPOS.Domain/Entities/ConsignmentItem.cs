@@ -10,6 +10,9 @@ public class ConsignmentItem : BaseEntity
     public Guid ProductId { get; set; }
     public Product Product { get; set; } = default!;
 
+    public Guid? ProductVariantId { get; set; }
+    public ProductVariant? ProductVariant { get; set; }
+
     public decimal Qty { get; set; }
     public decimal UnitCost { get; set; }
     public decimal UnitPrice { get; set; }

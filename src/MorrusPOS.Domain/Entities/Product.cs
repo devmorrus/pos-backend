@@ -17,13 +17,18 @@ public class Product : AuditableEntity
     public decimal CostPrice { get; set; }
     public string Unit { get; set; } = default!; // pcs, kg, dus, dll
     public bool IsConsignment { get; set; } = false;
+    public bool HasVariants { get; set; } = false;
+    public bool IsRawMaterial { get; set; } = false;
     public string? ImageUrl { get; set; }
     public bool? IsTaxable { get; set; }
     public bool? IsServiceChargeable { get; set; }
     public bool IsActive { get; set; } = true;
     public uint Version { get; set; }
 
+    public ICollection<ProductVariant> Variants { get; set; } = new List<ProductVariant>();
+    public ICollection<ModifierGroup> ModifierGroups { get; set; } = new List<ModifierGroup>();
     public ICollection<TransactionItem> TransactionItems { get; set; } = new List<TransactionItem>();
     public ICollection<InventoryStock> InventoryStocks { get; set; } = new List<InventoryStock>();
     public ICollection<StockLedger> StockLedgers { get; set; } = new List<StockLedger>();
+    public ICollection<ProductRecipe> Recipes { get; set; } = new List<ProductRecipe>();
 }

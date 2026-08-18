@@ -96,6 +96,10 @@ public class CustomerService : ICustomerService
             IsMember = true,
             JoinedAt = DateTime.UtcNow,
             MemberStatus = request.IsActive ? CustomerMemberStatus.Active : CustomerMemberStatus.Inactive,
+            CreditLimit = request.CreditLimit,
+            CurrentDebt = 0,
+            KtpNumber = NormalizeOptional(request.KtpNumber),
+            Address = NormalizeOptional(request.Address),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -120,6 +124,9 @@ public class CustomerService : ICustomerService
         customer.Notes = NormalizeOptional(request.Notes);
         customer.IsActive = request.IsActive;
         customer.MemberStatus = request.IsActive ? CustomerMemberStatus.Active : CustomerMemberStatus.Inactive;
+        customer.CreditLimit = request.CreditLimit;
+        customer.KtpNumber = NormalizeOptional(request.KtpNumber);
+        customer.Address = NormalizeOptional(request.Address);
         customer.UpdatedAt = DateTime.UtcNow;
 
         await _dbContext.SaveChangesAsync(ct);
@@ -235,7 +242,11 @@ public class CustomerService : ICustomerService
             customer.IsActive,
             customer.LifetimeSpend,
             customer.LastTransactionAt,
-            customer.CreatedAt
+            customer.CreatedAt,
+            customer.CreditLimit,
+            customer.CurrentDebt,
+            customer.KtpNumber,
+            customer.Address
         );
 
     private static CustomerDto MapToDto(Customer customer) =>
@@ -258,7 +269,11 @@ public class CustomerService : ICustomerService
             customer.JoinedAt,
             customer.LastTransactionAt,
             customer.CreatedAt,
-            customer.UpdatedAt
+            customer.UpdatedAt,
+            customer.CreditLimit,
+            customer.CurrentDebt,
+            customer.KtpNumber,
+            customer.Address
         );
 
     private static TransactionListItemDto MapTransactionListItem(Transaction transaction)

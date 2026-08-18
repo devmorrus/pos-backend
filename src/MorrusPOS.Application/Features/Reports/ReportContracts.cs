@@ -221,4 +221,53 @@ public interface IReportService
         DateTime startDate,
         DateTime endDate,
         CancellationToken ct = default);
+
+    Task<GeneralLedgerReportDto> GetGeneralLedgerReportAsync(
+        GeneralLedgerReportFilters filters,
+        CancellationToken ct = default);
+
+    Task<ExportReportResponse> ExportGeneralLedgerExcelAsync(
+        GeneralLedgerReportFilters filters,
+        CancellationToken ct = default);
 }
+
+public record GeneralLedgerReportFilters(
+    DateTime? DateFrom,
+    DateTime? DateTo,
+    Guid? OutletId,
+    Guid? ChartOfAccountId,
+    string? Keyword
+);
+
+public record GeneralLedgerReportLineDto(
+    Guid AccountTransactionId,
+    DateTime TrxDate,
+    string TrxNumber,
+    string ReferenceType,
+    Guid? ReferenceId,
+    Guid AccountId,
+    string AccountCode,
+    string AccountName,
+    string AccountType,
+    Guid? OutletId,
+    string? OutletName,
+    string? Note,
+    decimal DebitAmount,
+    decimal CreditAmount,
+    decimal MovementAmount,
+    decimal RunningBalance
+);
+
+public record GeneralLedgerReportSummaryDto(
+    decimal OpeningBalance,
+    decimal TotalDebit,
+    decimal TotalCredit,
+    decimal ClosingBalance
+);
+
+public record GeneralLedgerReportDto(
+    GeneralLedgerReportFilters Filters,
+    GeneralLedgerReportSummaryDto Summary,
+    IReadOnlyList<GeneralLedgerReportLineDto> Lines
+);
+

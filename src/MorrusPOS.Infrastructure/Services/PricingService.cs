@@ -89,6 +89,7 @@ public class PricingService : IPricingService
             return new PricingLineState
             {
                 Product = product,
+                ProductVariantId = item.ProductVariantId,
                 Qty = item.Qty,
                 UnitPrice = item.UnitPrice,
                 Subtotal = subtotal,
@@ -174,7 +175,10 @@ public class PricingService : IPricingService
                 line.ServiceCharge,
                 line.Tax,
                 line.LineGrandTotal
-            )).ToList()
+            )
+            {
+                ProductVariantId = line.ProductVariantId
+            }).ToList()
         );
     }
 
@@ -364,6 +368,7 @@ public class PricingService : IPricingService
     private sealed class PricingLineState
     {
         public required Product Product { get; init; }
+        public Guid? ProductVariantId { get; init; }
         public decimal Qty { get; init; }
         public decimal UnitPrice { get; init; }
         public decimal Subtotal { get; init; }

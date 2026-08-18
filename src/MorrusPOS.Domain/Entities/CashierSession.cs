@@ -27,4 +27,5 @@ public class CashierSession : AuditableEntity
     public string Status { get; set; } = CashierSessionStatus.Open;
 
     public ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
+    public ICollection<PettyCashExpense> PettyCashExpenses { get; set; } = new List<PettyCashExpense>();
 }
