@@ -430,6 +430,11 @@ public class PurchaseOrderService : IPurchaseOrderService
 
             await _dbContext.SaveChangesAsync(ct);
 
+            if (po.Status == PurchaseOrderStatus.Completed && _accountingIntegrationService != null)
+            {
+                await _accountingIntegrationService.EnsurePurchaseOrderPostedAsync(po.Id, ct);
+            }
+
             var productIds = request.Items.Select(i => i.ProductId).ToList();
             var stocks = await _dbContext.InventoryStocks
                 .Where(s => s.OutletId == po.OutletId && productIds.Contains(s.ProductId))
