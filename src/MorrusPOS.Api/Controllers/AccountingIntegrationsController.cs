@@ -16,7 +16,7 @@ public class AccountingIntegrationsController : ControllerBase
     }
 
     [HttpGet("status/{referenceType}/{referenceIdentifier}")]
-    [HasPermission("account.manage")]
+    [Microsoft.AspNetCore.Authorization.Authorize]
     public async Task<ActionResult<AccountingPostingStatusDto>> GetStatus(string referenceType, string referenceIdentifier, CancellationToken ct)
     {
         var result = await _accountingIntegrationService.GetPostingStatusAsync(referenceType, referenceIdentifier, ct);

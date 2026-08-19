@@ -138,6 +138,7 @@ public class UserService : IUserService
             Id = Guid.NewGuid(),
             OutletId = request.OutletId,
             RoleId = request.RoleId,
+            BusinessId = _currentUserService.BusinessId,
             Name = request.Name,
             Email = request.Email,
             PasswordHash = _passwordHasher.Hash(request.Password),

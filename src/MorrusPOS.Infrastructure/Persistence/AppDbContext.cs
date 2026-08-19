@@ -102,7 +102,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<User>().HasQueryFilter(u => CurrentBusinessId == null || u.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<Product>().HasQueryFilter(p => CurrentBusinessId == null || p.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<Customer>().HasQueryFilter(c => CurrentBusinessId == null || c.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<Category>().HasQueryFilter(c => CurrentBusinessId == null || c.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<Category>().HasQueryFilter(c => CurrentBusinessId == null || c.BusinessId == null || c.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<Supplier>().HasQueryFilter(s => CurrentBusinessId == null || s.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<ChartOfAccount>().HasQueryFilter(a => CurrentBusinessId == null || a.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<CashFlow>().HasQueryFilter(cf => CurrentBusinessId == null || cf.BusinessId == CurrentBusinessId);
