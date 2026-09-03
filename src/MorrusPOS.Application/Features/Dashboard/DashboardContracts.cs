@@ -5,6 +5,15 @@ using System.Threading.Tasks;
 
 namespace MorrusPOS.Application.Features.Dashboard;
 
+public record TopCategoryDto(
+    Guid CategoryId,
+    string CategoryName,
+    decimal TotalRevenue,
+    decimal TotalQtySold,
+    int TransactionCount,
+    decimal ContributionPercentage
+);
+
 public record DashboardSummaryDto(
     decimal TotalSales,
     int TotalTransactions,
@@ -15,7 +24,8 @@ public record DashboardSummaryDto(
     IReadOnlyList<PaymentMethodDistributionDto> PaymentMethods,
     IReadOnlyList<ChannelDistributionDto> SalesChannels,
     IReadOnlyList<TopProductDto> TopProducts,
-    IReadOnlyList<OutletSalesComparisonDto> OutletComparisons
+    IReadOnlyList<OutletSalesComparisonDto> OutletComparisons,
+    IReadOnlyList<TopCategoryDto> TopCategories
 );
 
 public record SalesTrendItemDto(
