@@ -229,6 +229,22 @@ public interface IReportService
     Task<ExportReportResponse> ExportGeneralLedgerExcelAsync(
         GeneralLedgerReportFilters filters,
         CancellationToken ct = default);
+
+    Task<SupplierReportDto> GetSupplierReportAsync(
+        SupplierReportFilters filters,
+        CancellationToken ct = default);
+
+    Task<ExportReportResponse> ExportSupplierReportExcelAsync(
+        SupplierReportFilters filters,
+        CancellationToken ct = default);
+
+    Task<StockCardReportDto> GetStockCardReportAsync(
+        StockCardReportFilters filters,
+        CancellationToken ct = default);
+
+    Task<ExportReportResponse> ExportStockCardExcelAsync(
+        StockCardReportFilters filters,
+        CancellationToken ct = default);
 }
 
 public record GeneralLedgerReportFilters(
@@ -269,5 +285,190 @@ public record GeneralLedgerReportDto(
     GeneralLedgerReportFilters Filters,
     GeneralLedgerReportSummaryDto Summary,
     IReadOnlyList<GeneralLedgerReportLineDto> Lines
+);
+
+public record SupplierReportFilters(
+    DateTime? DateFrom,
+    DateTime? DateTo,
+    Guid? SupplierId,
+    Guid? OutletId
+);
+
+public record SupplierReportSupplierDto(
+    Guid SupplierId,
+    string SupplierName,
+    string? Phone,
+    string? Email,
+    string? Address,
+    bool IsActive
+);
+
+public record SupplierReportSummaryDto(
+    decimal TotalPurchase,
+    decimal TotalPurchaseReturn,
+    decimal NetPurchase,
+    decimal TotalDebtPayment,
+    decimal OutstandingDebt,
+    decimal ConsignmentReceivedValue,
+    decimal ConsignmentReturnValue,
+    decimal ConsignmentSalesValue,
+    decimal SettlementValue
+);
+
+public record SupplierReportPurchaseDto(
+    Guid PurchaseOrderId,
+    string PoNumber,
+    DateTime PoDate,
+    Guid OutletId,
+    string OutletName,
+    string Status,
+    string PaymentType,
+    decimal TotalAmount,
+    DateTime? DueDate
+);
+
+public record SupplierReportPurchaseReturnDto(
+    Guid ReturnId,
+    string ReturnNumber,
+    DateTime ReturnDate,
+    string Status,
+    decimal TotalAmount,
+    Guid PurchaseOrderId,
+    string PoNumber,
+    string? OutletName
+);
+
+public record SupplierReportDebtDto(
+    Guid DebtId,
+    Guid PurchaseOrderId,
+    string PoNumber,
+    DateTime DueDate,
+    decimal Amount,
+    decimal PaidAmount,
+    decimal RemainingAmount,
+    string Status,
+    string? OutletName
+);
+
+public record SupplierReportPaymentDto(
+    Guid PaymentId,
+    Guid PurchaseOrderId,
+    string PoNumber,
+    DateTime PaymentDate,
+    decimal Amount,
+    string PaymentMethod,
+    string? ReferenceNumber,
+    string Status,
+    string? OutletName
+);
+
+public record SupplierReportConsignmentDto(
+    Guid ConsignmentId,
+    string ConsignmentNumber,
+    DateTime ReceiveDate,
+    string Status,
+    decimal TotalValue,
+    int ItemCount,
+    string OutletName
+);
+
+public record SupplierReportConsignmentReturnDto(
+    Guid ReturnId,
+    string ReturnNumber,
+    DateTime ReturnDate,
+    string Status,
+    decimal TotalQty,
+    int ItemCount,
+    string OutletName
+);
+
+public record SupplierReportConsignmentSaleDto(
+    Guid ConsignmentSaleId,
+    string TransactionNumber,
+    DateTime CreatedAt,
+    string ProductName,
+    decimal Qty,
+    decimal UnitCost,
+    decimal TotalAmount,
+    string Status,
+    string OutletName
+);
+
+public record SupplierReportSettlementDto(
+    Guid SettlementId,
+    string SettlementNumber,
+    DateTime SettlementDate,
+    decimal TotalAmount,
+    string Status,
+    int SalesCount,
+    string OutletName
+);
+
+public record SupplierReportDto(
+    SupplierReportFilters Filters,
+    SupplierReportSupplierDto? Supplier,
+    SupplierReportSummaryDto Summary,
+    IReadOnlyList<SupplierReportPurchaseDto> Purchases,
+    IReadOnlyList<SupplierReportPurchaseReturnDto> PurchaseReturns,
+    IReadOnlyList<SupplierReportDebtDto> Debts,
+    IReadOnlyList<SupplierReportPaymentDto> Payments,
+    IReadOnlyList<SupplierReportConsignmentDto> Consignments,
+    IReadOnlyList<SupplierReportConsignmentReturnDto> ConsignmentReturns,
+    IReadOnlyList<SupplierReportConsignmentSaleDto> ConsignmentSales,
+    IReadOnlyList<SupplierReportSettlementDto> Settlements
+);
+
+public record StockCardReportFilters(
+    DateTime? DateFrom,
+    DateTime? DateTo,
+    Guid? OutletId,
+    Guid? ProductId,
+    Guid? ProductVariantId
+);
+
+public record StockCardReportProductInfoDto(
+    Guid ProductId,
+    string ProductName,
+    string Sku,
+    Guid? ProductVariantId,
+    string? VariantSku,
+    string? VariantLabel,
+    bool HasVariants
+);
+
+public record StockCardReportSummaryDto(
+    decimal OpeningBalance,
+    decimal TotalIn,
+    decimal TotalOut,
+    decimal ClosingBalance
+);
+
+public record StockCardReportLineDto(
+    Guid LedgerId,
+    DateTime CreatedAt,
+    Guid ProductId,
+    string ProductName,
+    string Sku,
+    Guid? ProductVariantId,
+    string? VariantSku,
+    string MovementType,
+    string MovementLabel,
+    string ReferenceType,
+    Guid ReferenceId,
+    string? ReferenceNumber,
+    string? Note,
+    decimal QtyChange,
+    decimal QtyIn,
+    decimal QtyOut,
+    decimal RunningBalance,
+    string OutletName
+);
+
+public record StockCardReportDto(
+    StockCardReportFilters Filters,
+    StockCardReportProductInfoDto Product,
+    string OutletName,
+    StockCardReportSummaryDto Summary,
+    IReadOnlyList<StockCardReportLineDto> Lines
 );
 

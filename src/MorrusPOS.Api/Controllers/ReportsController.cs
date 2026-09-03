@@ -141,6 +141,50 @@ public class ReportsController : ControllerBase
         return File(response.FileBytes, response.ContentType, response.FileName);
     }
 
+    [HttpGet("suppliers")]
+    [HasPermission("supplier.manage")]
+    public async Task<ActionResult<SupplierReportDto>> GetSupplierReport(
+        [FromQuery] SupplierReportFilters filters,
+        CancellationToken ct = default)
+    {
+        var resolvedFilters = filters with { OutletId = ResolveTargetOutletId(filters.OutletId) };
+        var report = await _reportService.GetSupplierReportAsync(resolvedFilters, ct);
+        return Ok(report);
+    }
+
+    [HttpGet("suppliers/export-excel")]
+    [HasPermission("supplier.manage")]
+    public async Task<IActionResult> ExportSupplierReportExcel(
+        [FromQuery] SupplierReportFilters filters,
+        CancellationToken ct = default)
+    {
+        var resolvedFilters = filters with { OutletId = ResolveTargetOutletId(filters.OutletId) };
+        var response = await _reportService.ExportSupplierReportExcelAsync(resolvedFilters, ct);
+        return File(response.FileBytes, response.ContentType, response.FileName);
+    }
+
+    [HttpGet("stock-card")]
+    [HasPermission("stock.manage")]
+    public async Task<ActionResult<StockCardReportDto>> GetStockCardReport(
+        [FromQuery] StockCardReportFilters filters,
+        CancellationToken ct = default)
+    {
+        var resolvedFilters = filters with { OutletId = ResolveTargetOutletId(filters.OutletId) };
+        var report = await _reportService.GetStockCardReportAsync(resolvedFilters, ct);
+        return Ok(report);
+    }
+
+    [HttpGet("stock-card/export-excel")]
+    [HasPermission("stock.manage")]
+    public async Task<IActionResult> ExportStockCardExcel(
+        [FromQuery] StockCardReportFilters filters,
+        CancellationToken ct = default)
+    {
+        var resolvedFilters = filters with { OutletId = ResolveTargetOutletId(filters.OutletId) };
+        var response = await _reportService.ExportStockCardExcelAsync(resolvedFilters, ct);
+        return File(response.FileBytes, response.ContentType, response.FileName);
+    }
+
     private Guid? ResolveTargetOutletId(Guid? requestedOutletId)
     {
         if (_currentUser.Role == "Owner" || _currentUser.Role == "Admin" || _currentUser.Role == "Keuangan")

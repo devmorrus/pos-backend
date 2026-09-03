@@ -152,7 +152,57 @@ public class DashboardService : IDashboardService
             .Take(5)
             .ToList();
 
-        // 7. Outlet comparisons
+        // 7. Top Categories (netsales per category)
+        var topCategoriesQuery = _dbContext.TransactionItems
+            .AsNoTracking()
+            .Where(ti => ti.Transaction.Status == TransactionStatus.Completed
+                         && ti.Transaction.CreatedAt >= startUtc
+                         && ti.Transaction.CreatedAt <= endUtc);
+
+        if (outletId.HasValue)
+        {
+            topCategoriesQuery = topCategoriesQuery.Where(ti => ti.Transaction.OutletId == outletId.Value);
+        }
+
+        var topCategoriesData = await topCategoriesQuery
+            .Select(ti => new
+            {
+                ti.TransactionId,
+                ti.Qty,
+                ti.LineTotal,
+                ProductCategoryId = ti.Product.CategoryId,
+                CategoryName = ti.Product.Category != null ? ti.Product.Category.Name : null
+            })
+            .ToListAsync(ct);
+
+        var tanpaKategoriId = Guid.Empty;
+        const string tanpaKategoriName = "Tanpa Kategori";
+
+        var topCategoriesGrouped = topCategoriesData
+            .GroupBy(x => x.CategoryName == null ? tanpaKategoriId : x.ProductCategoryId)
+            .Select(g =>
+            {
+                var first = g.First();
+                var categoryName = first.CategoryName ?? tanpaKategoriName;
+                var categoryId = g.Key;
+                var totalRevenue = g.Sum(x => x.LineTotal);
+                var totalQty = g.Sum(x => x.Qty);
+                var distinctTransactions = g.Select(x => x.TransactionId).Distinct().Count();
+                var contribution = totalSales > 0 ? (totalRevenue / totalSales) * 100 : 0;
+                return new TopCategoryDto(
+                    categoryId,
+                    categoryName,
+                    totalRevenue,
+                    totalQty,
+                    distinctTransactions,
+                    Math.Round(contribution, 2)
+                );
+            })
+            .OrderByDescending(x => x.TotalRevenue)
+            .Take(5)
+            .ToList();
+
+        // 8. Outlet comparisons
         var outletComparisons = new List<OutletSalesComparisonDto>();
         if (!outletId.HasValue)
         {
@@ -182,7 +232,8 @@ public class DashboardService : IDashboardService
             paymentMethods,
             salesChannels,
             topProducts,
-            outletComparisons
+            outletComparisons,
+            topCategoriesGrouped
         );
     }
 

@@ -598,34 +598,46 @@ public class ReportService : IReportService
         CancellationToken ct = default)
     {
         var report = await GetProfitLossReportAsync(outletId, startDate, endDate, ct);
-
-        var sb = new StringBuilder();
-        sb.AppendLine("Laporan Laba Rugi MorrusPOS");
-        sb.AppendLine($"Periode:;{report.StartDate:yyyy-MM-dd} s/d {report.EndDate:yyyy-MM-dd}");
-        sb.AppendLine($"Outlet:;{report.OutletName}");
-        sb.AppendLine();
-
-        sb.AppendLine("RINGKASAN FINANSIAL");
-        sb.AppendLine("Metrik;Nilai");
-        sb.AppendLine($"Pendapatan Kotor (Gross Revenue);{report.GrossRevenue:F2}");
-        sb.AppendLine($"Total Diskon;{report.TotalDiscount:F2}");
-        sb.AppendLine($"Total Pajak;{report.TotalTax:F2}");
-        sb.AppendLine($"Pendapatan Bersih (Net Revenue);{report.NetRevenue:F2}");
-        sb.AppendLine($"Harga Pokok Penjualan (HPP / COGS);{report.CostOfGoodsSold:F2}");
-        sb.AppendLine($"Laba Kotor (Gross Profit);{report.GrossProfit:F2}");
-        sb.AppendLine();
-
-        sb.AppendLine("RINCIAN PER KATEGORI");
-        sb.AppendLine("Kategori;Pendapatan;HPP;Laba Kotor");
-        foreach (var cat in report.CategoryBreakdown)
+        using var stream = new MemoryStream();
+        using (var document = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook, true))
         {
-            sb.AppendLine($"{cat.CategoryName};{cat.Revenue:F2};{cat.CostOfGoodsSold:F2};{cat.GrossProfit:F2}");
+            var workbookPart = document.AddWorkbookPart();
+            workbookPart.Workbook = new Workbook();
+            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            var sheetData = new SheetData();
+            worksheetPart.Worksheet = new Worksheet(sheetData);
+
+            AppendTextRow(sheetData, "Laporan Laba Rugi MorrusPOS");
+            AppendTextRow(sheetData, $"Periode: {report.StartDate:yyyy-MM-dd} s/d {report.EndDate:yyyy-MM-dd}");
+            AppendTextRow(sheetData, $"Outlet: {report.OutletName}");
+            AppendEmptyRow(sheetData);
+
+            AppendTextRow(sheetData, "RINGKASAN FINANSIAL");
+            AppendTextRow(sheetData, "Metrik", "Nilai");
+            AppendTextRow(sheetData, "Pendapatan Kotor (Gross Revenue)", report.GrossRevenue);
+            AppendTextRow(sheetData, "Total Diskon", report.TotalDiscount);
+            AppendTextRow(sheetData, "Total Pajak", report.TotalTax);
+            AppendTextRow(sheetData, "Pendapatan Bersih (Net Revenue)", report.NetRevenue);
+            AppendTextRow(sheetData, "Harga Pokok Penjualan (HPP / COGS)", report.CostOfGoodsSold);
+            AppendTextRow(sheetData, "Laba Kotor (Gross Profit)", report.GrossProfit);
+            AppendEmptyRow(sheetData);
+
+            AppendTextRow(sheetData, "RINCIAN PER KATEGORI");
+            AppendTextRow(sheetData, "Kategori", "Pendapatan", "HPP", "Laba Kotor");
+            foreach (var cat in report.CategoryBreakdown)
+            {
+                AppendTextRow(sheetData, cat.CategoryName, cat.Revenue, cat.CostOfGoodsSold, cat.GrossProfit);
+            }
+
+            var sheets = workbookPart.Workbook.AppendChild(new Sheets());
+            sheets.Append(new Sheet { Id = workbookPart.GetIdOfPart(worksheetPart), SheetId = 1, Name = "Laba Rugi" });
+            workbookPart.Workbook.Save();
         }
 
-        var csvBytes = Encoding.UTF8.GetBytes(sb.ToString());
-        var fileName = $"Laporan_Laba_Rugi_{report.StartDate:yyyyMMdd}_{report.EndDate:yyyyMMdd}.csv";
-
-        return new ExportReportResponse(csvBytes, "text/csv", fileName);
+        return new ExportReportResponse(
+            stream.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"Laporan_Laba_Rugi_{report.StartDate:yyyyMMdd}_{report.EndDate:yyyyMMdd}.xlsx");
     }
 
     public async Task<PurchaseRecapReportDto> GetPurchaseRecapReportAsync(
@@ -724,38 +736,50 @@ public class ReportService : IReportService
         CancellationToken ct = default)
     {
         var report = await GetPurchaseRecapReportAsync(outletId, startDate, endDate, ct);
-
-        var sb = new StringBuilder();
-        sb.AppendLine("Laporan Rekap Pembelian MorrusPOS");
-        sb.AppendLine($"Periode:;{report.StartDate:yyyy-MM-dd} s/d {report.EndDate:yyyy-MM-dd}");
-        sb.AppendLine($"Outlet:;{report.OutletName}");
-        sb.AppendLine();
-
-        sb.AppendLine("RINGKASAN PEMBELIAN");
-        sb.AppendLine("Metrik;Nilai");
-        sb.AppendLine($"Total Pengeluaran Belanja;{report.TotalSpent:F2}");
-        sb.AppendLine($"Total Dokumen PO Selesai;{report.TotalOrdersCount}");
-        sb.AppendLine();
-
-        sb.AppendLine("RINCIAN PEMBELIAN PER PRODUK");
-        sb.AppendLine("SKU;Nama Produk;Total Qty Belanja;Harga Rata-Rata Beli;Total Belanja");
-        foreach (var p in report.ProductBreakdown)
+        using var stream = new MemoryStream();
+        using (var document = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook, true))
         {
-            sb.AppendLine($"{p.Sku};{p.ProductName};{p.TotalQty:F2};{p.AverageUnitCost:F2};{p.TotalSpent:F2}");
+            var workbookPart = document.AddWorkbookPart();
+            workbookPart.Workbook = new Workbook();
+            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            var sheetData = new SheetData();
+            worksheetPart.Worksheet = new Worksheet(sheetData);
+
+            AppendTextRow(sheetData, "Laporan Rekap Pembelian MorrusPOS");
+            AppendTextRow(sheetData, $"Periode: {report.StartDate:yyyy-MM-dd} s/d {report.EndDate:yyyy-MM-dd}");
+            AppendTextRow(sheetData, $"Outlet: {report.OutletName}");
+            AppendEmptyRow(sheetData);
+
+            AppendTextRow(sheetData, "RINGKASAN PEMBELIAN");
+            AppendTextRow(sheetData, "Metrik", "Nilai");
+            AppendTextRow(sheetData, "Total Pengeluaran Belanja", report.TotalSpent);
+            AppendTextRow(sheetData, "Total Dokumen PO Selesai", report.TotalOrdersCount);
+            AppendEmptyRow(sheetData);
+
+            AppendTextRow(sheetData, "RINCIAN PEMBELIAN PER PRODUK");
+            AppendTextRow(sheetData, "SKU", "Nama Produk", "Total Qty Belanja", "Harga Rata-Rata Beli", "Total Belanja");
+            foreach (var p in report.ProductBreakdown)
+            {
+                AppendTextRow(sheetData, p.Sku, p.ProductName, p.TotalQty, p.AverageUnitCost, p.TotalSpent);
+            }
+            AppendEmptyRow(sheetData);
+
+            AppendTextRow(sheetData, "RINCIAN BELANJA PER SUPPLIER");
+            AppendTextRow(sheetData, "Nama Supplier", "Total Dokumen PO", "Total Belanja");
+            foreach (var s in report.SupplierBreakdown)
+            {
+                AppendTextRow(sheetData, s.SupplierName, s.TotalOrders, s.TotalSpent);
+            }
+
+            var sheets = workbookPart.Workbook.AppendChild(new Sheets());
+            sheets.Append(new Sheet { Id = workbookPart.GetIdOfPart(worksheetPart), SheetId = 1, Name = "Rekap Pembelian" });
+            workbookPart.Workbook.Save();
         }
-        sb.AppendLine();
 
-        sb.AppendLine("RINCIAN BELANJA PER SUPPLIER");
-        sb.AppendLine("Nama Supplier;Total Dokumen PO;Total Belanja");
-        foreach (var s in report.SupplierBreakdown)
-        {
-            sb.AppendLine($"{s.SupplierName};{s.TotalOrders};{s.TotalSpent:F2}");
-        }
-
-        var csvBytes = Encoding.UTF8.GetBytes(sb.ToString());
-        var fileName = $"Rekap_Pembelian_{report.StartDate:yyyyMMdd}_{report.EndDate:yyyyMMdd}.csv";
-
-        return new ExportReportResponse(csvBytes, "text/csv", fileName);
+        return new ExportReportResponse(
+            stream.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"Rekap_Pembelian_{report.StartDate:yyyyMMdd}_{report.EndDate:yyyyMMdd}.xlsx");
     }
 
     public async Task<SalesRecapReportDto> GetSalesRecapReportAsync(
@@ -872,41 +896,610 @@ public class ReportService : IReportService
         CancellationToken ct = default)
     {
         var report = await GetSalesRecapReportAsync(outletId, startDate, endDate, ct);
-
-        var sb = new StringBuilder();
-        sb.AppendLine("Laporan Rekap Penjualan MorrusPOS");
-        sb.AppendLine($"Periode:;{report.StartDate:yyyy-MM-dd} s/d {report.EndDate:yyyy-MM-dd}");
-        sb.AppendLine($"Outlet:;{report.OutletName}");
-        sb.AppendLine();
-
-        sb.AppendLine("RINGKASAN PENJUALAN");
-        sb.AppendLine("Metrik;Nilai");
-        sb.AppendLine($"Pendapatan Kotor (Gross Revenue);{report.GrossRevenue:F2}");
-        sb.AppendLine($"Total Diskon;{report.TotalDiscount:F2}");
-        sb.AppendLine($"Pendapatan Bersih (Net Revenue);{report.NetRevenue:F2}");
-        sb.AppendLine($"Harga Pokok Penjualan (HPP / COGS);{report.CostOfGoodsSold:F2}");
-        sb.AppendLine($"Laba Kotor (Gross Profit);{report.GrossProfit:F2}");
-        sb.AppendLine();
-
-        sb.AppendLine("RINCIAN PENJUALAN PER PRODUK");
-        sb.AppendLine("SKU;Nama Produk;Qty Terjual;Total Omzet;Total HPP;Total Laba");
-        foreach (var p in report.ProductBreakdown)
+        using var stream = new MemoryStream();
+        using (var document = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook, true))
         {
-            sb.AppendLine($"{p.Sku};{p.ProductName};{p.TotalQty:F2};{p.TotalRevenue:F2};{p.TotalCostOfGoodsSold:F2};{p.TotalGrossProfit:F2}");
-        }
-        sb.AppendLine();
+            var workbookPart = document.AddWorkbookPart();
+            workbookPart.Workbook = new Workbook();
+            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            var sheetData = new SheetData();
+            worksheetPart.Worksheet = new Worksheet(sheetData);
 
-        sb.AppendLine("RINCIAN PENERIMAAN PER METODE PEMBAYARAN");
-        sb.AppendLine("Metode Pembayaran;Total Transaksi;Total Diterima");
-        foreach (var pay in report.PaymentBreakdown)
+            AppendTextRow(sheetData, "Laporan Rekap Penjualan MorrusPOS");
+            AppendTextRow(sheetData, $"Periode: {report.StartDate:yyyy-MM-dd} s/d {report.EndDate:yyyy-MM-dd}");
+            AppendTextRow(sheetData, $"Outlet: {report.OutletName}");
+            AppendEmptyRow(sheetData);
+
+            AppendTextRow(sheetData, "RINGKASAN PENJUALAN");
+            AppendTextRow(sheetData, "Metrik", "Nilai");
+            AppendTextRow(sheetData, "Pendapatan Kotor (Gross Revenue)", report.GrossRevenue);
+            AppendTextRow(sheetData, "Total Diskon", report.TotalDiscount);
+            AppendTextRow(sheetData, "Pendapatan Bersih (Net Revenue)", report.NetRevenue);
+            AppendTextRow(sheetData, "Harga Pokok Penjualan (HPP / COGS)", report.CostOfGoodsSold);
+            AppendTextRow(sheetData, "Laba Kotor (Gross Profit)", report.GrossProfit);
+            AppendEmptyRow(sheetData);
+
+            AppendTextRow(sheetData, "RINCIAN PENJUALAN PER PRODUK");
+            AppendTextRow(sheetData, "SKU", "Nama Produk", "Qty Terjual", "Total Omzet", "Total HPP", "Total Laba");
+            foreach (var p in report.ProductBreakdown)
+            {
+                AppendTextRow(sheetData, p.Sku, p.ProductName, p.TotalQty, p.TotalRevenue, p.TotalCostOfGoodsSold, p.TotalGrossProfit);
+            }
+            AppendEmptyRow(sheetData);
+
+            AppendTextRow(sheetData, "RINCIAN PENERIMAAN PER METODE PEMBAYARAN");
+            AppendTextRow(sheetData, "Metode Pembayaran", "Total Transaksi", "Total Diterima");
+            foreach (var pay in report.PaymentBreakdown)
+            {
+                AppendTextRow(sheetData, pay.PaymentMethod, pay.TransactionCount, pay.TotalCollected);
+            }
+
+            var sheets = workbookPart.Workbook.AppendChild(new Sheets());
+            sheets.Append(new Sheet { Id = workbookPart.GetIdOfPart(worksheetPart), SheetId = 1, Name = "Rekap Penjualan" });
+            workbookPart.Workbook.Save();
+        }
+
+        return new ExportReportResponse(
+            stream.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"Rekap_Penjualan_{report.StartDate:yyyyMMdd}_{report.EndDate:yyyyMMdd}.xlsx");
+    }
+
+    public async Task<SupplierReportDto> GetSupplierReportAsync(
+        SupplierReportFilters filters,
+        CancellationToken ct = default)
+    {
+        var businessId = EnsureBusinessContext();
+        var (startUtc, endUtc) = NormalizePeriod(filters.DateFrom, filters.DateTo);
+        var outletId = await ResolveAccessibleOutletIdAsync(filters.OutletId, ct);
+
+        if (!filters.SupplierId.HasValue)
         {
-            sb.AppendLine($"{pay.PaymentMethod};{pay.TransactionCount};{pay.TotalCollected:F2}");
+            throw new InvalidOperationException("Supplier wajib dipilih.");
         }
 
-        var csvBytes = Encoding.UTF8.GetBytes(sb.ToString());
-        var fileName = $"Rekap_Penjualan_{report.StartDate:yyyyMMdd}_{report.EndDate:yyyyMMdd}.csv";
+        var supplier = await _dbContext.Suppliers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == filters.SupplierId.Value, ct);
+        if (supplier == null)
+        {
+            throw new InvalidOperationException("Supplier tidak ditemukan.");
+        }
 
-        return new ExportReportResponse(csvBytes, "text/csv", fileName);
+        var effectiveFilters = new SupplierReportFilters(filters.DateFrom, filters.DateTo, filters.SupplierId, outletId);
+
+        // Purchases
+        var purchaseQuery = _dbContext.PurchaseOrders
+            .AsNoTracking()
+            .Include(po => po.Outlet)
+            .Include(po => po.Supplier)
+            .Where(po => po.SupplierId == filters.SupplierId.Value && po.PoDate >= startUtc && po.PoDate <= endUtc);
+        if (outletId.HasValue)
+        {
+            purchaseQuery = purchaseQuery.Where(po => po.OutletId == outletId.Value);
+        }
+        var purchaseOrders = await purchaseQuery.OrderBy(po => po.PoDate).ToListAsync(ct);
+        var purchases = purchaseOrders
+            .Where(po => po.Status == PurchaseOrderStatus.Completed)
+            .Select(po => new SupplierReportPurchaseDto(
+                po.Id, po.PoNumber, po.PoDate, po.OutletId, po.Outlet?.Name ?? string.Empty, po.Status, po.PaymentType, po.TotalAmount, po.DueDate))
+            .ToList();
+
+        var totalPurchase = purchases.Sum(p => p.TotalAmount);
+
+        // Purchase Returns
+        var returnQuery = _dbContext.SupplierReturns
+            .AsNoTracking()
+            .Include(sr => sr.PurchaseOrder).ThenInclude(po => po.Outlet)
+            .Where(sr => sr.SupplierId == filters.SupplierId.Value && sr.ReturnDate >= startUtc && sr.ReturnDate <= endUtc);
+        if (outletId.HasValue)
+        {
+            returnQuery = returnQuery.Where(sr => sr.PurchaseOrder.OutletId == outletId.Value);
+        }
+        var supplierReturns = await returnQuery.OrderBy(sr => sr.ReturnDate).ToListAsync(ct);
+        var purchaseReturns = supplierReturns
+            .Where(sr => sr.Status == SupplierReturnStatus.Completed)
+            .Select(sr => new SupplierReportPurchaseReturnDto(
+                sr.Id, sr.ReturnNumber, sr.ReturnDate, sr.Status, sr.TotalAmount, sr.PurchaseOrderId, sr.PurchaseOrder?.PoNumber ?? string.Empty, sr.PurchaseOrder?.Outlet?.Name))
+            .ToList();
+        var totalPurchaseReturn = purchaseReturns.Sum(r => r.TotalAmount);
+        var netPurchase = totalPurchase - totalPurchaseReturn;
+
+        // Debts & Payments
+        var debtQuery = _dbContext.SupplierDebts
+            .AsNoTracking()
+            .Include(d => d.PurchaseOrder).ThenInclude(po => po.Outlet)
+            .Where(d => d.SupplierId == filters.SupplierId.Value);
+        if (outletId.HasValue)
+        {
+            debtQuery = debtQuery.Where(d => d.PurchaseOrder.OutletId == outletId.Value);
+        }
+        var debts = await debtQuery.ToListAsync(ct);
+        var debtDtos = debts.Select(d => new SupplierReportDebtDto(
+            d.Id, d.PurchaseOrderId, d.PurchaseOrder?.PoNumber ?? string.Empty, d.DueDate, d.Amount, d.PaidAmount, d.RemainingAmount, d.Status, d.PurchaseOrder?.Outlet?.Name)).ToList();
+
+        var paymentQuery = _dbContext.SupplierPayments
+            .AsNoTracking()
+            .Include(p => p.PurchaseOrder).ThenInclude(po => po.Outlet)
+            .Where(p => p.SupplierId == filters.SupplierId.Value && p.PaymentDate >= startUtc && p.PaymentDate <= endUtc);
+        if (outletId.HasValue)
+        {
+            paymentQuery = paymentQuery.Where(p => p.PurchaseOrder.OutletId == outletId.Value);
+        }
+        var payments = await paymentQuery.OrderBy(p => p.PaymentDate).ToListAsync(ct);
+        var paymentDtos = payments
+            .Where(p => p.Status == SupplierPaymentStatus.Paid)
+            .Select(p => new SupplierReportPaymentDto(
+                p.Id, p.PurchaseOrderId, p.PurchaseOrder?.PoNumber ?? string.Empty, p.PaymentDate, p.Amount, p.PaymentMethod, p.ReferenceNumber, p.Status, p.PurchaseOrder?.Outlet?.Name)).ToList();
+
+        var totalDebtPayment = paymentDtos.Sum(p => p.Amount);
+        var outstandingDebt = debts.Sum(d => d.RemainingAmount);
+
+        // Consignments Received
+        var consignmentQuery = _dbContext.Consignments
+            .AsNoTracking()
+            .Include(c => c.Outlet)
+            .Include(c => c.Items)
+            .Where(c => c.SupplierId == filters.SupplierId.Value && c.ReceiveDate >= startUtc && c.ReceiveDate <= endUtc);
+        if (outletId.HasValue)
+        {
+            consignmentQuery = consignmentQuery.Where(c => c.OutletId == outletId.Value);
+        }
+        var consignments = await consignmentQuery.OrderBy(c => c.ReceiveDate).ToListAsync(ct);
+        var consignmentDtos = consignments
+            .Where(c => c.Status == ConsignmentStatus.Received)
+            .Select(c => new SupplierReportConsignmentDto(
+                c.Id, c.ConsignmentNumber, c.ReceiveDate, c.Status, c.Items.Sum(i => i.Qty * i.UnitCost), c.Items.Count, c.Outlet?.Name ?? string.Empty))
+            .ToList();
+        var consignmentReceivedValue = consignmentDtos.Sum(c => c.TotalValue);
+
+        // Consignment Returns
+        var consignmentReturnQuery = _dbContext.ConsignmentReturns
+            .AsNoTracking()
+            .Include(cr => cr.Outlet)
+            .Include(cr => cr.Items)
+            .Where(cr => cr.SupplierId == filters.SupplierId.Value && cr.ReturnDate >= startUtc && cr.ReturnDate <= endUtc);
+        if (outletId.HasValue)
+        {
+            consignmentReturnQuery = consignmentReturnQuery.Where(cr => cr.OutletId == outletId.Value);
+        }
+        var consignmentReturns = await consignmentReturnQuery.OrderBy(cr => cr.ReturnDate).ToListAsync(ct);
+        // For valuation, multiply qty by product cost price fallback
+        var consignmentReturnDtos = new List<SupplierReportConsignmentReturnDto>();
+        foreach (var cr in consignmentReturns.Where(c => c.Status == ConsignmentReturnStatus.Completed))
+        {
+            var totalQty = cr.Items.Sum(i => i.Qty);
+            consignmentReturnDtos.Add(new SupplierReportConsignmentReturnDto(
+                cr.Id, cr.ReturnNumber, cr.ReturnDate, cr.Status, totalQty, cr.Items.Count, cr.Outlet?.Name ?? string.Empty));
+        }
+        // Compute return value via cost lookup
+        decimal consignmentReturnValue = 0;
+        foreach (var cr in consignmentReturns.Where(c => c.Status == ConsignmentReturnStatus.Completed))
+        {
+            foreach (var item in cr.Items)
+            {
+                var product = await _dbContext.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == item.ProductId, ct);
+                var unitCost = product?.CostPrice ?? 0;
+                consignmentReturnValue += item.Qty * unitCost;
+            }
+        }
+
+        // Consignment Sales
+        var consignmentSalesQuery = _dbContext.ConsignmentSales
+            .AsNoTracking()
+            .Include(cs => cs.TransactionItem).ThenInclude(ti => ti.Transaction).ThenInclude(t => t.Outlet)
+            .Include(cs => cs.TransactionItem).ThenInclude(ti => ti.Product)
+            .Include(cs => cs.Supplier)
+            .Where(cs => cs.SupplierId == filters.SupplierId.Value && cs.CreatedAt >= startUtc && cs.CreatedAt <= endUtc);
+        if (outletId.HasValue)
+        {
+            consignmentSalesQuery = consignmentSalesQuery.Where(cs => cs.TransactionItem.Transaction.OutletId == outletId.Value);
+        }
+        var consignmentSales = await consignmentSalesQuery.OrderBy(cs => cs.CreatedAt).ToListAsync(ct);
+        var consignmentSalesDtos = consignmentSales.Select(cs => new SupplierReportConsignmentSaleDto(
+            cs.Id,
+            cs.TransactionItem?.Transaction?.TransactionNumber ?? string.Empty,
+            cs.CreatedAt,
+            cs.TransactionItem?.Product?.Name ?? string.Empty,
+            cs.Qty,
+            cs.UnitCost,
+            cs.TotalAmount,
+            cs.Status,
+            cs.TransactionItem?.Transaction?.Outlet?.Name ?? string.Empty)).ToList();
+        var consignmentSalesValue = consignmentSales.Sum(cs => cs.TotalAmount);
+
+        // Settlements
+        var settlementQuery = _dbContext.ConsignmentSettlements
+            .AsNoTracking()
+            .Include(s => s.Outlet)
+            .Include(s => s.Sales)
+            .Where(s => s.SupplierId == filters.SupplierId.Value && s.SettlementDate >= startUtc && s.SettlementDate <= endUtc);
+        if (outletId.HasValue)
+        {
+            settlementQuery = settlementQuery.Where(s => s.OutletId == outletId.Value);
+        }
+        var settlements = await settlementQuery.OrderBy(s => s.SettlementDate).ToListAsync(ct);
+        var settlementDtos = settlements
+            .Where(s => s.Status == ConsignmentSettlementStatus.Settled)
+            .Select(s => new SupplierReportSettlementDto(
+                s.Id, s.SettlementNumber, s.SettlementDate, s.TotalAmount, s.Status, s.Sales.Count, s.Outlet?.Name ?? string.Empty))
+            .ToList();
+        var settlementValue = settlementDtos.Sum(s => s.TotalAmount);
+
+        var supplierDto = new SupplierReportSupplierDto(
+            supplier.Id, supplier.Name, supplier.Phone, supplier.Email, supplier.Address, supplier.IsActive);
+
+        var summary = new SupplierReportSummaryDto(
+            totalPurchase,
+            totalPurchaseReturn,
+            netPurchase,
+            totalDebtPayment,
+            outstandingDebt,
+            consignmentReceivedValue,
+            consignmentReturnValue,
+            consignmentSalesValue,
+            settlementValue);
+
+        return new SupplierReportDto(
+            effectiveFilters,
+            supplierDto,
+            summary,
+            purchases,
+            purchaseReturns,
+            debtDtos,
+            paymentDtos,
+            consignmentDtos,
+            consignmentReturnDtos,
+            consignmentSalesDtos,
+            settlementDtos);
+    }
+
+    public async Task<ExportReportResponse> ExportSupplierReportExcelAsync(
+        SupplierReportFilters filters,
+        CancellationToken ct = default)
+    {
+        var report = await GetSupplierReportAsync(filters, ct);
+        var periodStart = report.Filters.DateFrom?.Date ?? DateTime.UtcNow.Date;
+        var periodEnd = report.Filters.DateTo?.Date ?? DateTime.UtcNow.Date;
+        using var stream = new MemoryStream();
+        using (var document = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook, true))
+        {
+            var workbookPart = document.AddWorkbookPart();
+            workbookPart.Workbook = new Workbook();
+            var sheets = workbookPart.Workbook.AppendChild(new Sheets());
+
+            // Sheet 1: Ringkasan
+            var wsSummary = workbookPart.AddNewPart<WorksheetPart>();
+            var sdSummary = new SheetData();
+            wsSummary.Worksheet = new Worksheet(sdSummary);
+            AppendTextRow(sdSummary, "Laporan Supplier 360 MorrusPOS");
+            AppendTextRow(sdSummary, $"Supplier: {report.Supplier?.SupplierName ?? "-"}");
+            AppendTextRow(sdSummary, $"Periode: {periodStart:yyyy-MM-dd} s/d {periodEnd:yyyy-MM-dd}");
+            AppendTextRow(sdSummary, $"Outlet: {(report.Filters.OutletId.HasValue ? report.Purchases.FirstOrDefault()?.OutletName ?? report.Consignments.FirstOrDefault()?.OutletName ?? "Outlet terpilih" : "Semua outlet")}");
+            AppendEmptyRow(sdSummary);
+            AppendTextRow(sdSummary, "Ringkasan");
+            AppendTextRow(sdSummary, "Metrik", "Nilai");
+            AppendTextRow(sdSummary, "Total Pembelian", report.Summary.TotalPurchase);
+            AppendTextRow(sdSummary, "Retur Pembelian", report.Summary.TotalPurchaseReturn);
+            AppendTextRow(sdSummary, "Pembelian Bersih", report.Summary.NetPurchase);
+            AppendTextRow(sdSummary, "Total Pembayaran Hutang", report.Summary.TotalDebtPayment);
+            AppendTextRow(sdSummary, "Saldo Hutang Akhir", report.Summary.OutstandingDebt);
+            AppendTextRow(sdSummary, "Nilai Barang Konsinyasi Diterima", report.Summary.ConsignmentReceivedValue);
+            AppendTextRow(sdSummary, "Return Konsinyasi", report.Summary.ConsignmentReturnValue);
+            AppendTextRow(sdSummary, "Nilai Penjualan Konsinyasi", report.Summary.ConsignmentSalesValue);
+            AppendTextRow(sdSummary, "Nilai Settlement", report.Summary.SettlementValue);
+            sheets.Append(new Sheet { Id = workbookPart.GetIdOfPart(wsSummary), SheetId = 1, Name = "Ringkasan" });
+
+            // Sheet 2: Pembelian
+            var wsPurchases = workbookPart.AddNewPart<WorksheetPart>();
+            var sdPurchases = new SheetData();
+            wsPurchases.Worksheet = new Worksheet(sdPurchases);
+            AppendTextRow(sdPurchases, "Pembelian");
+            AppendTextRow(sdPurchases, "No. PO", "Tanggal", "Outlet", "Status", "Tipe Bayar", "Total", "Jatuh Tempo");
+            foreach (var p in report.Purchases)
+            {
+                AppendTextRow(sdPurchases, p.PoNumber, p.PoDate.ToString("yyyy-MM-dd"), p.OutletName, p.Status, p.PaymentType, p.TotalAmount, p.DueDate?.ToString("yyyy-MM-dd") ?? "-");
+            }
+            sheets.Append(new Sheet { Id = workbookPart.GetIdOfPart(wsPurchases), SheetId = 2, Name = "Pembelian" });
+
+            // Sheet 3: Retur Pembelian
+            var wsReturns = workbookPart.AddNewPart<WorksheetPart>();
+            var sdReturns = new SheetData();
+            wsReturns.Worksheet = new Worksheet(sdReturns);
+            AppendTextRow(sdReturns, "Retur Pembelian");
+            AppendTextRow(sdReturns, "No. Retur", "Tanggal", "Status", "Total", "No. PO", "Outlet");
+            foreach (var r in report.PurchaseReturns)
+            {
+                AppendTextRow(sdReturns, r.ReturnNumber, r.ReturnDate.ToString("yyyy-MM-dd"), r.Status, r.TotalAmount, r.PoNumber, r.OutletName ?? "-");
+            }
+            sheets.Append(new Sheet { Id = workbookPart.GetIdOfPart(wsReturns), SheetId = 3, Name = "Retur Pembelian" });
+
+            // Sheet 4: Hutang & Pembayaran
+            var wsDebt = workbookPart.AddNewPart<WorksheetPart>();
+            var sdDebt = new SheetData();
+            wsDebt.Worksheet = new Worksheet(sdDebt);
+            AppendTextRow(sdDebt, "Hutang");
+            AppendTextRow(sdDebt, "No. PO", "Jatuh Tempo", "Nilai Hutang", "Terbayar", "Sisa", "Status", "Outlet");
+            foreach (var d in report.Debts)
+            {
+                AppendTextRow(sdDebt, d.PoNumber, d.DueDate.ToString("yyyy-MM-dd"), d.Amount, d.PaidAmount, d.RemainingAmount, d.Status, d.OutletName ?? "-");
+            }
+            AppendEmptyRow(sdDebt);
+            AppendTextRow(sdDebt, "Pembayaran");
+            AppendTextRow(sdDebt, "Tanggal", "No. PO", "Metode", "Nominal", "Referensi", "Status", "Outlet");
+            foreach (var p in report.Payments)
+            {
+                AppendTextRow(sdDebt, p.PaymentDate.ToString("yyyy-MM-dd"), p.PoNumber, p.PaymentMethod, p.Amount, p.ReferenceNumber ?? "-", p.Status, p.OutletName ?? "-");
+            }
+            sheets.Append(new Sheet { Id = workbookPart.GetIdOfPart(wsDebt), SheetId = 4, Name = "Hutang_Pembayaran" });
+
+            // Sheet 5: Konsinyasi & Settlement
+            var wsCons = workbookPart.AddNewPart<WorksheetPart>();
+            var sdCons = new SheetData();
+            wsCons.Worksheet = new Worksheet(sdCons);
+            AppendTextRow(sdCons, "Konsinyasi Masuk (Ambil)");
+            AppendTextRow(sdCons, "No. Konsinyasi", "Tanggal", "Status", "Nilai", "Jml Item", "Outlet");
+            foreach (var c in report.Consignments)
+            {
+                AppendTextRow(sdCons, c.ConsignmentNumber, c.ReceiveDate.ToString("yyyy-MM-dd"), c.Status, c.TotalValue, c.ItemCount, c.OutletName);
+            }
+            AppendEmptyRow(sdCons);
+            AppendTextRow(sdCons, "Return Konsinyasi");
+            AppendTextRow(sdCons, "No. Return", "Tanggal", "Status", "Total Qty", "Jml Item", "Outlet");
+            foreach (var cr in report.ConsignmentReturns)
+            {
+                AppendTextRow(sdCons, cr.ReturnNumber, cr.ReturnDate.ToString("yyyy-MM-dd"), cr.Status, cr.TotalQty, cr.ItemCount, cr.OutletName);
+            }
+            AppendEmptyRow(sdCons);
+            AppendTextRow(sdCons, "Penjualan Konsinyasi");
+            AppendTextRow(sdCons, "No. Transaksi", "Tanggal", "Produk", "Qty", "Unit Cost", "Total", "Status", "Outlet");
+            foreach (var cs in report.ConsignmentSales)
+            {
+                AppendTextRow(sdCons, cs.TransactionNumber, cs.CreatedAt.ToString("yyyy-MM-dd"), cs.ProductName, cs.Qty, cs.UnitCost, cs.TotalAmount, cs.Status, cs.OutletName);
+            }
+            AppendEmptyRow(sdCons);
+            AppendTextRow(sdCons, "Settlement");
+            AppendTextRow(sdCons, "No. Settlement", "Tanggal", "Total", "Status", "Jml Sales", "Outlet");
+            foreach (var s in report.Settlements)
+            {
+                AppendTextRow(sdCons, s.SettlementNumber, s.SettlementDate.ToString("yyyy-MM-dd"), s.TotalAmount, s.Status, s.SalesCount, s.OutletName);
+            }
+            sheets.Append(new Sheet { Id = workbookPart.GetIdOfPart(wsCons), SheetId = 5, Name = "Konsinyasi_Settlement" });
+
+            workbookPart.Workbook.Save();
+        }
+
+        return new ExportReportResponse(
+            stream.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"Laporan_Supplier_{report.Supplier?.SupplierName ?? "Supplier"}_{periodStart:yyyyMMdd}_{periodEnd:yyyyMMdd}.xlsx");
+    }
+
+    public async Task<StockCardReportDto> GetStockCardReportAsync(
+        StockCardReportFilters filters,
+        CancellationToken ct = default)
+    {
+        var businessId = EnsureBusinessContext();
+        var (startUtc, endUtc) = NormalizePeriod(filters.DateFrom, filters.DateTo);
+        var outletId = await ResolveAccessibleOutletIdAsync(filters.OutletId, ct);
+
+        if (!filters.ProductId.HasValue)
+        {
+            throw new InvalidOperationException("Produk wajib dipilih.");
+        }
+        if (!outletId.HasValue)
+        {
+            throw new InvalidOperationException("Outlet wajib dipilih.");
+        }
+
+        var product = await _dbContext.Products.AsNoTracking()
+            .Include(p => p.Category)
+            .FirstOrDefaultAsync(p => p.Id == filters.ProductId.Value, ct);
+        if (product == null)
+        {
+            throw new InvalidOperationException("Produk tidak ditemukan.");
+        }
+
+        ProductVariant? variant = null;
+        if (filters.ProductVariantId.HasValue)
+        {
+            variant = await _dbContext.ProductVariants.AsNoTracking()
+                .FirstOrDefaultAsync(v => v.Id == filters.ProductVariantId.Value && v.ProductId == product.Id, ct);
+            if (variant == null)
+            {
+                throw new InvalidOperationException("Varian produk tidak ditemukan.");
+            }
+        }
+        else if (product.HasVariants)
+        {
+            // if product has variants but no variant selected, we still allow product-level aggregation? Spec says filter per satu produk/varian dan satu outlet pada satu waktu agar saldo jelas. So we keep product-level if variant null -> sum across variants? But better to require variant if hasVariants?
+            // For now allow product-level without variant filter -> query variant null aggregated? We'll filter ProductVariantId == null only when hasVariants false.
+        }
+
+        var outlet = await _dbContext.Outlets.AsNoTracking().FirstOrDefaultAsync(o => o.Id == outletId.Value, ct);
+        var outletName = outlet?.Name ?? "Outlet";
+
+        var productInfo = new StockCardReportProductInfoDto(
+            product.Id,
+            product.Name,
+            product.Sku,
+            variant?.Id,
+            variant?.Sku,
+            variant != null ? string.Join(", ", variant.AttributeValues.Select(av => av.Value)) : null,
+            product.HasVariants);
+
+        var baseQuery = _dbContext.StockLedgers
+            .AsNoTracking()
+            .Include(sl => sl.Product)
+            .Include(sl => sl.ProductVariant)
+            .Include(sl => sl.Outlet)
+            .Where(sl => sl.OutletId == outletId.Value && sl.ProductId == product.Id);
+
+        if (filters.ProductVariantId.HasValue)
+        {
+            baseQuery = baseQuery.Where(sl => sl.ProductVariantId == filters.ProductVariantId.Value);
+        }
+        else
+        {
+            // If product has no variants, filter where variant null; if has variants and no variant selected, include all variants of this product
+            if (!product.HasVariants)
+            {
+                baseQuery = baseQuery.Where(sl => sl.ProductVariantId == null);
+            }
+        }
+
+        var openingBalance = await baseQuery
+            .Where(sl => sl.CreatedAt < startUtc)
+            .SumAsync(sl => sl.QtyChange, ct);
+
+        var mutations = await baseQuery
+            .Where(sl => sl.CreatedAt >= startUtc && sl.CreatedAt <= endUtc)
+            .OrderBy(sl => sl.CreatedAt)
+            .ThenBy(sl => sl.Id)
+            .ToListAsync(ct);
+
+        decimal runningBalance = openingBalance;
+        var lines = new List<StockCardReportLineDto>();
+        decimal totalIn = 0, totalOut = 0;
+        foreach (var sl in mutations)
+        {
+            var qtyIn = sl.QtyChange > 0 ? sl.QtyChange : 0;
+            var qtyOut = sl.QtyChange < 0 ? Math.Abs(sl.QtyChange) : 0;
+            totalIn += qtyIn;
+            totalOut += qtyOut;
+            runningBalance += sl.QtyChange;
+            var label = MapMovementTypeToLabel(sl.MovementType);
+            // Try to resolve reference number for better UX
+            string? referenceNumber = null;
+            if (sl.ReferenceType == "transaction")
+            {
+                var trx = await _dbContext.Transactions.AsNoTracking().FirstOrDefaultAsync(t => t.Id == sl.ReferenceId, ct);
+                referenceNumber = trx?.TransactionNumber;
+            }
+            else if (sl.ReferenceType == "consignment")
+            {
+                var c = await _dbContext.Consignments.AsNoTracking().FirstOrDefaultAsync(x => x.Id == sl.ReferenceId, ct);
+                referenceNumber = c?.ConsignmentNumber;
+            }
+            else if (sl.ReferenceType == "consignment_return")
+            {
+                var cr = await _dbContext.ConsignmentReturns.AsNoTracking().FirstOrDefaultAsync(x => x.Id == sl.ReferenceId, ct);
+                referenceNumber = cr?.ReturnNumber;
+            }
+            else if (sl.ReferenceType == "purchase_order")
+            {
+                var po = await _dbContext.PurchaseOrders.AsNoTracking().FirstOrDefaultAsync(x => x.Id == sl.ReferenceId, ct);
+                referenceNumber = po?.PoNumber;
+            }
+
+            lines.Add(new StockCardReportLineDto(
+                sl.Id,
+                sl.CreatedAt,
+                sl.ProductId,
+                sl.Product?.Name ?? product.Name,
+                sl.Product?.Sku ?? product.Sku,
+                sl.ProductVariantId,
+                sl.ProductVariant?.Sku ?? variant?.Sku,
+                sl.MovementType,
+                label,
+                sl.ReferenceType,
+                sl.ReferenceId,
+                referenceNumber ?? sl.ReferenceType,
+                sl.Note,
+                sl.QtyChange,
+                qtyIn,
+                qtyOut,
+                runningBalance,
+                sl.Outlet?.Name ?? outletName));
+        }
+
+        var summary = new StockCardReportSummaryDto(
+            openingBalance,
+            totalIn,
+            totalOut,
+            runningBalance);
+
+        var effectiveFilters = new StockCardReportFilters(filters.DateFrom, filters.DateTo, outletId, filters.ProductId, filters.ProductVariantId);
+
+        return new StockCardReportDto(
+            effectiveFilters,
+            productInfo,
+            outletName,
+            summary,
+            lines);
+    }
+
+    public async Task<ExportReportResponse> ExportStockCardExcelAsync(
+        StockCardReportFilters filters,
+        CancellationToken ct = default)
+    {
+        var report = await GetStockCardReportAsync(filters, ct);
+        var periodStart = report.Filters.DateFrom?.Date ?? DateTime.UtcNow.Date;
+        var periodEnd = report.Filters.DateTo?.Date ?? DateTime.UtcNow.Date;
+        using var stream = new MemoryStream();
+        using (var document = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook, true))
+        {
+            var workbookPart = document.AddWorkbookPart();
+            workbookPart.Workbook = new Workbook();
+            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            var sheetData = new SheetData();
+            worksheetPart.Worksheet = new Worksheet(sheetData);
+
+            AppendTextRow(sheetData, "Kartu Stok MorrusPOS");
+            AppendTextRow(sheetData, $"Produk: {report.Product.ProductName} ({report.Product.Sku}){(report.Product.ProductVariantId.HasValue ? $" - Varian: {report.Product.VariantSku}" : string.Empty)}");
+            AppendTextRow(sheetData, $"Outlet: {report.OutletName}");
+            AppendTextRow(sheetData, $"Periode: {periodStart:yyyy-MM-dd} s/d {periodEnd:yyyy-MM-dd}");
+            AppendEmptyRow(sheetData);
+
+            AppendTextRow(sheetData, "Ringkasan");
+            AppendTextRow(sheetData, "Metrik", "Nilai");
+            AppendTextRow(sheetData, "Saldo Awal", report.Summary.OpeningBalance);
+            AppendTextRow(sheetData, "Total Masuk", report.Summary.TotalIn);
+            AppendTextRow(sheetData, "Total Keluar", report.Summary.TotalOut);
+            AppendTextRow(sheetData, "Saldo Akhir", report.Summary.ClosingBalance);
+            AppendEmptyRow(sheetData);
+
+            AppendTextRow(sheetData, "Mutasi");
+            AppendTextRow(sheetData, "Tanggal/Waktu", "Produk-Varian", "Jenis Mutasi", "Referensi", "Catatan", "Masuk", "Keluar", "Saldo Berjalan");
+            foreach (var line in report.Lines)
+            {
+                var productVariantLabel = line.ProductVariantId.HasValue ? $"{line.ProductName} - {line.VariantSku}" : line.ProductName;
+                AppendTextRow(sheetData,
+                    line.CreatedAt.ToString("yyyy-MM-dd HH:mm"),
+                    productVariantLabel,
+                    line.MovementLabel,
+                    line.ReferenceNumber ?? line.ReferenceType,
+                    line.Note ?? string.Empty,
+                    line.QtyIn,
+                    line.QtyOut,
+                    line.RunningBalance);
+            }
+
+            var sheets = workbookPart.Workbook.AppendChild(new Sheets());
+            sheets.Append(new Sheet { Id = workbookPart.GetIdOfPart(worksheetPart), SheetId = 1, Name = "Kartu Stok" });
+            workbookPart.Workbook.Save();
+        }
+
+        return new ExportReportResponse(
+            stream.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"Kartu_Stok_{report.Product.Sku}_{periodStart:yyyyMMdd}_{periodEnd:yyyyMMdd}.xlsx");
+    }
+
+    private static string MapMovementTypeToLabel(string movementType)
+    {
+        return movementType switch
+        {
+            StockMovementType.Sale => "Penjualan",
+            StockMovementType.Return => "Retur Penjualan",
+            StockMovementType.PurchaseIn => "Pembelian",
+            StockMovementType.TransferIn => "Transfer Masuk",
+            StockMovementType.TransferOut => "Transfer Keluar",
+            StockMovementType.OpnameAdjustment => "Penyesuaian Opname",
+            StockMovementType.ConsignmentIn => "Ambil Konsinyasi",
+            StockMovementType.ConsignmentReturn => "Return Konsinyasi",
+            _ => movementType
+        };
     }
 
     private AccountingProfitLossSectionDto BuildProfitLossSection(

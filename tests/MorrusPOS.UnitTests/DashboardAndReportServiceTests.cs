@@ -188,7 +188,7 @@ public class DashboardAndReportServiceTests : IDisposable
         report.CategoryBreakdown[0].GrossProfit.Should().Be(15000);
 
         export.FileBytes.Should().NotBeNull();
-        export.ContentType.Should().Be("text/csv");
+        export.ContentType.Should().Be("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         export.FileName.Should().Contain("Laporan_Laba_Rugi");
     }
 
@@ -268,7 +268,7 @@ public class DashboardAndReportServiceTests : IDisposable
         report.SupplierBreakdown[0].TotalSpent.Should().Be(75000);
 
         export.FileBytes.Should().NotBeNull();
-        export.ContentType.Should().Be("text/csv");
+        export.ContentType.Should().Be("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         export.FileName.Should().Contain("Rekap_Pembelian");
     }
 
@@ -363,7 +363,7 @@ public class DashboardAndReportServiceTests : IDisposable
         report.PaymentBreakdown[0].TotalCollected.Should().Be(9000);
 
         export.FileBytes.Should().NotBeNull();
-        export.ContentType.Should().Be("text/csv");
+        export.ContentType.Should().Be("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         export.FileName.Should().Contain("Rekap_Penjualan");
     }
 }
