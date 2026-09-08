@@ -73,6 +73,11 @@ public class AppDbContext : DbContext
     public DbSet<ChannelSettlement> ChannelSettlements => Set<ChannelSettlement>();
     public DbSet<ChannelSettlementItem> ChannelSettlementItems => Set<ChannelSettlementItem>();
     public DbSet<IntegrationLog> IntegrationLogs => Set<IntegrationLog>();
+    public DbSet<GoBizIntegration> GoBizIntegrations => Set<GoBizIntegration>();
+    public DbSet<GoBizOAuthState> GoBizOAuthStates => Set<GoBizOAuthState>();
+    public DbSet<GoBizDirectIntegration> GoBizDirectIntegrations => Set<GoBizDirectIntegration>();
+    public DbSet<GoBizProductMapping> GoBizProductMappings => Set<GoBizProductMapping>();
+    public DbSet<GoBizOrderInbox> GoBizOrderInboxes => Set<GoBizOrderInbox>();
 
     // Fase 7 — Pricing Engine
     public DbSet<TaxRule> TaxRules => Set<TaxRule>();
@@ -139,6 +144,11 @@ public class AppDbContext : DbContext
         // SaaS Scoping for Online Channels Integration
         modelBuilder.Entity<ChannelAccount>().HasQueryFilter(ca => CurrentBusinessId == null || ca.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<ChannelSettlement>().HasQueryFilter(cset => CurrentBusinessId == null || cset.ChannelAccount.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<GoBizIntegration>().HasQueryFilter(gi => CurrentBusinessId == null || gi.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<GoBizOAuthState>().HasQueryFilter(gs => CurrentBusinessId == null || gs.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<GoBizDirectIntegration>().HasQueryFilter(gi => CurrentBusinessId == null || gi.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<GoBizProductMapping>().HasQueryFilter(gm => CurrentBusinessId == null || gm.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<GoBizOrderInbox>().HasQueryFilter(go => CurrentBusinessId == null || go.Outlet.BusinessId == CurrentBusinessId);
 
         // SaaS Scoping for Pricing
         modelBuilder.Entity<TaxRule>().HasQueryFilter(tr => CurrentBusinessId == null || tr.Outlet.BusinessId == CurrentBusinessId);

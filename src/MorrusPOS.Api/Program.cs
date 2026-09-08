@@ -35,6 +35,8 @@ using MorrusPOS.Application.Features.Accounting;
 using MorrusPOS.Application.Features.Accounting.Validators;
 using MorrusPOS.Application.Features.Reports;
 using MorrusPOS.Infrastructure;
+using MorrusPOS.Infrastructure.Options;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -165,6 +167,17 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var goBizOptions = scope.ServiceProvider.GetRequiredService<IOptions<GoBizOptions>>().Value;
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    logger.LogInformation("GoBiz OAuth configured. Environment={Environment}. RedirectUri={RedirectUri}. ClientIdConfigured={ClientIdConfigured}. ClientSecretConfigured={ClientSecretConfigured}",
+        goBizOptions.Environment,
+        goBizOptions.RedirectUri,
+        !string.IsNullOrWhiteSpace(goBizOptions.ClientId),
+        !string.IsNullOrWhiteSpace(goBizOptions.ClientSecret));
+}
 
 Console.WriteLine($"[DIAGNOSTIC] Current Directory: {Directory.GetCurrentDirectory()}");
 Console.WriteLine($"[DIAGNOSTIC] WebRootPath: {app.Environment.WebRootPath}");

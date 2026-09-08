@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Auth;
 using MorrusPOS.Application.Features.Users;
@@ -16,6 +17,7 @@ using MorrusPOS.Application.Features.Pricing;
 using MorrusPOS.Application.Features.Customers;
 using MorrusPOS.Application.Features.Accounting;
 using MorrusPOS.Infrastructure.Persistence;
+using MorrusPOS.Infrastructure.Options;
 using MorrusPOS.Infrastructure.Services;
 
 namespace MorrusPOS.Infrastructure;
@@ -58,6 +60,18 @@ public static class DependencyInjection
         services.AddScoped<IConsignmentReturnService, ConsignmentReturnService>();
         services.AddScoped<IChannelAccountService, ChannelAccountService>();
         services.AddScoped<IChannelSettlementService, ChannelSettlementService>();
+        services.AddMemoryCache();
+        services.AddOptions<GoBizOptions>()
+            .Bind(config.GetSection(GoBizOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<GoBizOptions>, GoBizOptionsValidator>();
+        services.AddScoped<IGoBizOAuthStateStore, GoBizOAuthStateStore>();
+        services.AddScoped<IGoBizAuthService, GoBizAuthService>();
+        services.AddHttpClient<IGoBizOAuthService, GoBizOAuthService>();
+        services.AddHttpClient<IGoBizDirectAuthService, GoBizDirectAuthService>();
+        services.AddHttpClient<IGoBizApiClient, GoBizApiClient>();
+        services.AddScoped<IGoBizDirectIntegrationService, GoBizDirectIntegrationService>();
+        services.AddScoped<IGoBizOrderWebhookService, GoBizOrderWebhookService>();
 
         // Fase 8 — Dashboard & Laporan
         services.AddScoped<IDashboardService, DashboardService>();
