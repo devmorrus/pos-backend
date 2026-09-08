@@ -1,0 +1,90 @@
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using MorrusPOS.Application.Features.Channels;
+using MorrusPOS.Domain.Entities;
+using MorrusPOS.Infrastructure.Persistence;
+
+namespace MorrusPOS.Infrastructure.Services;
+
+public sealed class GoBizOrderWebhookService : IGoBizOrderWebhookService
+{
+    private readonly AppDbContext _dbContext;
+
+    public GoBizOrderWebhookService(AppDbContext dbContext)
+    {
+        _dbContext = dbContext;
+    }
+
+    public async Task ProcessWebhookAsync(string rawBody, IReadOnlyDictionary<string, string> headers, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(rawBody))
+        {
+            throw new InvalidOperationException("Payload webhook GoBiz kosong.");
+        }
+
+        using var document = JsonDocument.Parse(rawBody);
+        var root = document.RootElement;
+        var goBizOutletId = ReadString(root, "outlet_id") ?? ReadString(root, "outletId") ?? ReadString(root, "merchant_outlet_id");
+        var orderId = ReadString(root, "order_id") ?? ReadString(root, "orderId") ?? ReadString(root, "id");
+        var eventType = ReadString(root, "event_type") ?? ReadString(root, "eventType") ?? ReadString(root, "type") ?? "order";
+
+        if (string.IsNullOrWhiteSpace(goBizOutletId))
+        {
+            throw new InvalidOperationException("Outlet ID GoBiz tidak ditemukan pada webhook.");
+        }
+
+        if (string.IsNullOrWhiteSpace(orderId))
+        {
+            throw new InvalidOperationException("Order ID GoBiz tidak ditemukan pada webhook.");
+        }
+
+        var integration = await _dbContext.GoBizDirectIntegrations.FirstOrDefaultAsync(x => x.GoBizOutletId == goBizOutletId && x.IsActive, ct)
+            ?? throw new InvalidOperationException("Outlet GoBiz belum terhubung ke outlet Morrus POS.");
+
+        var existing = await _dbContext.GoBizOrderInboxes.FirstOrDefaultAsync(x => x.GoBizOrderId == orderId, ct);
+        if (existing is not null)
+        {
+            existing.ProcessedAtUtc ??= DateTime.UtcNow;
+            await _dbContext.SaveChangesAsync(ct);
+            return;
+        }
+
+        _dbContext.GoBizOrderInboxes.Add(new GoBizOrderInbox
+        {
+            Id = Guid.NewGuid(),
+            GoBizOrderId = orderId,
+            OutletId = integration.OutletId,
+            EventType = eventType,
+            RawPayloadJson = rawBody,
+            Status = "received",
+            ReceivedAtUtc = DateTime.UtcNow
+        });
+
+        integration.LastWebhookAtUtc = DateTime.UtcNow;
+        integration.UpdatedAt = DateTime.UtcNow;
+
+        _dbContext.IntegrationLogs.Add(new IntegrationLog
+        {
+            Id = Guid.NewGuid(),
+            ServiceName = "GoBiz Webhook - order",
+            RequestPayload = rawBody.Length <= 8000 ? rawBody : rawBody[..8000],
+            StatusCode = "200",
+            IsSuccess = true,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _dbContext.SaveChangesAsync(ct);
+    }
+
+    private static string? ReadString(JsonElement root, string propertyName)
+    {
+        if (root.ValueKind == JsonValueKind.Object &&
+            root.TryGetProperty(propertyName, out var property) &&
+            property.ValueKind == JsonValueKind.String)
+        {
+            return property.GetString();
+        }
+
+        return null;
+    }
+}

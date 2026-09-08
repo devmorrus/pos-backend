@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MorrusPOS.Infrastructure.Persistence;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MorrusPOS.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260903084108_AddGoBizOAuthIntegration")]
+    partial class AddGoBizOAuthIntegration
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -930,72 +933,6 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.ToTable("customers", (string)null);
                 });
 
-            modelBuilder.Entity("MorrusPOS.Domain.Entities.GoBizDirectIntegration", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("BusinessId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Environment")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("GoBizOutletId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("LastCatalogPulledAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LastCatalogSyncMessage")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("LastCatalogSyncStatus")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTime?>("LastCatalogSyncedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("LastWebhookAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("OutletId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("PartnerId")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BusinessId");
-
-                    b.HasIndex("GoBizOutletId")
-                        .IsUnique();
-
-                    b.HasIndex("OutletId")
-                        .IsUnique();
-
-                    b.ToTable("gobiz_direct_integrations", (string)null);
-                });
-
             modelBuilder.Entity("MorrusPOS.Domain.Entities.GoBizIntegration", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1099,115 +1036,6 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasIndex("OutletId", "ExpiresAtUtc");
 
                     b.ToTable("gobiz_oauth_states", (string)null);
-                });
-
-            modelBuilder.Entity("MorrusPOS.Domain.Entities.GoBizOrderInbox", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("EventType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("GoBizOrderId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<Guid>("OutletId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("ProcessedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("RawPayloadJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("ReceivedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<Guid?>("TransactionId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("GoBizOrderId")
-                        .IsUnique();
-
-                    b.HasIndex("OutletId");
-
-                    b.HasIndex("Status");
-
-                    b.HasIndex("TransactionId");
-
-                    b.ToTable("gobiz_order_inboxes", (string)null);
-                });
-
-            modelBuilder.Entity("MorrusPOS.Domain.Entities.GoBizProductMapping", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("GoBizCategoryId")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("GoBizItemId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<bool>("IsSynced")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("LastSyncError")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<DateTime?>("LastSyncedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("OutletId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ProductVariantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("GoBizItemId");
-
-                    b.HasIndex("ProductId");
-
-                    b.HasIndex("ProductVariantId");
-
-                    b.HasIndex("OutletId", "ProductId", "ProductVariantId")
-                        .IsUnique();
-
-                    b.ToTable("gobiz_product_mappings", (string)null);
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.IntegrationLog", b =>
@@ -3777,24 +3605,6 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("CreatedOutlet");
                 });
 
-            modelBuilder.Entity("MorrusPOS.Domain.Entities.GoBizDirectIntegration", b =>
-                {
-                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
-                        .WithMany()
-                        .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
-                        .WithMany()
-                        .HasForeignKey("OutletId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Business");
-
-                    b.Navigation("Outlet");
-                });
-
             modelBuilder.Entity("MorrusPOS.Domain.Entities.GoBizIntegration", b =>
                 {
                     b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
@@ -3829,50 +3639,6 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("Business");
 
                     b.Navigation("Outlet");
-                });
-
-            modelBuilder.Entity("MorrusPOS.Domain.Entities.GoBizOrderInbox", b =>
-                {
-                    b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
-                        .WithMany()
-                        .HasForeignKey("OutletId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("MorrusPOS.Domain.Entities.Transaction", "Transaction")
-                        .WithMany()
-                        .HasForeignKey("TransactionId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Outlet");
-
-                    b.Navigation("Transaction");
-                });
-
-            modelBuilder.Entity("MorrusPOS.Domain.Entities.GoBizProductMapping", b =>
-                {
-                    b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
-                        .WithMany()
-                        .HasForeignKey("OutletId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("MorrusPOS.Domain.Entities.ProductVariant", "ProductVariant")
-                        .WithMany()
-                        .HasForeignKey("ProductVariantId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Outlet");
-
-                    b.Navigation("Product");
-
-                    b.Navigation("ProductVariant");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.InventoryStock", b =>
