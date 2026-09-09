@@ -4,11 +4,9 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Channels;
 using MorrusPOS.Domain.Entities;
-using MorrusPOS.Infrastructure.Options;
 using MorrusPOS.Infrastructure.Persistence;
 
 namespace MorrusPOS.Infrastructure.Services;
@@ -21,7 +19,7 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
     private readonly ICurrentUserService _currentUserService;
     private readonly HttpClient _httpClient;
     private readonly ILogger<GoBizOAuthService> _logger;
-    private readonly GoBizOptions _options;
+    private readonly IGoBizConfigProvider _configProvider;
     private readonly IGoBizAuthService _authService;
     private readonly IGoBizOAuthStateStore _stateStore;
 
@@ -30,7 +28,7 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
         ICurrentUserService currentUserService,
         HttpClient httpClient,
         ILogger<GoBizOAuthService> logger,
-        IOptions<GoBizOptions> options,
+        IGoBizConfigProvider configProvider,
         IGoBizAuthService authService,
         IGoBizOAuthStateStore stateStore)
     {
@@ -38,7 +36,7 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
         _currentUserService = currentUserService;
         _httpClient = httpClient;
         _logger = logger;
-        _options = options.Value;
+        _configProvider = configProvider;
         _authService = authService;
         _stateStore = stateStore;
     }
@@ -48,9 +46,10 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
 
     private async Task<GoBizConnectUrlResponse> CreateConnectUrlInternalAsync(Guid outletId, CancellationToken ct)
     {
-        EnsureConfigured();
-
         var outlet = await GetAccessibleOutletAsync(outletId, ct);
+        var cfg = await _configProvider.GetByOutletAsync(outlet.Id, ct);
+        EnsureConfigured(cfg);
+
         await CleanupExpiredStatesAsync(outlet.Id, ct);
 
         return await _authService.CreateAuthorizationUrlAsync(outlet.Id, outlet.BusinessId, ct);
@@ -58,8 +57,6 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
 
     public async Task<GoBizCallbackResult> HandleCallbackAsync(string code, string state, CancellationToken ct = default)
     {
-        EnsureConfigured();
-
         if (string.IsNullOrWhiteSpace(code))
         {
             throw new GoBizOAuthException("GOBIZ_AUTHORIZATION_DENIED", "Authorization code GoBiz kosong.");
@@ -76,7 +73,10 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
             throw new GoBizOAuthException("GOBIZ_STATE_INVALID", "State OAuth GoBiz tidak valid atau sudah kedaluwarsa.");
         }
 
-        var tokenResponse = await ExchangeAuthorizationCodeAsync(code, ct);
+        var cfg = await _configProvider.GetByOutletAsync(oauthState.OutletId, ct);
+        EnsureConfigured(cfg);
+
+        var tokenResponse = await ExchangeAuthorizationCodeAsync(code, cfg, ct);
 
         var integration = await _dbContext.GoBizIntegrations.FirstOrDefaultAsync(x => x.OutletId == oauthState.OutletId, ct);
         if (integration is null)
@@ -143,29 +143,40 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
 
     public GoBizDebugConfigDto GetDebugConfig()
     {
-        EnsureConfigured();
-        return new GoBizDebugConfigDto(
-            _options.Environment,
-            _options.RedirectUri,
-            _options.AuthorizationUrl,
-            _options.TokenUrl,
-            !string.IsNullOrWhiteSpace(_options.ClientId),
-            !string.IsNullOrWhiteSpace(_options.ClientSecret));
+        // Legacy sync API dipertahankan untuk kompatibilitas.
+        // Untuk debug per-Business, gunakan IGoBizClientConfigService.GetDebugAsync.
+        // Di sini kembalikan fallback aman tanpa throw agar /debug/config tidak 500 saat DB kosong.
+        try
+        {
+            var cfg = _configProvider.GetByBusinessAsync(
+                _currentUserService.BusinessId ?? Guid.Empty).GetAwaiter().GetResult();
+            return new GoBizDebugConfigDto(
+                cfg.Environment,
+                cfg.RedirectUri,
+                cfg.AuthorizationUrl,
+                cfg.TokenUrl,
+                !string.IsNullOrWhiteSpace(cfg.ClientId),
+                !string.IsNullOrWhiteSpace(cfg.ClientSecret));
+        }
+        catch
+        {
+            return new GoBizDebugConfigDto("Sandbox", string.Empty, string.Empty, string.Empty, false, false);
+        }
     }
 
-    private async Task<GoBizTokenExchangeResult> ExchangeAuthorizationCodeAsync(string code, CancellationToken ct)
+    private async Task<GoBizTokenExchangeResult> ExchangeAuthorizationCodeAsync(string code, ResolvedGoBizConfig cfg, CancellationToken ct)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, _options.TokenUrl)
+        var request = new HttpRequestMessage(HttpMethod.Post, cfg.TokenUrl)
         {
             Content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["grant_type"] = "authorization_code",
                 ["code"] = code,
-                ["redirect_uri"] = _options.RedirectUri
+                ["redirect_uri"] = cfg.RedirectUri
             })
         };
 
-        var basicAuth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_options.ClientId}:{_options.ClientSecret}"));
+        var basicAuth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{cfg.ClientId}:{cfg.ClientSecret}"));
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", basicAuth);
 
         using var response = await _httpClient.SendAsync(request, ct);
@@ -227,15 +238,15 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
         await _dbContext.SaveChangesAsync(ct);
     }
 
-    private void EnsureConfigured()
+    private void EnsureConfigured(ResolvedGoBizConfig cfg)
     {
-        if (string.IsNullOrWhiteSpace(_options.ClientId) ||
-            string.IsNullOrWhiteSpace(_options.ClientSecret) ||
-            string.IsNullOrWhiteSpace(_options.AuthorizationUrl) ||
-            string.IsNullOrWhiteSpace(_options.TokenUrl) ||
-            string.IsNullOrWhiteSpace(_options.RedirectUri))
+        if (string.IsNullOrWhiteSpace(cfg.ClientId) ||
+            string.IsNullOrWhiteSpace(cfg.ClientSecret) ||
+            string.IsNullOrWhiteSpace(cfg.AuthorizationUrl) ||
+            string.IsNullOrWhiteSpace(cfg.TokenUrl) ||
+            string.IsNullOrWhiteSpace(cfg.RedirectUri))
         {
-            throw new GoBizOAuthException("GOBIZ_CONFIG_INVALID", "Konfigurasi GoBiz belum lengkap.");
+            throw new GoBizOAuthException("GOBIZ_CONFIG_INVALID", "Konfigurasi GoBiz belum lengkap. Isi kredensial per-Business di menu Integrasi GoBiz.");
         }
     }
 

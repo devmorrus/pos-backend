@@ -2,11 +2,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Channels;
 using MorrusPOS.Domain.Entities;
-using MorrusPOS.Infrastructure.Options;
 using MorrusPOS.Infrastructure.Persistence;
 
 namespace MorrusPOS.Infrastructure.Services;
@@ -18,18 +16,18 @@ public sealed class GoBizDirectIntegrationService : IGoBizDirectIntegrationServi
     private readonly AppDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
     private readonly IGoBizApiClient _apiClient;
-    private readonly GoBizOptions _options;
+    private readonly IGoBizConfigProvider _configProvider;
 
     public GoBizDirectIntegrationService(
         AppDbContext dbContext,
         ICurrentUserService currentUserService,
         IGoBizApiClient apiClient,
-        IOptions<GoBizOptions> options)
+        IGoBizConfigProvider configProvider)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
         _apiClient = apiClient;
-        _options = options.Value;
+        _configProvider = configProvider;
     }
 
     public async Task<GoBizDirectStatusDto> GetStatusAsync(Guid outletId, CancellationToken ct = default)
@@ -42,15 +40,19 @@ public sealed class GoBizDirectIntegrationService : IGoBizDirectIntegrationServi
     public async Task<GoBizDirectStatusDto> ConnectAsync(GoBizDirectConnectRequest request, CancellationToken ct = default)
     {
         var outlet = await EnsureOutletAccessibleAsync(request.OutletId, ct);
-        var goBizOutletId = string.IsNullOrWhiteSpace(request.GoBizOutletId) ? _options.DirectOutletId : request.GoBizOutletId.Trim();
+        var cfg = await _configProvider.GetByOutletAsync(request.OutletId, ct);
+
+        var goBizOutletId = request.GoBizOutletId?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(goBizOutletId))
         {
             throw new InvalidOperationException("GoBiz Outlet ID wajib diisi.");
         }
 
-        if (string.IsNullOrWhiteSpace(_options.PartnerId))
+        // Opsi B: PartnerId diambil dari request (override per-outlet) atau config per-Business.
+        var partnerId = string.IsNullOrWhiteSpace(request.PartnerId) ? cfg.PartnerId : request.PartnerId.Trim();
+        if (string.IsNullOrWhiteSpace(partnerId))
         {
-            throw new InvalidOperationException("GoBiz Partner ID belum dikonfigurasi.");
+            throw new InvalidOperationException("GoBiz Partner ID belum dikonfigurasi. Isi di menu Kredensial Client atau kirim via request.");
         }
 
         var integration = await _dbContext.GoBizDirectIntegrations.FirstOrDefaultAsync(x => x.OutletId == request.OutletId, ct);
@@ -66,9 +68,9 @@ public sealed class GoBizDirectIntegrationService : IGoBizDirectIntegrationServi
             _dbContext.GoBizDirectIntegrations.Add(integration);
         }
 
-        integration.PartnerId = _options.PartnerId;
+        integration.PartnerId = partnerId;
         integration.GoBizOutletId = goBizOutletId;
-        integration.Environment = string.IsNullOrWhiteSpace(_options.Environment) ? "Sandbox" : _options.Environment;
+        integration.Environment = string.IsNullOrWhiteSpace(cfg.Environment) ? "Sandbox" : cfg.Environment;
         integration.IsActive = true;
         integration.UpdatedAt = DateTime.UtcNow;
 
@@ -90,7 +92,7 @@ public sealed class GoBizDirectIntegrationService : IGoBizDirectIntegrationServi
     public async Task<GoBizExternalCatalogDto> GetExternalCatalogAsync(Guid outletId, CancellationToken ct = default)
     {
         var integration = await GetActiveIntegrationAsync(outletId, ct);
-        var catalog = await _apiClient.GetCatalogAsync(integration.GoBizOutletId, ct);
+        var catalog = await _apiClient.GetCatalogAsync(outletId, integration.GoBizOutletId, ct);
         var pulledAt = DateTime.UtcNow;
 
         integration.LastCatalogPulledAtUtc = pulledAt;
@@ -130,7 +132,7 @@ public sealed class GoBizDirectIntegrationService : IGoBizDirectIntegrationServi
 
         try
         {
-            var response = await _apiClient.UpdateCatalogAsync(integration.GoBizOutletId, payload.Document.RootElement, ct);
+            var response = await _apiClient.UpdateCatalogAsync(outletId, integration.GoBizOutletId, payload.Document.RootElement, ct);
             var syncedAt = DateTime.UtcNow;
 
             integration.LastCatalogSyncedAtUtc = syncedAt;
@@ -180,12 +182,23 @@ public sealed class GoBizDirectIntegrationService : IGoBizDirectIntegrationServi
 
     private async Task<CatalogPayload> BuildCatalogPayloadAsync(Guid outletId, CancellationToken ct)
     {
-        var products = await _dbContext.Products
+        // Opsi B: filter produk by Business milik outlet (bukan semata claim user),
+        // agar tidak 0/0 saat Owner switch outlet / token lama tanpa business_id.
+        var outlet = await _dbContext.Outlets.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == outletId, ct)
+            ?? throw new InvalidOperationException("Outlet tidak valid.");
+        var businessId = outlet.BusinessId ?? _currentUserService.BusinessId;
+
+        var query = _dbContext.Products
             .Include(p => p.Category)
             .Include(p => p.Variants)
             .Include(p => p.ModifierGroups).ThenInclude(g => g.Options)
-            .Where(p => p.BusinessId == _currentUserService.BusinessId && p.IsActive && !p.IsRawMaterial)
-            .OrderBy(p => p.Category.Name).ThenBy(p => p.Name)
+            .Where(p => p.IsActive && !p.IsRawMaterial);
+        if (businessId.HasValue)
+            query = query.Where(p => p.BusinessId == businessId.Value);
+
+        var products = await query
+            .OrderBy(p => p.Category!.Name).ThenBy(p => p.Name)
             .ToListAsync(ct);
 
         var stocks = await _dbContext.InventoryStocks
@@ -258,6 +271,11 @@ public sealed class GoBizDirectIntegrationService : IGoBizDirectIntegrationServi
             }
 
             var menuId = StableId("menu", product.CategoryId.ToString());
+            if (!menusById.ContainsKey(menuId))
+            {
+                errors.Add($"Produk {product.Name} kategorinya tidak valid/tidak aktif.");
+                continue;
+            }
             var isAvailable = stockByProduct.GetValueOrDefault(product.Id) > 0;
             var variantCategoryIds = new List<string>();
 
@@ -332,10 +350,27 @@ public sealed class GoBizDirectIntegrationService : IGoBizDirectIntegrationServi
             }
         }
 
+        // Jangan kirim menu kosong ke GoBiz (penyebab 422 "menus: missing required field").
+        // Hanya menu yang punya item yang dikirim; kategorinya dihitung dari yang terkirim.
+        var shippableMenus = menus.Where(m => m.Items.Count > 0).ToList();
+        if (products.Count == 0)
+        {
+            errors.Add("Tidak ada produk aktif untuk Business/outlet ini. Tambahkan produk + kategori + SKU + harga dulu.");
+        }
+        else if (mappedItems.Count == 0)
+        {
+            if (errors.Count == 0)
+                errors.Add("Semua produk terfilter (SKU/harga/kategori belum valid). Periksa Validation di Preview.");
+        }
+        else if (shippableMenus.Count == 0)
+        {
+            errors.Add("Semua menu kosong setelah mapping. Pastikan tiap kategori punya minimal 1 item valid.");
+        }
+
         var payload = new
         {
             request_id = Guid.NewGuid().ToString(),
-            menus = menus.Select(menu => new
+            menus = shippableMenus.Select(menu => new
             {
                 external_id = menu.ExternalId,
                 name = menu.Name,
@@ -376,7 +411,7 @@ public sealed class GoBizDirectIntegrationService : IGoBizDirectIntegrationServi
         };
 
         var document = JsonDocument.Parse(JsonSerializer.Serialize(payload, JsonOptions));
-        return new CatalogPayload(document, menus.Count, mappedItems.Count, errors, mappedItems);
+        return new CatalogPayload(document, shippableMenus.Count, mappedItems.Count, errors, mappedItems);
     }
 
     private static MenuItemPayload CreateItem(

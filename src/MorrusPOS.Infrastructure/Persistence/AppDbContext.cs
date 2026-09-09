@@ -75,6 +75,7 @@ public class AppDbContext : DbContext
     public DbSet<IntegrationLog> IntegrationLogs => Set<IntegrationLog>();
     public DbSet<GoBizIntegration> GoBizIntegrations => Set<GoBizIntegration>();
     public DbSet<GoBizOAuthState> GoBizOAuthStates => Set<GoBizOAuthState>();
+    public DbSet<GoBizClientConfig> GoBizClientConfigs => Set<GoBizClientConfig>();
     public DbSet<GoBizDirectIntegration> GoBizDirectIntegrations => Set<GoBizDirectIntegration>();
     public DbSet<GoBizProductMapping> GoBizProductMappings => Set<GoBizProductMapping>();
     public DbSet<GoBizOrderInbox> GoBizOrderInboxes => Set<GoBizOrderInbox>();
@@ -146,6 +147,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<ChannelSettlement>().HasQueryFilter(cset => CurrentBusinessId == null || cset.ChannelAccount.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<GoBizIntegration>().HasQueryFilter(gi => CurrentBusinessId == null || gi.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<GoBizOAuthState>().HasQueryFilter(gs => CurrentBusinessId == null || gs.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<GoBizClientConfig>().HasQueryFilter(c => CurrentBusinessId == null || c.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<GoBizDirectIntegration>().HasQueryFilter(gi => CurrentBusinessId == null || gi.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<GoBizProductMapping>().HasQueryFilter(gm => CurrentBusinessId == null || gm.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<GoBizOrderInbox>().HasQueryFilter(go => CurrentBusinessId == null || go.Outlet.BusinessId == CurrentBusinessId);

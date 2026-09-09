@@ -3,7 +3,6 @@ using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 using MorrusPOS.Application.Features.Channels;
 using MorrusPOS.Infrastructure.Options;
 using MorrusPOS.Infrastructure.Services;
@@ -16,9 +15,10 @@ public class GoBizOAuthTests
     [Fact]
     public async Task CreateAuthorizationUrlAsync_Should_Contain_RequiredParameters_And_ExactRedirectUri()
     {
-        var options = Options.Create(CreateValidOptions());
+        var options = CreateValidOptions();
+        var provider = new FakeConfigProvider(ToResolved(options));
         var stateStore = new GoBizOAuthStateStore(new MemoryCache(new MemoryCacheOptions()));
-        var service = new GoBizAuthService(options, stateStore);
+        var service = new GoBizAuthService(provider, stateStore);
 
         var result = await service.CreateAuthorizationUrlAsync(Guid.NewGuid(), Guid.NewGuid());
         var uri = new Uri(result.AuthorizationUrl);
@@ -27,18 +27,19 @@ public class GoBizOAuthTests
         query["response_type"].Should().Be("code");
         query["scope"].Should().Be("openid");
         query["user_type"].Should().Be("merchant");
-        query["client_id"].Should().Be(options.Value.ClientId);
+        query["client_id"].Should().Be(options.ClientId);
         query["state"].Should().NotBeNullOrWhiteSpace();
-        query["redirect_uri"].Should().Be(options.Value.RedirectUri);
+        query["redirect_uri"].Should().Be(options.RedirectUri);
         result.State.Should().Be(query["state"]);
     }
 
     [Fact]
     public async Task CreateAuthorizationUrlAsync_Twice_Should_Generate_DifferentStates()
     {
-        var options = Options.Create(CreateValidOptions());
+        var options = CreateValidOptions();
+        var provider = new FakeConfigProvider(ToResolved(options));
         var stateStore = new GoBizOAuthStateStore(new MemoryCache(new MemoryCacheOptions()));
-        var service = new GoBizAuthService(options, stateStore);
+        var service = new GoBizAuthService(provider, stateStore);
 
         var first = await service.CreateAuthorizationUrlAsync(Guid.NewGuid(), Guid.NewGuid());
         var second = await service.CreateAuthorizationUrlAsync(Guid.NewGuid(), Guid.NewGuid());
@@ -104,6 +105,32 @@ public class GoBizOAuthTests
         UserType = "merchant",
         Prompt = "login"
     };
+
+    private static ResolvedGoBizConfig ToResolved(GoBizOptions o) => new(
+        BusinessId: null,
+        Environment: o.Environment,
+        ClientId: o.ClientId,
+        ClientSecret: o.ClientSecret,
+        PartnerId: o.PartnerId,
+        AuthorizationUrl: o.AuthorizationUrl,
+        TokenUrl: o.TokenUrl,
+        ApiBaseUrl: o.ApiBaseUrl,
+        RedirectUri: o.RedirectUri,
+        Scope: o.Scope,
+        UserType: o.UserType,
+        Prompt: o.Prompt,
+        WebhookSecret: null,
+        Source: "Test",
+        RequestTimeoutSeconds: 30,
+        TokenRefreshSkewSeconds: 300);
+
+    private sealed class FakeConfigProvider : IGoBizConfigProvider
+    {
+        private readonly ResolvedGoBizConfig _cfg;
+        public FakeConfigProvider(ResolvedGoBizConfig cfg) => _cfg = cfg;
+        public Task<ResolvedGoBizConfig> GetByBusinessAsync(Guid businessId, CancellationToken ct = default) => Task.FromResult(_cfg);
+        public Task<ResolvedGoBizConfig> GetByOutletAsync(Guid outletId, CancellationToken ct = default) => Task.FromResult(_cfg);
+    }
 
     private static NameValueCollection ParseQuery(string queryString)
     {

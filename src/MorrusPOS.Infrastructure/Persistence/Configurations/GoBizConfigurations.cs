@@ -107,6 +107,33 @@ public class GoBizProductMappingConfiguration : IEntityTypeConfiguration<GoBizPr
     }
 }
 
+public class GoBizClientConfigConfiguration : IEntityTypeConfiguration<GoBizClientConfig>
+{
+    public void Configure(EntityTypeBuilder<GoBizClientConfig> builder)
+    {
+        builder.ToTable("gobiz_client_configs");
+        builder.HasKey(x => x.Id);
+        builder.HasIndex(x => x.BusinessId).IsUnique();
+        builder.Property(x => x.Environment).HasMaxLength(50).IsRequired();
+        builder.Property(x => x.ClientId).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.ClientSecretProtected).HasColumnType("text").IsRequired();
+        builder.Property(x => x.PartnerId).HasMaxLength(150).IsRequired();
+        builder.Property(x => x.AuthorizationUrl).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.TokenUrl).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.ApiBaseUrl).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.RedirectUri).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.Scope).HasMaxLength(1000).IsRequired();
+        builder.Property(x => x.UserType).HasMaxLength(50).IsRequired();
+        builder.Property(x => x.Prompt).HasMaxLength(50).IsRequired();
+        builder.Property(x => x.WebhookSecretProtected).HasColumnType("text");
+
+        builder.HasOne(x => x.Business)
+            .WithMany()
+            .HasForeignKey(x => x.BusinessId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
 public class GoBizOrderInboxConfiguration : IEntityTypeConfiguration<GoBizOrderInbox>
 {
     public void Configure(EntityTypeBuilder<GoBizOrderInbox> builder)

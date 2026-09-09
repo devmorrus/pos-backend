@@ -4,55 +4,56 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using MorrusPOS.Application.Features.Channels;
-using MorrusPOS.Infrastructure.Options;
 
 namespace MorrusPOS.Infrastructure.Services;
 
 public sealed class GoBizDirectAuthService : IGoBizDirectAuthService
 {
-    private const string CacheKey = "gobiz:direct:access-token";
+    private const string CacheKeyPrefix = "gobiz:direct:access-token";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly HttpClient _httpClient;
     private readonly IMemoryCache _cache;
     private readonly ILogger<GoBizDirectAuthService> _logger;
-    private readonly GoBizOptions _options;
+    private readonly IGoBizConfigProvider _configProvider;
 
     public GoBizDirectAuthService(
         HttpClient httpClient,
         IMemoryCache cache,
         ILogger<GoBizDirectAuthService> logger,
-        IOptions<GoBizOptions> options)
+        IGoBizConfigProvider configProvider)
     {
         _httpClient = httpClient;
         _cache = cache;
         _logger = logger;
-        _options = options.Value;
-        _httpClient.Timeout = TimeSpan.FromSeconds(Math.Max(1, _options.RequestTimeoutSeconds));
+        _configProvider = configProvider;
+        _httpClient.Timeout = TimeSpan.FromSeconds(30);
     }
 
-    public async Task<GoBizDirectAccessToken> GetAccessTokenAsync(bool forceRefresh = false, CancellationToken ct = default)
+    public async Task<GoBizDirectAccessToken> GetAccessTokenAsync(Guid outletId, bool forceRefresh = false, CancellationToken ct = default)
     {
-        EnsureConfigured();
+        var cfg = await _configProvider.GetByOutletAsync(outletId, ct);
+        EnsureConfigured(cfg);
+        _httpClient.Timeout = TimeSpan.FromSeconds(Math.Max(1, cfg.RequestTimeoutSeconds));
 
-        var cacheKey = $"{CacheKey}:{_options.Environment}";
+        var businessKey = cfg.BusinessId?.ToString() ?? outletId.ToString();
+        var cacheKey = $"{CacheKeyPrefix}:{businessKey}:{cfg.Environment}";
         if (!forceRefresh && _cache.TryGetValue(cacheKey, out GoBizDirectAccessToken? cached) && cached != null)
         {
             return cached;
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, _options.TokenUrl)
+        using var request = new HttpRequestMessage(HttpMethod.Post, cfg.TokenUrl)
         {
             Content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["grant_type"] = "client_credentials",
-                ["scope"] = _options.Scope
+                ["scope"] = cfg.Scope
             })
         };
 
-        var basicAuth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_options.ClientId}:{_options.ClientSecret}"));
+        var basicAuth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{cfg.ClientId}:{cfg.ClientSecret}"));
         request.Headers.Authorization = new AuthenticationHeaderValue("Basic", basicAuth);
 
         using var response = await _httpClient.SendAsync(request, ct);
@@ -60,7 +61,7 @@ public sealed class GoBizDirectAuthService : IGoBizDirectAuthService
 
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogWarning("GoBiz direct token request failed. Status={StatusCode}.", (int)response.StatusCode);
+            _logger.LogWarning("GoBiz direct token request failed. Outlet={OutletId}. Status={StatusCode}.", outletId, (int)response.StatusCode);
             throw new InvalidOperationException($"Gagal mengambil access token GoBiz direct integration. Status={(int)response.StatusCode}. Response={payload}");
         }
 
@@ -77,28 +78,28 @@ public sealed class GoBizDirectAuthService : IGoBizDirectAuthService
         var result = new GoBizDirectAccessToken(
             tokenPayload.AccessToken,
             string.IsNullOrWhiteSpace(tokenPayload.TokenType) ? "bearer" : tokenPayload.TokenType,
-            tokenPayload.Scope ?? _options.Scope,
+            tokenPayload.Scope ?? cfg.Scope,
             expiresAtUtc);
 
-        var cacheSeconds = Math.Max(30, expiresIn - Math.Max(0, _options.TokenRefreshSkewSeconds));
+        var cacheSeconds = Math.Max(30, expiresIn - Math.Max(0, cfg.TokenRefreshSkewSeconds));
         _cache.Set(cacheKey, result, TimeSpan.FromSeconds(cacheSeconds));
         return result;
     }
 
-    public async Task<GoBizDirectTokenStatusDto> TestTokenAsync(CancellationToken ct = default)
+    public async Task<GoBizDirectTokenStatusDto> TestTokenAsync(Guid outletId, CancellationToken ct = default)
     {
-        var token = await GetAccessTokenAsync(forceRefresh: true, ct);
+        var token = await GetAccessTokenAsync(outletId, forceRefresh: true, ct);
         return new GoBizDirectTokenStatusDto(true, token.TokenType, token.Scope, token.ExpiresAtUtc);
     }
 
-    private void EnsureConfigured()
+    private static void EnsureConfigured(ResolvedGoBizConfig cfg)
     {
-        if (string.IsNullOrWhiteSpace(_options.ClientId) ||
-            string.IsNullOrWhiteSpace(_options.ClientSecret) ||
-            string.IsNullOrWhiteSpace(_options.TokenUrl) ||
-            string.IsNullOrWhiteSpace(_options.Scope))
+        if (string.IsNullOrWhiteSpace(cfg.ClientId) ||
+            string.IsNullOrWhiteSpace(cfg.ClientSecret) ||
+            string.IsNullOrWhiteSpace(cfg.TokenUrl) ||
+            string.IsNullOrWhiteSpace(cfg.Scope))
         {
-            throw new InvalidOperationException("Konfigurasi GoBiz direct integration belum lengkap.");
+            throw new InvalidOperationException("Konfigurasi GoBiz direct integration belum lengkap. Isi kredensial per-Business di menu Integrasi GoBiz.");
         }
     }
 

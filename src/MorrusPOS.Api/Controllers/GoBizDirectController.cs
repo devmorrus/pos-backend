@@ -34,8 +34,11 @@ public class GoBizDirectController : ControllerBase
     }
 
     [HttpGet("token/test")]
-    public async Task<ActionResult<GoBizDirectTokenStatusDto>> TestToken(CancellationToken ct)
-        => Ok(await _authService.TestTokenAsync(ct));
+    public async Task<ActionResult<GoBizDirectTokenStatusDto>> TestToken([FromQuery] Guid outletId, CancellationToken ct)
+    {
+        if (outletId == Guid.Empty) return BadRequest(new { message = "outletId wajib diisi." });
+        return Ok(await _authService.TestTokenAsync(outletId, ct));
+    }
 
     [HttpGet("catalog/external")]
     public async Task<ActionResult<GoBizExternalCatalogDto>> GetExternalCatalog([FromQuery] Guid outletId, CancellationToken ct)

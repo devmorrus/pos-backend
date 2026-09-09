@@ -61,10 +61,13 @@ public static class DependencyInjection
         services.AddScoped<IChannelAccountService, ChannelAccountService>();
         services.AddScoped<IChannelSettlementService, ChannelSettlementService>();
         services.AddMemoryCache();
+        services.AddDataProtection();
         services.AddOptions<GoBizOptions>()
             .Bind(config.GetSection(GoBizOptions.SectionName))
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<GoBizOptions>, GoBizOptionsValidator>();
+        services.AddScoped<IGoBizConfigProvider, GoBizConfigProvider>();
+        services.AddScoped<IGoBizClientConfigService, GoBizClientConfigService>();
         services.AddScoped<IGoBizOAuthStateStore, GoBizOAuthStateStore>();
         services.AddScoped<IGoBizAuthService, GoBizAuthService>();
         services.AddHttpClient<IGoBizOAuthService, GoBizOAuthService>();

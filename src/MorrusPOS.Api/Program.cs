@@ -172,11 +172,19 @@ using (var scope = app.Services.CreateScope())
 {
     var goBizOptions = scope.ServiceProvider.GetRequiredService<IOptions<GoBizOptions>>().Value;
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    logger.LogInformation("GoBiz OAuth configured. Environment={Environment}. RedirectUri={RedirectUri}. ClientIdConfigured={ClientIdConfigured}. ClientSecretConfigured={ClientSecretConfigured}",
+    int dbConfigCount = 0;
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<MorrusPOS.Infrastructure.Persistence.AppDbContext>();
+        dbConfigCount = db.Set<MorrusPOS.Domain.Entities.GoBizClientConfig>().Count(x => x.IsActive);
+    }
+    catch { /* DB belum migrate saat startup awal */ }
+    logger.LogInformation("GoBiz configured. DbConfigs={DbConfigs}. FallbackEnv={Env}. FallbackClientId={HasClientId}. FallbackSecret={HasSecret}. RedirectUri={RedirectUri}",
+        dbConfigCount,
         goBizOptions.Environment,
-        goBizOptions.RedirectUri,
         !string.IsNullOrWhiteSpace(goBizOptions.ClientId),
-        !string.IsNullOrWhiteSpace(goBizOptions.ClientSecret));
+        !string.IsNullOrWhiteSpace(goBizOptions.ClientSecret),
+        goBizOptions.RedirectUri);
 }
 
 Console.WriteLine($"[DIAGNOSTIC] Current Directory: {Directory.GetCurrentDirectory()}");
