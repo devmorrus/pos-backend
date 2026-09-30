@@ -87,3 +87,29 @@ public class GoBizOrderInbox : BaseEntity
     public DateTime ReceivedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? ProcessedAtUtc { get; set; }
 }
+
+/// <summary>
+/// Kredensial GoBiz per-Business (Opsi B multi-tenant).
+/// Satu Business = satu baris config. Sumber kebenaran utama;
+/// appsettings.json / Env Var hanya jadi fallback kalau baris belum ada.
+/// Secret disimpan terenkripsi via IDataProtection (lihat GoBizClientConfigService).
+/// </summary>
+public class GoBizClientConfig : AuditableEntity
+{
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
+
+    public string Environment { get; set; } = "Sandbox";
+    public string ClientId { get; set; } = default!;
+    public string ClientSecretProtected { get; set; } = default!;
+    public string PartnerId { get; set; } = default!;
+    public string AuthorizationUrl { get; set; } = default!;
+    public string TokenUrl { get; set; } = default!;
+    public string ApiBaseUrl { get; set; } = default!;
+    public string RedirectUri { get; set; } = default!;
+    public string Scope { get; set; } = "openid";
+    public string UserType { get; set; } = "merchant";
+    public string Prompt { get; set; } = "login";
+    public string? WebhookSecretProtected { get; set; }
+    public bool IsActive { get; set; } = true;
+}

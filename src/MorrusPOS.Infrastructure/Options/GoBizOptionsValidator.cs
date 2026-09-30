@@ -14,14 +14,22 @@ public sealed class GoBizOptionsValidator : IValidateOptions<GoBizOptions>
 
     public ValidateOptionsResult Validate(string? name, GoBizOptions options)
     {
+        // Opsi B: appsettings hanya fallback. ClientId/Secret/PartnerId boleh kosong
+        // karena sumber utama adalah DB per-Business (gobiz_client_configs).
+        // Validasi di sini hanya format, bukan kelengkapan kredensial.
         var errors = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(options.ClientId)) errors.Add("GoBiz:ClientId is required.");
-        if (string.IsNullOrWhiteSpace(options.ClientSecret)) errors.Add("GoBiz:ClientSecret is required.");
-        if (string.IsNullOrWhiteSpace(options.RedirectUri)) errors.Add("GoBiz:RedirectUri is required.");
-        if (string.IsNullOrWhiteSpace(options.AuthorizationUrl)) errors.Add("GoBiz:AuthorizationUrl is required.");
-        if (string.IsNullOrWhiteSpace(options.TokenUrl)) errors.Add("GoBiz:TokenUrl is required.");
-        if (string.IsNullOrWhiteSpace(options.ApiBaseUrl)) errors.Add("GoBiz:ApiBaseUrl is required.");
+        if (!string.IsNullOrWhiteSpace(options.AuthorizationUrl) &&
+            !Uri.TryCreate(options.AuthorizationUrl, UriKind.Absolute, out _))
+        {
+            errors.Add("GoBiz:AuthorizationUrl must be an absolute URI.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.TokenUrl) &&
+            !Uri.TryCreate(options.TokenUrl, UriKind.Absolute, out _))
+        {
+            errors.Add("GoBiz:TokenUrl must be an absolute URI.");
+        }
 
         if (!string.IsNullOrWhiteSpace(options.ApiBaseUrl) &&
             !Uri.TryCreate(options.ApiBaseUrl, UriKind.Absolute, out _))

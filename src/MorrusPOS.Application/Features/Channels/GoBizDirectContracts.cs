@@ -3,7 +3,8 @@ namespace MorrusPOS.Application.Features.Channels;
 
 public record GoBizDirectConnectRequest(
     Guid OutletId,
-    string GoBizOutletId
+    string GoBizOutletId,
+    string? PartnerId = null
 );
 
 public record GoBizDirectStatusDto(
@@ -83,8 +84,8 @@ public record GoBizWebhookOrderRequest(
 
 public interface IGoBizDirectAuthService
 {
-    Task<GoBizDirectAccessToken> GetAccessTokenAsync(bool forceRefresh = false, CancellationToken ct = default);
-    Task<GoBizDirectTokenStatusDto> TestTokenAsync(CancellationToken ct = default);
+    Task<GoBizDirectAccessToken> GetAccessTokenAsync(Guid outletId, bool forceRefresh = false, CancellationToken ct = default);
+    Task<GoBizDirectTokenStatusDto> TestTokenAsync(Guid outletId, CancellationToken ct = default);
 }
 
 public record GoBizDirectAccessToken(
@@ -96,8 +97,8 @@ public record GoBizDirectAccessToken(
 
 public interface IGoBizApiClient
 {
-    Task<JsonDocument> GetCatalogAsync(string goBizOutletId, CancellationToken ct = default);
-    Task<JsonDocument> UpdateCatalogAsync(string goBizOutletId, JsonElement payload, CancellationToken ct = default);
+    Task<JsonDocument> GetCatalogAsync(Guid outletId, string goBizOutletId, CancellationToken ct = default);
+    Task<JsonDocument> UpdateCatalogAsync(Guid outletId, string goBizOutletId, JsonElement payload, CancellationToken ct = default);
 }
 
 public interface IGoBizDirectIntegrationService

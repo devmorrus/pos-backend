@@ -40,6 +40,8 @@ public static class DependencyInjection
         services.AddScoped<IProductService, ProductService>();
         services.AddScoped<IInventoryService, InventoryService>();
         services.AddScoped<IStockService, StockService>();
+        services.AddScoped<IOnlineStockAvailabilityService, OnlineStockAvailabilityService>();
+        services.AddScoped<IBufferStockService, BufferStockService>();
         services.AddScoped<ICashierSessionService, CashierSessionService>();
         services.AddScoped<ITransactionService, TransactionService>();
         services.AddScoped<IPricingService, PricingService>();
@@ -61,10 +63,13 @@ public static class DependencyInjection
         services.AddScoped<IChannelAccountService, ChannelAccountService>();
         services.AddScoped<IChannelSettlementService, ChannelSettlementService>();
         services.AddMemoryCache();
+        services.AddDataProtection();
         services.AddOptions<GoBizOptions>()
             .Bind(config.GetSection(GoBizOptions.SectionName))
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<GoBizOptions>, GoBizOptionsValidator>();
+        services.AddScoped<IGoBizConfigProvider, GoBizConfigProvider>();
+        services.AddScoped<IGoBizClientConfigService, GoBizClientConfigService>();
         services.AddScoped<IGoBizOAuthStateStore, GoBizOAuthStateStore>();
         services.AddScoped<IGoBizAuthService, GoBizAuthService>();
         services.AddHttpClient<IGoBizOAuthService, GoBizOAuthService>();

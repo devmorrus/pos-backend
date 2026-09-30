@@ -1,5 +1,8 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using MorrusPOS.Application.Features.Channels;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -9,10 +12,17 @@ namespace MorrusPOS.Infrastructure.Services;
 public sealed class GoBizOrderWebhookService : IGoBizOrderWebhookService
 {
     private readonly AppDbContext _dbContext;
+    private readonly IGoBizConfigProvider _configProvider;
+    private readonly ILogger<GoBizOrderWebhookService> _logger;
 
-    public GoBizOrderWebhookService(AppDbContext dbContext)
+    public GoBizOrderWebhookService(
+        AppDbContext dbContext,
+        IGoBizConfigProvider configProvider,
+        ILogger<GoBizOrderWebhookService> logger)
     {
         _dbContext = dbContext;
+        _configProvider = configProvider;
+        _logger = logger;
     }
 
     public async Task ProcessWebhookAsync(string rawBody, IReadOnlyDictionary<string, string> headers, CancellationToken ct = default)
@@ -40,6 +50,9 @@ public sealed class GoBizOrderWebhookService : IGoBizOrderWebhookService
 
         var integration = await _dbContext.GoBizDirectIntegrations.FirstOrDefaultAsync(x => x.GoBizOutletId == goBizOutletId && x.IsActive, ct)
             ?? throw new InvalidOperationException("Outlet GoBiz belum terhubung ke outlet Morrus POS.");
+
+        // Opsi B: verifikasi signature per-Business (jika WebhookSecret dikonfigurasi).
+        await VerifySignatureAsync(integration.OutletId, rawBody, headers, ct);
 
         var existing = await _dbContext.GoBizOrderInboxes.FirstOrDefaultAsync(x => x.GoBizOrderId == orderId, ct);
         if (existing is not null)
@@ -86,5 +99,40 @@ public sealed class GoBizOrderWebhookService : IGoBizOrderWebhookService
         }
 
         return null;
+    }
+
+    private async Task VerifySignatureAsync(Guid outletId, string rawBody, IReadOnlyDictionary<string, string> headers, CancellationToken ct)
+    {
+        ResolvedGoBizConfig cfg;
+        try
+        {
+            cfg = await _configProvider.GetByOutletAsync(outletId, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "GoBiz webhook: gagal resolve config untuk outlet {OutletId}.", outletId);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(cfg.WebhookSecret))
+        {
+            _logger.LogWarning("GoBiz webhook tanpa verifikasi signature untuk outlet {OutletId} (WebhookSecret belum dikonfigurasi, Source={Source}).", outletId, cfg.Source);
+            return;
+        }
+
+        headers.TryGetValue("x-gobiz-signature", out var sig1);
+        headers.TryGetValue("x-gojek-signature", out var sig2);
+        headers.TryGetValue("signature", out var sig3);
+        var provided = sig1 ?? sig2 ?? sig3;
+        if (string.IsNullOrWhiteSpace(provided))
+            throw new InvalidOperationException("Signature webhook GoBiz tidak ditemukan.");
+
+        var expected = "sha256=" + Convert.ToHexString(
+            HMACSHA256.HashData(Encoding.UTF8.GetBytes(cfg.WebhookSecret), Encoding.UTF8.GetBytes(rawBody))).ToLowerInvariant();
+        var providedNorm = provided.Trim();
+        var expectedBytes = Encoding.UTF8.GetBytes(expected);
+        var providedBytes = Encoding.UTF8.GetBytes(providedNorm.StartsWith("sha256=", StringComparison.OrdinalIgnoreCase) ? providedNorm : "sha256=" + providedNorm);
+        if (!CryptographicOperations.FixedTimeEquals(expectedBytes, providedBytes))
+            throw new InvalidOperationException("Signature webhook GoBiz tidak valid.");
     }
 }

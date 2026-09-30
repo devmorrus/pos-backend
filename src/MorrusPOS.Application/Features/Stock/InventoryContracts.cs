@@ -2,6 +2,7 @@ namespace MorrusPOS.Application.Features.Stock;
 
 public record InventoryListItemDto(
     Guid ProductId,
+    Guid? ProductVariantId,
     string Sku,
     string ProductName,
     Guid CategoryId,

@@ -50,6 +50,7 @@ public class AppDbContext : DbContext
     public DbSet<StockOpnameItem> StockOpnameItems => Set<StockOpnameItem>();
     public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
     public DbSet<StockTransferItem> StockTransferItems => Set<StockTransferItem>();
+    public DbSet<ChannelStockPolicy> ChannelStockPolicies => Set<ChannelStockPolicy>();
 
     // Fase 3-4 — Supplier & Pembelian
     public DbSet<Supplier> Suppliers => Set<Supplier>();
@@ -75,6 +76,7 @@ public class AppDbContext : DbContext
     public DbSet<IntegrationLog> IntegrationLogs => Set<IntegrationLog>();
     public DbSet<GoBizIntegration> GoBizIntegrations => Set<GoBizIntegration>();
     public DbSet<GoBizOAuthState> GoBizOAuthStates => Set<GoBizOAuthState>();
+    public DbSet<GoBizClientConfig> GoBizClientConfigs => Set<GoBizClientConfig>();
     public DbSet<GoBizDirectIntegration> GoBizDirectIntegrations => Set<GoBizDirectIntegration>();
     public DbSet<GoBizProductMapping> GoBizProductMappings => Set<GoBizProductMapping>();
     public DbSet<GoBizOrderInbox> GoBizOrderInboxes => Set<GoBizOrderInbox>();
@@ -125,6 +127,7 @@ public class AppDbContext : DbContext
         // SaaS Scoping for Stocks & Inventory
         modelBuilder.Entity<InventoryStock>().HasQueryFilter(stock => CurrentBusinessId == null || stock.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<StockLedger>().HasQueryFilter(sl => CurrentBusinessId == null || sl.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<ChannelStockPolicy>().HasQueryFilter(policy => CurrentBusinessId == null || policy.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<StockOpname>().HasQueryFilter(so => CurrentBusinessId == null || so.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<StockTransfer>().HasQueryFilter(st => CurrentBusinessId == null || st.FromOutlet.BusinessId == CurrentBusinessId || st.ToOutlet.BusinessId == CurrentBusinessId);
 
@@ -146,6 +149,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<ChannelSettlement>().HasQueryFilter(cset => CurrentBusinessId == null || cset.ChannelAccount.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<GoBizIntegration>().HasQueryFilter(gi => CurrentBusinessId == null || gi.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<GoBizOAuthState>().HasQueryFilter(gs => CurrentBusinessId == null || gs.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<GoBizClientConfig>().HasQueryFilter(c => CurrentBusinessId == null || c.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<GoBizDirectIntegration>().HasQueryFilter(gi => CurrentBusinessId == null || gi.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<GoBizProductMapping>().HasQueryFilter(gm => CurrentBusinessId == null || gm.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<GoBizOrderInbox>().HasQueryFilter(go => CurrentBusinessId == null || go.Outlet.BusinessId == CurrentBusinessId);

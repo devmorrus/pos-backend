@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MorrusPOS.Infrastructure.Persistence;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MorrusPOS.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260909033630_AddGoBizClientConfig")]
+    partial class AddGoBizClientConfig
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -507,59 +510,6 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("channel_settlement_items", (string)null);
-                });
-
-            modelBuilder.Entity("MorrusPOS.Domain.Entities.ChannelStockPolicy", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("BufferQty")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsEnabled")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<Guid>("OutletId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ProductVariantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("UpdatedBy")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OutletId");
-
-                    b.HasIndex("ProductId");
-
-                    b.HasIndex("ProductVariantId");
-
-                    b.HasIndex("UpdatedBy");
-
-                    b.HasIndex("OutletId", "ProductId")
-                        .IsUnique()
-                        .HasFilter("\"ProductVariantId\" IS NULL");
-
-                    b.HasIndex("OutletId", "ProductId", "ProductVariantId")
-                        .IsUnique()
-                        .HasFilter("\"ProductVariantId\" IS NOT NULL");
-
-                    b.ToTable("channel_stock_policies", (string)null);
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ChartOfAccount", b =>
@@ -3713,40 +3663,6 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("ChannelSettlement");
 
                     b.Navigation("Transaction");
-                });
-
-            modelBuilder.Entity("MorrusPOS.Domain.Entities.ChannelStockPolicy", b =>
-                {
-                    b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
-                        .WithMany()
-                        .HasForeignKey("OutletId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("MorrusPOS.Domain.Entities.ProductVariant", "ProductVariant")
-                        .WithMany()
-                        .HasForeignKey("ProductVariantId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("MorrusPOS.Domain.Entities.User", "UpdatedByUser")
-                        .WithMany()
-                        .HasForeignKey("UpdatedBy")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Outlet");
-
-                    b.Navigation("Product");
-
-                    b.Navigation("ProductVariant");
-
-                    b.Navigation("UpdatedByUser");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ChartOfAccount", b =>

@@ -1,7 +1,6 @@
 using MorrusPOS.Application.Features.Channels;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.Extensions.Options;
-using MorrusPOS.Infrastructure.Options;
+using MorrusPOS.Infrastructure.Services;
 
 namespace MorrusPOS.Infrastructure.Services;
 
@@ -12,28 +11,29 @@ public interface IGoBizAuthService
 
 public sealed class GoBizAuthService : IGoBizAuthService
 {
-    private readonly GoBizOptions _options;
+    private readonly IGoBizConfigProvider _configProvider;
     private readonly IGoBizOAuthStateStore _stateStore;
 
-    public GoBizAuthService(IOptions<GoBizOptions> options, IGoBizOAuthStateStore stateStore)
+    public GoBizAuthService(IGoBizConfigProvider configProvider, IGoBizOAuthStateStore stateStore)
     {
-        _options = options.Value;
+        _configProvider = configProvider;
         _stateStore = stateStore;
     }
 
     public async Task<GoBizConnectUrlResponse> CreateAuthorizationUrlAsync(Guid outletId, Guid? businessId, CancellationToken ct = default)
     {
         var state = await _stateStore.CreateAsync(outletId, businessId, TimeSpan.FromMinutes(10), ct);
+        var cfg = await _configProvider.GetByOutletAsync(outletId, ct);
 
-        var url = QueryHelpers.AddQueryString(_options.AuthorizationUrl, new Dictionary<string, string?>
+        var url = QueryHelpers.AddQueryString(cfg.AuthorizationUrl, new Dictionary<string, string?>
         {
-            ["client_id"] = _options.ClientId,
+            ["client_id"] = cfg.ClientId,
             ["response_type"] = "code",
-            ["scope"] = string.IsNullOrWhiteSpace(_options.Scope) ? "openid" : _options.Scope,
+            ["scope"] = string.IsNullOrWhiteSpace(cfg.Scope) ? "openid" : cfg.Scope,
             ["state"] = state.State,
-            ["redirect_uri"] = _options.RedirectUri,
-            ["user_type"] = string.IsNullOrWhiteSpace(_options.UserType) ? "merchant" : _options.UserType,
-            ["prompt"] = string.IsNullOrWhiteSpace(_options.Prompt) ? "login" : _options.Prompt
+            ["redirect_uri"] = cfg.RedirectUri,
+            ["user_type"] = string.IsNullOrWhiteSpace(cfg.UserType) ? "merchant" : cfg.UserType,
+            ["prompt"] = string.IsNullOrWhiteSpace(cfg.Prompt) ? "login" : cfg.Prompt
         });
 
         return new GoBizConnectUrlResponse(url, state.State, state.ExpiresAtUtc);

@@ -26,6 +26,7 @@ public class InventoryService : IInventoryService
             .AsNoTracking()
             .Include(stock => stock.Product)
                 .ThenInclude(product => product.Category)
+            .Include(stock => stock.ProductVariant)
             .Where(stock => stock.OutletId == outletId && stock.Product.IsActive);
 
         if (!includeZeroStock)
@@ -43,18 +44,21 @@ public class InventoryService : IInventoryService
             query = query.Where(stock =>
                 stock.Product.Name.ToLower().Contains(normalizedSearch) ||
                 stock.Product.Sku.ToLower().Contains(normalizedSearch) ||
-                (stock.Product.Barcode != null && stock.Product.Barcode.ToLower().Contains(normalizedSearch)));
+                (stock.Product.Barcode != null && stock.Product.Barcode.ToLower().Contains(normalizedSearch)) ||
+                (stock.ProductVariant != null && stock.ProductVariant.Sku.ToLower().Contains(normalizedSearch)));
         }
 
         var rows = await query
             .OrderBy(stock => stock.Product.Name)
+            .ThenBy(stock => stock.ProductVariant != null ? stock.ProductVariant.Sku : string.Empty)
             .Select(stock => new InventoryListItemDto(
                 stock.ProductId,
-                stock.Product.Sku,
+                stock.ProductVariantId,
+                stock.ProductVariant != null ? stock.ProductVariant.Sku : stock.Product.Sku,
                 stock.Product.Name,
                 stock.Product.CategoryId,
                 stock.Product.Category.Name,
-                stock.Product.Barcode,
+                stock.ProductVariant != null ? stock.ProductVariant.Barcode ?? stock.Product.Barcode : stock.Product.Barcode,
                 stock.Product.Unit,
                 stock.Product.IsConsignment,
                 stock.QtyOnHand,
