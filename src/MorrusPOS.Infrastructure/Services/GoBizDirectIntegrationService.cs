@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Channels;
+using MorrusPOS.Application.Features.Stock;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
 
@@ -17,17 +18,20 @@ public sealed class GoBizDirectIntegrationService : IGoBizDirectIntegrationServi
     private readonly ICurrentUserService _currentUserService;
     private readonly IGoBizApiClient _apiClient;
     private readonly IGoBizConfigProvider _configProvider;
+    private readonly IOnlineStockAvailabilityService _availabilityService;
 
     public GoBizDirectIntegrationService(
         AppDbContext dbContext,
         ICurrentUserService currentUserService,
         IGoBizApiClient apiClient,
-        IGoBizConfigProvider configProvider)
+        IGoBizConfigProvider configProvider,
+        IOnlineStockAvailabilityService availabilityService)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
         _apiClient = apiClient;
         _configProvider = configProvider;
+        _availabilityService = availabilityService;
     }
 
     public async Task<GoBizDirectStatusDto> GetStatusAsync(Guid outletId, CancellationToken ct = default)
@@ -201,15 +205,28 @@ public sealed class GoBizDirectIntegrationService : IGoBizDirectIntegrationServi
             .OrderBy(p => p.Category!.Name).ThenBy(p => p.Name)
             .ToListAsync(ct);
 
-        var stocks = await _dbContext.InventoryStocks
-            .AsNoTracking()
-            .Where(x => x.OutletId == outletId)
-            .ToListAsync(ct);
-        var stockByProduct = stocks.GroupBy(x => x.ProductId).ToDictionary(x => x.Key, x => x.Sum(s => s.QtyOnHand));
-        var stockByVariant = stocks
-            .Where(x => x.ProductVariantId.HasValue)
-            .GroupBy(x => x.ProductVariantId!.Value)
-            .ToDictionary(x => x.Key, x => x.Sum(s => s.QtyOnHand));
+        // Buffer stock: ketersediaan online = max(0, QtyOnHand - BufferQty).
+        // Jika tidak ada policy, buffer dianggap 0 (fallback ke stok fisik).
+        var availabilityMap = await _availabilityService.GetAvailabilityMapAsync(outletId, ct);
+
+        static decimal GetOnlineQty(
+            IReadOnlyDictionary<OnlineStockKey, OnlineStockAvailabilityDto> map,
+            Guid productId,
+            Guid? variantId)
+        {
+            if (map.TryGetValue(new OnlineStockKey(productId, variantId), out var exact))
+            {
+                return exact.AvailableOnlineQty;
+            }
+
+            // Fallback policy produk induk untuk varian (konsisten dengan BufferStockService).
+            if (variantId.HasValue && map.TryGetValue(new OnlineStockKey(productId, null), out var parent))
+            {
+                return parent.AvailableOnlineQty;
+            }
+
+            return 0;
+        }
 
         var errors = new List<string>();
         var duplicateSkus = products
@@ -276,7 +293,7 @@ public sealed class GoBizDirectIntegrationService : IGoBizDirectIntegrationServi
                 errors.Add($"Produk {product.Name} kategorinya tidak valid/tidak aktif.");
                 continue;
             }
-            var isAvailable = stockByProduct.GetValueOrDefault(product.Id) > 0;
+            var isAvailable = GetOnlineQty(availabilityMap, product.Id, null) > 0;
             var variantCategoryIds = new List<string>();
 
             if (product.HasVariants && product.Variants.Count > 0)
@@ -311,7 +328,9 @@ public sealed class GoBizDirectIntegrationService : IGoBizDirectIntegrationServi
                         continue;
                     }
 
-                    var variantInStock = stockByVariant.GetValueOrDefault(variant.Id) > 0 || isAvailable;
+                    // Jangan fallback ke stok parent: varian hanya tersedia
+                    // jika stok online varian itu sendiri > 0.
+                    var variantInStock = GetOnlineQty(availabilityMap, product.Id, variant.Id) > 0;
                     var itemId = StableId("item", variant.Sku);
                     var item = CreateItem(
                         itemId,

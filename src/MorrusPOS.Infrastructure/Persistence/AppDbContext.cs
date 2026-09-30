@@ -50,6 +50,7 @@ public class AppDbContext : DbContext
     public DbSet<StockOpnameItem> StockOpnameItems => Set<StockOpnameItem>();
     public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
     public DbSet<StockTransferItem> StockTransferItems => Set<StockTransferItem>();
+    public DbSet<ChannelStockPolicy> ChannelStockPolicies => Set<ChannelStockPolicy>();
 
     // Fase 3-4 — Supplier & Pembelian
     public DbSet<Supplier> Suppliers => Set<Supplier>();
@@ -126,6 +127,7 @@ public class AppDbContext : DbContext
         // SaaS Scoping for Stocks & Inventory
         modelBuilder.Entity<InventoryStock>().HasQueryFilter(stock => CurrentBusinessId == null || stock.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<StockLedger>().HasQueryFilter(sl => CurrentBusinessId == null || sl.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<ChannelStockPolicy>().HasQueryFilter(policy => CurrentBusinessId == null || policy.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<StockOpname>().HasQueryFilter(so => CurrentBusinessId == null || so.Outlet.BusinessId == CurrentBusinessId);
         modelBuilder.Entity<StockTransfer>().HasQueryFilter(st => CurrentBusinessId == null || st.FromOutlet.BusinessId == CurrentBusinessId || st.ToOutlet.BusinessId == CurrentBusinessId);
 

@@ -40,6 +40,8 @@ public static class DependencyInjection
         services.AddScoped<IProductService, ProductService>();
         services.AddScoped<IInventoryService, InventoryService>();
         services.AddScoped<IStockService, StockService>();
+        services.AddScoped<IOnlineStockAvailabilityService, OnlineStockAvailabilityService>();
+        services.AddScoped<IBufferStockService, BufferStockService>();
         services.AddScoped<ICashierSessionService, CashierSessionService>();
         services.AddScoped<ITransactionService, TransactionService>();
         services.AddScoped<IPricingService, PricingService>();

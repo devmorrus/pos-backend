@@ -34,6 +34,50 @@ public class InventoryStockConfiguration : IEntityTypeConfiguration<InventorySto
     }
 }
 
+public class ChannelStockPolicyConfiguration : IEntityTypeConfiguration<ChannelStockPolicy>
+{
+    public void Configure(EntityTypeBuilder<ChannelStockPolicy> builder)
+    {
+        builder.ToTable("channel_stock_policies");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.BufferQty).HasColumnType("decimal(12,2)");
+        builder.Property(x => x.IsEnabled).IsRequired().HasDefaultValue(true);
+
+        // Satu policy per outlet + produk (tanpa varian)
+        builder.HasIndex(x => new { x.OutletId, x.ProductId })
+            .IsUnique()
+            .HasFilter("\"ProductVariantId\" IS NULL");
+
+        // Satu policy per outlet + produk + varian
+        builder.HasIndex(x => new { x.OutletId, x.ProductId, x.ProductVariantId })
+            .IsUnique()
+            .HasFilter("\"ProductVariantId\" IS NOT NULL");
+
+        builder.HasIndex(x => x.OutletId);
+        builder.HasIndex(x => x.ProductId);
+
+        builder.HasOne(x => x.Outlet)
+            .WithMany()
+            .HasForeignKey(x => x.OutletId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.Product)
+            .WithMany()
+            .HasForeignKey(x => x.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.ProductVariant)
+            .WithMany()
+            .HasForeignKey(x => x.ProductVariantId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.UpdatedByUser)
+            .WithMany()
+            .HasForeignKey(x => x.UpdatedBy)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
 public class StockLedgerConfiguration : IEntityTypeConfiguration<StockLedger>
 {
     public void Configure(EntityTypeBuilder<StockLedger> builder)
