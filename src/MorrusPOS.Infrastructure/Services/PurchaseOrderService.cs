@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Accounting;
 using MorrusPOS.Application.Features.Suppliers;
+using MorrusPOS.Application.Features.Capabilities;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
 
@@ -15,19 +16,22 @@ public class PurchaseOrderService : IPurchaseOrderService
     private readonly ICurrentUserService _currentUserService;
     private readonly IPosNotificationService _notificationService;
     private readonly IAccountingIntegrationService? _accountingIntegrationService;
+    private readonly ICapabilityEvaluator? _capabilities;
 
     public PurchaseOrderService(
         AppDbContext dbContext,
         IStockService stockService,
         ICurrentUserService currentUserService,
         IPosNotificationService notificationService,
-        IAccountingIntegrationService? accountingIntegrationService = null)
+        IAccountingIntegrationService? accountingIntegrationService = null,
+        ICapabilityEvaluator? capabilities = null)
     {
         _dbContext = dbContext;
         _stockService = stockService;
         _currentUserService = currentUserService;
         _notificationService = notificationService;
         _accountingIntegrationService = accountingIntegrationService;
+        _capabilities = capabilities;
     }
 
     public async Task<PurchaseOrderDto> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -65,6 +69,8 @@ public class PurchaseOrderService : IPurchaseOrderService
 
     public async Task<PurchaseOrderDto> CreateAsync(Guid userId, CreatePurchaseOrderRequest request, CancellationToken ct = default)
     {
+        if (_capabilities is not null)
+            await _capabilities.EnsureEnabledAsync(CapabilityCodes.ProcurementPurchasing, request.OutletId, ct);
         await EnsureOutletAccessibleAsync(request.OutletId, ct);
 
         // 1. Validate Supplier & Outlet
@@ -157,6 +163,9 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         if (po == null)
             throw new InvalidOperationException("Purchase Order tidak ditemukan.");
+
+        if (_capabilities is not null)
+            await _capabilities.EnsureEnabledAsync(CapabilityCodes.ProcurementPurchasing, po.OutletId, ct);
 
         await EnsureOutletAccessibleAsync(po.OutletId, ct);
 
@@ -331,6 +340,9 @@ public class PurchaseOrderService : IPurchaseOrderService
 
     public async Task<PurchaseOrderDto> ReceiveGoodsAsync(Guid userId, Guid poId, ReceiveGoodsRequest request, CancellationToken ct = default)
     {
+        if (_capabilities is not null && request.Items.Any(x =>
+                !string.IsNullOrWhiteSpace(x.BatchNumber) || x.ExpiryDate.HasValue))
+            await _capabilities.EnsureEnabledAsync(CapabilityCodes.CatalogBatchExpiry, null, ct);
         var po = await _dbContext.PurchaseOrders
             .Include(p => p.Items).ThenInclude(i => i.Product)
             .Include(p => p.Items).ThenInclude(i => i.ProductVariant)
@@ -339,6 +351,9 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         if (po == null)
             throw new InvalidOperationException("Purchase Order tidak ditemukan.");
+
+        if (_capabilities is not null)
+            await _capabilities.EnsureEnabledAsync(CapabilityCodes.ProcurementPurchasing, po.OutletId, ct);
 
         await EnsureOutletAccessibleAsync(po.OutletId, ct);
 

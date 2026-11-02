@@ -6,12 +6,14 @@ using Microsoft.AspNetCore.Mvc;
 using MorrusPOS.Api.Security;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Reports;
+using MorrusPOS.Domain.Entities;
 
 namespace MorrusPOS.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
+[RequiresCapability(CapabilityCodes.ReportsOperational)]
 public class ReportsController : ControllerBase
 {
     private readonly IReportService _reportService;
@@ -25,6 +27,7 @@ public class ReportsController : ControllerBase
 
     [HttpGet("cash-flow")]
     [HasPermission("report.cashflow.view")]
+    [RequiresCapability(CapabilityCodes.ReportsAccounting)]
     public async Task<ActionResult<AccountingCashFlowReportDto>> GetCashFlow(
         [FromQuery] AccountingCashFlowReportFilters filters,
         CancellationToken ct = default)
@@ -36,6 +39,7 @@ public class ReportsController : ControllerBase
 
     [HttpGet("cash-flow/export-excel")]
     [HasPermission("report.cashflow.view")]
+    [RequiresCapability(CapabilityCodes.ReportsAccounting)]
     public async Task<IActionResult> ExportCashFlowExcel(
         [FromQuery] AccountingCashFlowReportFilters filters,
         CancellationToken ct = default)
@@ -47,6 +51,7 @@ public class ReportsController : ControllerBase
 
     [HttpGet("profit-loss")]
     [HasPermission("report.profitloss_accounting.view")]
+    [RequiresCapability(CapabilityCodes.ReportsAccounting)]
     public async Task<ActionResult<AccountingProfitLossReportDto>> GetProfitLoss(
         [FromQuery] AccountingProfitLossReportFilters filters,
         CancellationToken ct = default)
@@ -58,6 +63,7 @@ public class ReportsController : ControllerBase
 
     [HttpGet("profit-loss/export-excel")]
     [HasPermission("report.profitloss_accounting.view")]
+    [RequiresCapability(CapabilityCodes.ReportsAccounting)]
     public async Task<IActionResult> ExportProfitLossExcel(
         [FromQuery] AccountingProfitLossReportFilters filters,
         CancellationToken ct = default)
@@ -121,6 +127,7 @@ public class ReportsController : ControllerBase
 
     [HttpGet("general-ledger")]
     [HasPermission("report.profitloss_accounting.view")]
+    [RequiresCapability(CapabilityCodes.ReportsAccounting)]
     public async Task<ActionResult<GeneralLedgerReportDto>> GetGeneralLedger(
         [FromQuery] GeneralLedgerReportFilters filters,
         CancellationToken ct = default)
@@ -132,6 +139,7 @@ public class ReportsController : ControllerBase
 
     [HttpGet("general-ledger/export-excel")]
     [HasPermission("report.profitloss_accounting.view")]
+    [RequiresCapability(CapabilityCodes.ReportsAccounting)]
     public async Task<IActionResult> ExportGeneralLedgerExcel(
         [FromQuery] GeneralLedgerReportFilters filters,
         CancellationToken ct = default)

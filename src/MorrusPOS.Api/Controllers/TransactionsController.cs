@@ -3,12 +3,14 @@ using Microsoft.AspNetCore.Mvc;
 using MorrusPOS.Api.Security;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Transactions;
+using MorrusPOS.Domain.Entities;
 
 namespace MorrusPOS.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = "Owner,Admin,Kasir,Keuangan,KepalaCabang")]
+[RequiresCapability(CapabilityCodes.SalesTransactions)]
 public class TransactionsController : ControllerBase
 {
     private readonly ITransactionService _transactionService;
@@ -45,6 +47,7 @@ public class TransactionsController : ControllerBase
     }
 
     [HttpPost("checkout")]
+    [RequiresCapability(CapabilityCodes.SalesPos)]
     public async Task<ActionResult<TransactionDto>> Checkout(CheckoutRequest request, CancellationToken ct)
     {
         var result = await _transactionService.CheckoutAsync(request, ct);
@@ -52,6 +55,7 @@ public class TransactionsController : ControllerBase
     }
 
     [HttpPost("pricing-preview")]
+    [RequiresCapability(CapabilityCodes.SalesPos)]
     public async Task<ActionResult<PricingBreakdownDto>> PreviewPricing(PricingPreviewRequest request, CancellationToken ct)
     {
         var result = await _transactionService.PreviewPricingAsync(request, ct);

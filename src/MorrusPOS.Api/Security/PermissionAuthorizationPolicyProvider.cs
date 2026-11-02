@@ -27,7 +27,17 @@ public class PermissionAuthorizationPolicyProvider : DefaultAuthorizationPolicyP
             return policy;
         }
 
+        if (policyName.StartsWith(CapabilityPolicy.Prefix, StringComparison.Ordinal))
+        {
+            var capabilityCode = policyName[CapabilityPolicy.Prefix.Length..];
+            return new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .AddRequirements(new CapabilityRequirement(capabilityCode))
+                .Build();
+        }
+
         return new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
             .AddRequirements(new PermissionRequirement(policyName))
             .Build();
     }

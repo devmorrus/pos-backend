@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Stock;
+using MorrusPOS.Application.Features.Capabilities;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
 
@@ -12,17 +13,20 @@ public class StockTransferService : IStockTransferService
     private readonly IStockService _stockService;
     private readonly IPosNotificationService _notificationService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly ICapabilityEvaluator? _capabilityEvaluator;
 
     public StockTransferService(
         AppDbContext dbContext,
         IStockService stockService,
         IPosNotificationService notificationService,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        ICapabilityEvaluator? capabilityEvaluator = null)
     {
         _dbContext = dbContext;
         _stockService = stockService;
         _notificationService = notificationService;
         _currentUserService = currentUserService;
+        _capabilityEvaluator = capabilityEvaluator;
     }
 
     public async Task<StockTransferDto> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -75,6 +79,11 @@ public class StockTransferService : IStockTransferService
 
     public async Task<StockTransferDto> CreateAsync(Guid userId, CreateStockTransferRequest request, CancellationToken ct = default)
     {
+        if (_capabilityEvaluator is not null)
+        {
+            await _capabilityEvaluator.EnsureEnabledAsync(CapabilityCodes.InventoryTransfer, request.FromOutletId, ct);
+            await _capabilityEvaluator.EnsureEnabledAsync(CapabilityCodes.InventoryTransfer, request.ToOutletId, ct);
+        }
         if (request.FromOutletId == request.ToOutletId)
         {
             throw new InvalidOperationException("Outlet asal dan tujuan tidak boleh sama.");
@@ -166,6 +175,9 @@ public class StockTransferService : IStockTransferService
         {
             throw new InvalidOperationException("Transfer Stok tidak ditemukan.");
         }
+
+        if (_capabilityEvaluator is not null)
+            await _capabilityEvaluator.EnsureEnabledAsync(CapabilityCodes.InventoryTransfer, transfer.ToOutletId, ct);
 
         if (transfer.Status != StockTransferStatus.Pending)
         {

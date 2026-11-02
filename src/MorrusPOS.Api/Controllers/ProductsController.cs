@@ -3,12 +3,14 @@ using Microsoft.AspNetCore.Mvc;
 using MorrusPOS.Api.Security;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Products;
+using MorrusPOS.Domain.Entities;
 
 namespace MorrusPOS.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
+[RequiresCapability(CapabilityCodes.CatalogProducts)]
 public class ProductsController : ControllerBase
 {
     private readonly IProductService _productService;

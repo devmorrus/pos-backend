@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Channels;
+using MorrusPOS.Application.Features.Capabilities;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
 
@@ -24,6 +25,7 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
     private readonly IGoBizConfigProvider _configProvider;
     private readonly IGoBizAuthService _authService;
     private readonly IGoBizOAuthStateStore _stateStore;
+    private readonly ICapabilityEvaluator _capabilities;
 
     public GoBizOAuthService(
         AppDbContext dbContext,
@@ -34,7 +36,8 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
         ILogger<GoBizOAuthService> logger,
         IGoBizConfigProvider configProvider,
         IGoBizAuthService authService,
-        IGoBizOAuthStateStore stateStore)
+        IGoBizOAuthStateStore stateStore,
+        ICapabilityEvaluator capabilities)
     {
         _dbContext = dbContext;
         _systemDb = systemDb;
@@ -45,6 +48,7 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
         _configProvider = configProvider;
         _authService = authService;
         _stateStore = stateStore;
+        _capabilities = capabilities;
     }
 
     public Task<GoBizConnectUrlResponse> CreateConnectUrlAsync(Guid outletId, CancellationToken ct = default)
@@ -53,6 +57,7 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
     private async Task<GoBizConnectUrlResponse> CreateConnectUrlInternalAsync(Guid outletId, CancellationToken ct)
     {
         var outlet = await GetAccessibleOutletAsync(outletId, ct);
+        await _capabilities.EnsureEnabledAsync(CapabilityCodes.ChannelsGoBiz, outlet.Id, ct);
         var cfg = await _configProvider.GetByOutletAsync(outlet.Id, ct);
         EnsureConfigured(cfg);
 
@@ -87,6 +92,7 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
             .FirstOrDefaultAsync(ct)
             ?? throw new GoBizOAuthException("GOBIZ_STATE_INVALID", "Tenant OAuth GoBiz tidak dapat di-resolve.");
         _tenantContext.SetBusinessOverride(businessId);
+        await _capabilities.EnsureEnabledAsync(CapabilityCodes.ChannelsGoBiz, oauthState.OutletId, ct);
 
         var cfg = await _configProvider.GetByOutletAsync(oauthState.OutletId, ct);
         EnsureConfigured(cfg);
@@ -126,6 +132,7 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
     public async Task<GoBizConnectionStatusDto> GetStatusAsync(Guid outletId, CancellationToken ct = default)
     {
         await GetAccessibleOutletAsync(outletId, ct);
+        await _capabilities.EnsureEnabledAsync(CapabilityCodes.ChannelsGoBiz, outletId, ct);
 
         var integration = await _dbContext.GoBizIntegrations
             .AsNoTracking()
@@ -144,6 +151,7 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
     public async Task DisconnectAsync(Guid outletId, CancellationToken ct = default)
     {
         await GetAccessibleOutletAsync(outletId, ct);
+        await _capabilities.EnsureEnabledAsync(CapabilityCodes.ChannelsGoBiz, outletId, ct);
 
         var integration = await _dbContext.GoBizIntegrations.FirstOrDefaultAsync(x => x.OutletId == outletId, ct);
         if (integration is null)

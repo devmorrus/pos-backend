@@ -1,5 +1,7 @@
 using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
+using System.Net.Http.Json;
+using MorrusPOS.Application.Features.Capabilities;
 
 namespace MorrusPOS.IntegrationTests;
 
@@ -23,5 +25,8 @@ public class PublicStorefrontTenantTests : IClassFixture<WebApplicationFactory<P
 
         var legacyGlobalCategories = await _client.GetAsync("/api/public/categories");
         Assert.Equal(HttpStatusCode.NotFound, legacyGlobalCategories.StatusCode);
+
+        var profiles = await _client.GetFromJsonAsync<List<IndustryProfileDto>>("/api/public/industry-profiles");
+        Assert.Equal(6, profiles?.Count);
     }
 }

@@ -2,12 +2,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MorrusPOS.Api.Security;
 using MorrusPOS.Application.Features.Accounting;
+using MorrusPOS.Domain.Entities;
 
 namespace MorrusPOS.Api.Controllers;
 
 [ApiController]
 [Route("api/cash-flows")]
 [Authorize]
+[RequiresCapability(CapabilityCodes.AccountingCashflow)]
 public class CashFlowsController : ControllerBase
 {
     private readonly ICashFlowService _cashFlowService;

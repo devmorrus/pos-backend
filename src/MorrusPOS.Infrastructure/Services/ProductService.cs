@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Products;
+using MorrusPOS.Application.Features.Capabilities;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
 
@@ -11,12 +12,17 @@ public class ProductService : IProductService
 {
     private readonly AppDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
+    private readonly ICapabilityEvaluator? _capabilities;
     private static readonly Guid DefaultOutletId = Guid.Parse("8bba5427-017e-40fb-886f-5e4c6c9a3809"); // Outlet Utama fallback
 
-    public ProductService(AppDbContext dbContext, ICurrentUserService currentUserService)
+    public ProductService(
+        AppDbContext dbContext,
+        ICurrentUserService currentUserService,
+        ICapabilityEvaluator? capabilities = null)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
+        _capabilities = capabilities;
     }
 
     public async Task<ProductDto> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -75,6 +81,7 @@ public class ProductService : IProductService
 
     public async Task<ProductDto> CreateAsync(CreateProductRequest request, CancellationToken ct = default)
     {
+        await EnsureOptionalCapabilitiesAsync(request.HasVariants, request.Variants, request.Recipes, request.IsConsignment, ct);
         // 1. SKU uniqueness check
         var skuExists = await _dbContext.Products
             .AnyAsync(p => p.Sku.ToLower() == request.Sku.ToLower(), ct);
@@ -265,6 +272,7 @@ public class ProductService : IProductService
 
     public async Task<ProductDto> UpdateAsync(Guid id, UpdateProductRequest request, CancellationToken ct = default)
     {
+        await EnsureOptionalCapabilitiesAsync(request.HasVariants, request.Variants, request.Recipes, request.IsConsignment, ct);
         var product = await _dbContext.Products
             .Include(p => p.InventoryStocks)
             .FirstOrDefaultAsync(p => p.Id == id, ct);
@@ -504,6 +512,22 @@ public class ProductService : IProductService
         var stock = product.InventoryStocks.FirstOrDefault(s => s.OutletId == outletId);
 
         return await GetByIdAsync(product.Id, ct);
+    }
+
+    private async Task EnsureOptionalCapabilitiesAsync(
+        bool hasVariants,
+        IReadOnlyList<CreateProductVariantRequest>? variants,
+        IReadOnlyList<ProductRecipeRequest>? recipes,
+        bool isConsignment,
+        CancellationToken ct)
+    {
+        if (_capabilities is null) return;
+        if (hasVariants || variants?.Count > 0)
+            await _capabilities.EnsureEnabledAsync(CapabilityCodes.CatalogVariants, null, ct);
+        if (recipes?.Count > 0)
+            await _capabilities.EnsureEnabledAsync(CapabilityCodes.CatalogRecipes, null, ct);
+        if (isConsignment)
+            await _capabilities.EnsureEnabledAsync(CapabilityCodes.Consignment, null, ct);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)

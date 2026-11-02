@@ -139,11 +139,16 @@ builder.Services.AddAuthorization();
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionAuthorizationPolicyProvider>();
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
+builder.Services.AddScoped<IAuthorizationHandler, CapabilityAuthorizationHandler>();
+builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationMiddlewareResultHandler,
+    CapabilityAuthorizationResultHandler>();
+builder.Services.AddScoped<CapabilityOutletActionFilter>();
 
 // ---- Controllers & Swagger ----
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add<ValidationFilter>();
+    options.Filters.AddService<CapabilityOutletActionFilter>();
 });
 builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();

@@ -2,12 +2,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MorrusPOS.Api.Security;
 using MorrusPOS.Application.Features.Suppliers;
+using MorrusPOS.Domain.Entities;
 
 namespace MorrusPOS.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
+[RequiresCapability(CapabilityCodes.ProcurementPurchasing)]
 public class SuppliersController : ControllerBase
 {
     private readonly ISupplierService _supplierService;

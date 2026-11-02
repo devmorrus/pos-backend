@@ -26,6 +26,12 @@ public class AppDbContext : DbContext
 
     // SaaS Entities
     public DbSet<Business> Businesses => Set<Business>();
+    public DbSet<Capability> Capabilities => Set<Capability>();
+    public DbSet<IndustryProfile> IndustryProfiles => Set<IndustryProfile>();
+    public DbSet<IndustryProfileCapability> IndustryProfileCapabilities => Set<IndustryProfileCapability>();
+    public DbSet<BusinessCapabilityOverride> BusinessCapabilityOverrides => Set<BusinessCapabilityOverride>();
+    public DbSet<OutletCapabilityOverride> OutletCapabilityOverrides => Set<OutletCapabilityOverride>();
+    public DbSet<CapabilityChangeLog> CapabilityChangeLogs => Set<CapabilityChangeLog>();
     public DbSet<ChartOfAccount> ChartOfAccounts => Set<ChartOfAccount>();
     public DbSet<CashFlow> CashFlows => Set<CashFlow>();
     public DbSet<AccountTransaction> AccountTransactions => Set<AccountTransaction>();
@@ -135,6 +141,9 @@ public class AppDbContext : DbContext
         // business tidak pernah terlihat dari normal app context.
 
         modelBuilder.Entity<Business>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.Id == CurrentBusinessId));
+        modelBuilder.Entity<BusinessCapabilityOverride>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<OutletCapabilityOverride>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<CapabilityChangeLog>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<Outlet>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<User>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<Product>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));

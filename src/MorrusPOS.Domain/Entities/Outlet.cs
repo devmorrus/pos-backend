@@ -24,4 +24,5 @@ public class Outlet : AuditableEntity
     public ICollection<ChartOfAccount> ChartOfAccounts { get; set; } = new List<ChartOfAccount>();
     public ICollection<CashFlow> CashFlows { get; set; } = new List<CashFlow>();
     public ICollection<AccountTransaction> AccountTransactions { get; set; } = new List<AccountTransaction>();
+    public ICollection<OutletCapabilityOverride> CapabilityOverrides { get; set; } = new List<OutletCapabilityOverride>();
 }

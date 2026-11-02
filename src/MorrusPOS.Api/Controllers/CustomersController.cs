@@ -3,12 +3,14 @@ using Microsoft.AspNetCore.Mvc;
 using MorrusPOS.Api.Security;
 using MorrusPOS.Application.Features.Customers;
 using MorrusPOS.Application.Features.Transactions;
+using MorrusPOS.Domain.Entities;
 
 namespace MorrusPOS.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
+[RequiresCapability(CapabilityCodes.Customers)]
 public class CustomersController : ControllerBase
 {
     private readonly ICustomerService _customerService;

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MorrusPOS.Api.Security;
 using MorrusPOS.Application.Features.Pricing;
+using MorrusPOS.Domain.Entities;
 
 namespace MorrusPOS.Api.Controllers;
 
@@ -9,6 +10,7 @@ namespace MorrusPOS.Api.Controllers;
 [Route("api/promo-campaigns")]
 [Authorize(Roles = "Owner,Admin,Keuangan")]
 [HasPermission("pricing.manage")]
+[RequiresCapability(CapabilityCodes.PricingPromotions)]
 public class PromoCampaignsController : ControllerBase
 {
     private readonly IPricingAdminService _pricingAdminService;

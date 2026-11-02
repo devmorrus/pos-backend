@@ -7,12 +7,14 @@ using Microsoft.AspNetCore.Mvc;
 using MorrusPOS.Api.Security;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Consignments;
+using MorrusPOS.Domain.Entities;
 
 namespace MorrusPOS.Api.Controllers;
 
 [Authorize]
 [ApiController]
 [Route("api/consignments/returns")]
+[RequiresCapability(CapabilityCodes.Consignment)]
 public class ConsignmentReturnsController : ControllerBase
 {
     private readonly IConsignmentReturnService _returnService;

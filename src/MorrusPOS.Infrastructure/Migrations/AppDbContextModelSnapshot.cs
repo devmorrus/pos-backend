@@ -143,6 +143,10 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<long>("CapabilityRevision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
                     b.Property<string>("Category")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -150,6 +154,9 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("IndustryProfileId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -191,6 +198,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("IndustryProfileId");
+
                     b.HasIndex("Slug")
                         .IsUnique();
 
@@ -200,8 +209,10 @@ namespace MorrusPOS.Infrastructure.Migrations
                         new
                         {
                             Id = new Guid("11111111-2222-3333-4444-555555555555"),
+                            CapabilityRevision = 0L,
                             Category = "Retail",
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
                             Name = "Morrus Demo Business",
                             OwnerId = new Guid("a4f78de1-8a9d-4e96-857e-399fa5b5f25a"),
                             SelectedPackage = "Development",
@@ -211,6 +222,570 @@ namespace MorrusPOS.Infrastructure.Migrations
                             TrialStartDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
                         });
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.BusinessCapabilityOverride", b =>
+                {
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CapabilityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("BusinessId", "CapabilityId");
+
+                    b.HasIndex("CapabilityId");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.ToTable("business_capability_overrides", (string)null);
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.Capability", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("DefaultEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsTenantConfigurable")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("Module", "SortOrder");
+
+                    b.ToTable("capabilities", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_capabilities_Scope", "\"Scope\" IN ('Business','Outlet')");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000001"),
+                            Code = "sales.pos",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = true,
+                            Description = "POS Kasir",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Sales",
+                            Name = "POS Kasir",
+                            Scope = "Outlet",
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000002"),
+                            Code = "sales.transactions",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = true,
+                            Description = "Riwayat Transaksi",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Sales",
+                            Name = "Riwayat Transaksi",
+                            Scope = "Outlet",
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000003"),
+                            Code = "customers",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = true,
+                            Description = "Customer & Member",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Sales",
+                            Name = "Customer & Member",
+                            Scope = "Business",
+                            SortOrder = 3,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000004"),
+                            Code = "catalog.products",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = true,
+                            Description = "Produk & Kategori",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Catalog",
+                            Name = "Produk & Kategori",
+                            Scope = "Business",
+                            SortOrder = 4,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000005"),
+                            Code = "catalog.variants",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Varian Produk",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Catalog",
+                            Name = "Varian Produk",
+                            Scope = "Business",
+                            SortOrder = 5,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000006"),
+                            Code = "catalog.modifiers",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Modifier Produk",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Catalog",
+                            Name = "Modifier Produk",
+                            Scope = "Business",
+                            SortOrder = 6,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000007"),
+                            Code = "catalog.recipes",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Resep / BOM",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Catalog",
+                            Name = "Resep / BOM",
+                            Scope = "Business",
+                            SortOrder = 7,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000008"),
+                            Code = "catalog.batch_expiry",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Batch & Kedaluwarsa",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Catalog",
+                            Name = "Batch & Kedaluwarsa",
+                            Scope = "Business",
+                            SortOrder = 8,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000009"),
+                            Code = "inventory.stock",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = true,
+                            Description = "Manajemen Stok",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Inventory",
+                            Name = "Manajemen Stok",
+                            Scope = "Outlet",
+                            SortOrder = 9,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000010"),
+                            Code = "inventory.buffer_stock",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Buffer Stock",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Inventory",
+                            Name = "Buffer Stock",
+                            Scope = "Outlet",
+                            SortOrder = 10,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000011"),
+                            Code = "inventory.opname",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = true,
+                            Description = "Stock Opname",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Inventory",
+                            Name = "Stock Opname",
+                            Scope = "Outlet",
+                            SortOrder = 11,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000012"),
+                            Code = "inventory.transfer",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Transfer Stok",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Inventory",
+                            Name = "Transfer Stok",
+                            Scope = "Outlet",
+                            SortOrder = 12,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000013"),
+                            Code = "procurement.purchasing",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Supplier & Pembelian",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Procurement",
+                            Name = "Supplier & Pembelian",
+                            Scope = "Outlet",
+                            SortOrder = 13,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000014"),
+                            Code = "procurement.supplier_debt",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Utang Supplier",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Procurement",
+                            Name = "Utang Supplier",
+                            Scope = "Business",
+                            SortOrder = 14,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000015"),
+                            Code = "procurement.supplier_return",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Retur Supplier",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Procurement",
+                            Name = "Retur Supplier",
+                            Scope = "Outlet",
+                            SortOrder = 15,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000016"),
+                            Code = "consignment",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Konsinyasi",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Procurement",
+                            Name = "Konsinyasi",
+                            Scope = "Outlet",
+                            SortOrder = 16,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000017"),
+                            Code = "channels.settlement",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Channel Settlement",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Channels",
+                            Name = "Channel Settlement",
+                            Scope = "Outlet",
+                            SortOrder = 17,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000018"),
+                            Code = "channels.gobiz",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Integrasi GoBiz",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Channels",
+                            Name = "Integrasi GoBiz",
+                            Scope = "Outlet",
+                            SortOrder = 18,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000019"),
+                            Code = "pricing.tax_service",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Pajak & Service Charge",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Pricing",
+                            Name = "Pajak & Service Charge",
+                            Scope = "Outlet",
+                            SortOrder = 19,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000020"),
+                            Code = "pricing.promotions",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Promo Campaign",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Pricing",
+                            Name = "Promo Campaign",
+                            Scope = "Outlet",
+                            SortOrder = 20,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000021"),
+                            Code = "pricing.vouchers",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Voucher",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Pricing",
+                            Name = "Voucher",
+                            Scope = "Outlet",
+                            SortOrder = 21,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000022"),
+                            Code = "accounting.core",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Akuntansi",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Accounting",
+                            Name = "Akuntansi",
+                            Scope = "Business",
+                            SortOrder = 22,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000023"),
+                            Code = "accounting.cashflow",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Arus Kas Manual",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Accounting",
+                            Name = "Arus Kas Manual",
+                            Scope = "Business",
+                            SortOrder = 23,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000024"),
+                            Code = "accounting.integration",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Integrasi Akuntansi",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Accounting",
+                            Name = "Integrasi Akuntansi",
+                            Scope = "Business",
+                            SortOrder = 24,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000025"),
+                            Code = "reports.operational",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = true,
+                            Description = "Laporan Operasional",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Reports",
+                            Name = "Laporan Operasional",
+                            Scope = "Business",
+                            SortOrder = 25,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000026"),
+                            Code = "reports.accounting",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Laporan Akuntansi",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Reports",
+                            Name = "Laporan Akuntansi",
+                            Scope = "Business",
+                            SortOrder = 26,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000027"),
+                            Code = "storefront.public",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Public Storefront",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Channels",
+                            Name = "Public Storefront",
+                            Scope = "Outlet",
+                            SortOrder = 27,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        });
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.CapabilityChangeLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CapabilityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ChangeType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid>("ChangedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("NewProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool?>("NewValue")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("OldProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool?>("OldValue")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("OutletId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CapabilityId");
+
+                    b.HasIndex("ChangedByUserId");
+
+                    b.HasIndex("NewProfileId");
+
+                    b.HasIndex("OldProfileId");
+
+                    b.HasIndex("OutletId");
+
+                    b.HasIndex("BusinessId", "CreatedAt");
+
+                    b.HasIndex("BusinessId", "CapabilityId", "CreatedAt");
+
+                    b.HasIndex("BusinessId", "OutletId", "CreatedAt");
+
+                    b.ToTable("capability_change_logs", (string)null);
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.CashFlow", b =>
@@ -1402,6 +1977,1106 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.ToTable("gobiz_product_mappings", (string)null);
                 });
 
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.IndustryProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("industry_profiles", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            Code = "general",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Konfigurasi umum untuk bisnis lintas industri.",
+                            IsActive = true,
+                            Name = "General",
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            Code = "food-beverage",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Kafe, restoran, bakery, dan usaha kuliner.",
+                            IsActive = true,
+                            Name = "Food & Beverage",
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            Code = "retail",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Toko retail dan perdagangan umum.",
+                            IsActive = true,
+                            Name = "Retail",
+                            SortOrder = 3,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            Code = "grocery",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Minimarket, sembako, dan produk dengan batch/expiry.",
+                            IsActive = true,
+                            Name = "Grocery",
+                            SortOrder = 4,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            Code = "fashion",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Butik, pakaian, dan produk dengan varian.",
+                            IsActive = true,
+                            Name = "Fashion",
+                            SortOrder = 5,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            Code = "services",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Salon, laundry, dan bisnis jasa.",
+                            IsActive = true,
+                            Name = "Services",
+                            SortOrder = 6,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        });
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.IndustryProfileCapability", b =>
+                {
+                    b.Property<Guid>("IndustryProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CapabilityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("IndustryProfileId", "CapabilityId");
+
+                    b.HasIndex("CapabilityId");
+
+                    b.ToTable("industry_profile_capabilities", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000001"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000002"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000003"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000004"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000005"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000006"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000007"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000008"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000009"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000010"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000011"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000012"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000013"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000014"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000015"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000016"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000017"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000018"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000019"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000020"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000021"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000022"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000023"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000024"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000025"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000026"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000027"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000001"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000002"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000003"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000004"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000005"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000006"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000007"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000008"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000009"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000010"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000011"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000012"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000013"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000014"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000015"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000016"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000017"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000018"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000019"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000020"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000021"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000022"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000023"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000024"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000025"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000026"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000027"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000001"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000002"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000003"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000004"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000005"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000006"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000007"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000008"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000009"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000010"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000011"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000012"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000013"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000014"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000015"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000016"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000017"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000018"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000019"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000020"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000021"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000022"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000023"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000024"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000025"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000026"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000027"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000001"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000002"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000003"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000004"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000005"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000006"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000007"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000008"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000009"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000010"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000011"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000012"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000013"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000014"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000015"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000016"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000017"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000018"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000019"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000020"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000021"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000022"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000023"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000024"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000025"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000026"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000027"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000001"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000002"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000003"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000004"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000005"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000006"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000007"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000008"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000009"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000010"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000011"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000012"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000013"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000014"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000015"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000016"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000017"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000018"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000019"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000020"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000021"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000022"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000023"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000024"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000025"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000026"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000027"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000001"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000002"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000003"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000004"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000005"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000006"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000007"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000008"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000009"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000010"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000011"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000012"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000013"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000014"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000015"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000016"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000017"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000018"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000019"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000020"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000021"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000022"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000023"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000024"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000025"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000026"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000027"),
+                            IsEnabled = false
+                        });
+                });
+
             modelBuilder.Entity("MorrusPOS.Domain.Entities.IntegrationLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1629,6 +3304,44 @@ namespace MorrusPOS.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.OutletCapabilityOverride", b =>
+                {
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OutletId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CapabilityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("BusinessId", "OutletId", "CapabilityId");
+
+                    b.HasIndex("CapabilityId");
+
+                    b.HasIndex("OutletId");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.ToTable("outlet_capability_overrides", (string)null);
+                });
+
             modelBuilder.Entity("MorrusPOS.Domain.Entities.Payment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1793,6 +3506,18 @@ namespace MorrusPOS.Infrastructure.Migrations
                             Id = new Guid("13131313-1313-1313-1313-131313131313"),
                             Code = "report.profitloss_accounting.view",
                             Description = "Melihat laporan laba rugi akuntansi"
+                        },
+                        new
+                        {
+                            Id = new Guid("14141414-1414-1414-1414-141414141414"),
+                            Code = "capability.view",
+                            Description = "Melihat profil industri dan capability"
+                        },
+                        new
+                        {
+                            Id = new Guid("15151515-1515-1515-1515-151515151515"),
+                            Code = "capability.manage",
+                            Description = "Mengubah profil industri dan capability"
                         });
                 });
 
@@ -2648,6 +4373,16 @@ namespace MorrusPOS.Infrastructure.Migrations
                         },
                         new
                         {
+                            RoleId = new Guid("e1a7b077-44a3-4b63-95e0-59a8501170ea"),
+                            PermissionId = new Guid("14141414-1414-1414-1414-141414141414")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("e1a7b077-44a3-4b63-95e0-59a8501170ea"),
+                            PermissionId = new Guid("15151515-1515-1515-1515-151515151515")
+                        },
+                        new
+                        {
                             RoleId = new Guid("d54f590a-6e54-4f05-8461-8ff62dfd8d4c"),
                             PermissionId = new Guid("11111111-1111-1111-1111-111111111111")
                         },
@@ -2730,6 +4465,11 @@ namespace MorrusPOS.Infrastructure.Migrations
                         {
                             RoleId = new Guid("d54f590a-6e54-4f05-8461-8ff62dfd8d4c"),
                             PermissionId = new Guid("13131313-1313-1313-1313-131313131313")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("d54f590a-6e54-4f05-8461-8ff62dfd8d4c"),
+                            PermissionId = new Guid("14141414-1414-1414-1414-141414141414")
                         },
                         new
                         {
@@ -3809,6 +5549,87 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.Business", b =>
+                {
+                    b.HasOne("MorrusPOS.Domain.Entities.IndustryProfile", "IndustryProfile")
+                        .WithMany("Businesses")
+                        .HasForeignKey("IndustryProfileId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("IndustryProfile");
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.BusinessCapabilityOverride", b =>
+                {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany("CapabilityOverrides")
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.Capability", "Capability")
+                        .WithMany()
+                        .HasForeignKey("CapabilityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.User", "UpdatedByUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Business");
+
+                    b.Navigation("Capability");
+
+                    b.Navigation("UpdatedByUser");
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.CapabilityChangeLog", b =>
+                {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.Capability", "Capability")
+                        .WithMany()
+                        .HasForeignKey("CapabilityId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MorrusPOS.Domain.Entities.User", "ChangedByUser")
+                        .WithMany()
+                        .HasForeignKey("ChangedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.IndustryProfile", null)
+                        .WithMany()
+                        .HasForeignKey("NewProfileId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MorrusPOS.Domain.Entities.IndustryProfile", null)
+                        .WithMany()
+                        .HasForeignKey("OldProfileId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
+                        .WithMany()
+                        .HasForeignKey("OutletId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Business");
+
+                    b.Navigation("Capability");
+
+                    b.Navigation("ChangedByUser");
+
+                    b.Navigation("Outlet");
+                });
+
             modelBuilder.Entity("MorrusPOS.Domain.Entities.CashFlow", b =>
                 {
                     b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
@@ -4385,6 +6206,25 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("ProductVariant");
                 });
 
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.IndustryProfileCapability", b =>
+                {
+                    b.HasOne("MorrusPOS.Domain.Entities.Capability", "Capability")
+                        .WithMany()
+                        .HasForeignKey("CapabilityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.IndustryProfile", "IndustryProfile")
+                        .WithMany("Capabilities")
+                        .HasForeignKey("IndustryProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Capability");
+
+                    b.Navigation("IndustryProfile");
+                });
+
             modelBuilder.Entity("MorrusPOS.Domain.Entities.IntegrationLog", b =>
                 {
                     b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
@@ -4495,6 +6335,41 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Business");
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.OutletCapabilityOverride", b =>
+                {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.Capability", "Capability")
+                        .WithMany()
+                        .HasForeignKey("CapabilityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
+                        .WithMany("CapabilityOverrides")
+                        .HasForeignKey("OutletId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.User", "UpdatedByUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Business");
+
+                    b.Navigation("Capability");
+
+                    b.Navigation("Outlet");
+
+                    b.Navigation("UpdatedByUser");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.Payment", b =>
@@ -5453,6 +7328,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Navigation("AccountTransactions");
 
+                    b.Navigation("CapabilityOverrides");
+
                     b.Navigation("CashFlows");
 
                     b.Navigation("ChartOfAccounts");
@@ -5512,6 +7389,13 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("Transactions");
                 });
 
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.IndustryProfile", b =>
+                {
+                    b.Navigation("Businesses");
+
+                    b.Navigation("Capabilities");
+                });
+
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ModifierGroup", b =>
                 {
                     b.Navigation("Options");
@@ -5520,6 +7404,8 @@ namespace MorrusPOS.Infrastructure.Migrations
             modelBuilder.Entity("MorrusPOS.Domain.Entities.Outlet", b =>
                 {
                     b.Navigation("AccountTransactions");
+
+                    b.Navigation("CapabilityOverrides");
 
                     b.Navigation("CashFlows");
 

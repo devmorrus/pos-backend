@@ -1,5 +1,8 @@
 -- Read-only legacy data audit. Resolve every reported row before applying RLS.
 
+SELECT 'businesses_without_owner' AS check_name, COUNT(*) AS remaining
+FROM businesses WHERE "OwnerId" IS NULL;
+
 SELECT 'outlets_without_business' AS check_name, COUNT(*) AS remaining
 FROM outlets WHERE "BusinessId" IS NULL;
 

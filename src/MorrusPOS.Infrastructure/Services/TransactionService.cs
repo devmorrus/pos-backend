@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Accounting;
 using MorrusPOS.Application.Features.Customers;
+using MorrusPOS.Application.Features.Capabilities;
 using MorrusPOS.Application.Features.Transactions;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -16,6 +17,7 @@ public class TransactionService : ITransactionService
     private readonly IPosNotificationService _notificationService;
     private readonly IPricingService _pricingService;
     private readonly IAccountingIntegrationService? _accountingIntegrationService;
+    private readonly ICapabilityEvaluator? _capabilityEvaluator;
 
     public TransactionService(
         AppDbContext dbContext,
@@ -29,7 +31,8 @@ public class TransactionService : ITransactionService
             currentUserService,
             notificationService,
             new PricingService(dbContext),
-            accountingIntegrationService)
+            accountingIntegrationService,
+            null)
     {
     }
 
@@ -39,7 +42,8 @@ public class TransactionService : ITransactionService
         ICurrentUserService currentUserService,
         IPosNotificationService notificationService,
         IPricingService pricingService,
-        IAccountingIntegrationService? accountingIntegrationService = null)
+        IAccountingIntegrationService? accountingIntegrationService = null,
+        ICapabilityEvaluator? capabilityEvaluator = null)
     {
         _dbContext = dbContext;
         _stockService = stockService;
@@ -47,6 +51,7 @@ public class TransactionService : ITransactionService
         _notificationService = notificationService;
         _pricingService = pricingService;
         _accountingIntegrationService = accountingIntegrationService;
+        _capabilityEvaluator = capabilityEvaluator;
     }
 
     public async Task<IReadOnlyList<TransactionListItemDto>> GetRecentByOutletAsync(
@@ -87,6 +92,8 @@ public class TransactionService : ITransactionService
 
     public async Task<PricingBreakdownDto> PreviewPricingAsync(PricingPreviewRequest request, CancellationToken ct = default)
     {
+        if (_capabilityEvaluator is not null)
+            await _capabilityEvaluator.EnsureEnabledAsync(CapabilityCodes.SalesPos, request.OutletId, ct);
         await EnsureOperationalRoleAsync();
         await EnsureOutletAccessibleAsync(request.OutletId, ct);
         return await _pricingService.CalculateAsync(request, ct);
@@ -418,6 +425,8 @@ public class TransactionService : ITransactionService
 
     public async Task<TransactionDto> CheckoutAsync(CheckoutRequest request, CancellationToken ct = default)
     {
+        if (_capabilityEvaluator is not null)
+            await _capabilityEvaluator.EnsureEnabledAsync(CapabilityCodes.SalesPos, request.OutletId, ct);
         await EnsureOperationalRoleAsync();
         await EnsureOutletAccessibleAsync(request.OutletId, ct);
 

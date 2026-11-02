@@ -20,6 +20,11 @@ public class BusinessConfiguration : IEntityTypeConfiguration<Business>
         builder.Property(x => x.Phone).HasMaxLength(20);
         builder.Property(x => x.SubscriptionStatus).HasMaxLength(20).IsRequired();
         builder.Property(x => x.SelectedPackage).HasMaxLength(50);
+        builder.Property(x => x.CapabilityRevision).IsConcurrencyToken();
+        builder.HasOne(x => x.IndustryProfile)
+            .WithMany(x => x.Businesses)
+            .HasForeignKey(x => x.IndustryProfileId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // centralizing multitenancy configurations
         builder.HasMany(b => b.Users)
@@ -57,6 +62,8 @@ public class BusinessConfiguration : IEntityTypeConfiguration<Business>
             TrialStartDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             TrialEndDate = new DateTime(2026, 1, 31, 0, 0, 0, DateTimeKind.Utc),
             SelectedPackage = "Development",
+            IndustryProfileId = IndustryProfileSeedIds.Retail,
+            CapabilityRevision = 0,
             OwnerId = SeedOwnerUserId,
             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)

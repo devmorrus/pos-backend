@@ -64,6 +64,33 @@ BEGIN
     THEN
         RAISE EXCEPTION 'Tenant verification failed: businesses RLS policy is missing';
     END IF;
+
+    IF to_regclass('public.capabilities') IS NOT NULL AND
+       (SELECT count(*) FROM capabilities WHERE "IsActive") < 27
+    THEN
+        RAISE EXCEPTION 'Capability verification failed: capability catalog is incomplete';
+    END IF;
+
+    IF to_regclass('public.industry_profiles') IS NOT NULL AND
+       (SELECT count(*) FROM industry_profiles WHERE "IsActive") < 6
+    THEN
+        RAISE EXCEPTION 'Capability verification failed: industry profile catalog is incomplete';
+    END IF;
+
+    IF to_regclass('public.capabilities') IS NOT NULL AND (
+        has_table_privilege('morrus_app','public.capabilities','INSERT') OR
+        has_table_privilege('morrus_app','public.capabilities','UPDATE') OR
+        has_table_privilege('morrus_app','public.capabilities','DELETE'))
+    THEN
+        RAISE EXCEPTION 'Capability verification failed: morrus_app may only read global capability catalog';
+    END IF;
+
+    IF to_regclass('public.capability_change_logs') IS NOT NULL AND (
+        has_table_privilege('morrus_app','public.capability_change_logs','UPDATE') OR
+        has_table_privilege('morrus_app','public.capability_change_logs','DELETE'))
+    THEN
+        RAISE EXCEPTION 'Capability verification failed: capability audit log must be append-only';
+    END IF;
 END
 $verify$;
 

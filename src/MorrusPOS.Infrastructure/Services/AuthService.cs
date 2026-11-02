@@ -155,12 +155,18 @@ public class AuthService : IAuthService
         {
             // Create Business
             var businessId = Guid.NewGuid();
+            var profileCode = request.Business.IndustryProfileCode
+                ?? MapLegacyCategoryToProfile(request.Business.Category);
+            var industryProfile = await _context.IndustryProfiles
+                .SingleOrDefaultAsync(x => x.Code == profileCode && x.IsActive, ct)
+                ?? throw new InvalidOperationException("Industry profile tidak valid.");
             var business = new Business
             {
                 Id = businessId,
                 Name = request.Business.Name,
                 Slug = CreateBusinessSlug(request.Business.Name, businessId),
                 Category = request.Business.Category,
+                IndustryProfileId = industryProfile.Id,
                 Phone = request.Business.Phone,
                 SubscriptionStatus = "Trial",
                 TrialStartDate = DateTime.UtcNow,
@@ -252,6 +258,17 @@ public class AuthService : IAuthService
         var prefix = string.IsNullOrEmpty(slug) ? "business" : slug;
         return $"{prefix}-{businessId.ToString("N")[..8]}";
     }
+
+    private static string MapLegacyCategoryToProfile(string category)
+        => category.Trim().ToLowerInvariant() switch
+        {
+            "food & beverage" or "f&b" => "food-beverage",
+            "retail" => "retail",
+            "grocery" => "grocery",
+            "fashion" => "fashion",
+            "services" or "service" => "services",
+            _ => "general",
+        };
 
     private async Task<IReadOnlyList<string>> GetPermissionsForRoleAsync(string roleName, CancellationToken ct)
     {

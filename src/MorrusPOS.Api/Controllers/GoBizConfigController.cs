@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MorrusPOS.Application.Features.Channels;
+using MorrusPOS.Api.Security;
+using MorrusPOS.Domain.Entities;
 
 namespace MorrusPOS.Api.Controllers;
 
@@ -11,6 +13,7 @@ namespace MorrusPOS.Api.Controllers;
 [ApiController]
 [Route("api/gobiz/config")]
 [Authorize(Roles = "Owner,Admin")]
+[RequiresCapability(CapabilityCodes.ChannelsGoBiz)]
 public class GoBizConfigController : ControllerBase
 {
     private readonly IGoBizClientConfigService _service;

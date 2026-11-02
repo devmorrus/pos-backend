@@ -16,6 +16,7 @@ using MorrusPOS.Application.Features.Channels;
 using MorrusPOS.Application.Features.Pricing;
 using MorrusPOS.Application.Features.Customers;
 using MorrusPOS.Application.Features.Accounting;
+using MorrusPOS.Application.Features.Capabilities;
 using MorrusPOS.Infrastructure.Persistence;
 using MorrusPOS.Infrastructure.Options;
 using MorrusPOS.Infrastructure.Services;
@@ -91,6 +92,8 @@ public static class DependencyInjection
         services.AddScoped<ICashFlowService, CashFlowService>();
         services.AddScoped<ICashFlowPostingService, CashFlowPostingService>();
         services.AddScoped<IAccountingIntegrationService, AccountingIntegrationService>();
+        services.AddScoped<ICapabilityEvaluator, CapabilityEvaluator>();
+        services.AddScoped<ICapabilityAdminService, CapabilityAdminService>();
 
         return services;
     }

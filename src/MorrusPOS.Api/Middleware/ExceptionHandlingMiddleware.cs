@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using MorrusPOS.Application.Features.Capabilities;
 
 namespace MorrusPOS.Api.Middleware;
 
@@ -24,6 +25,22 @@ public class ExceptionHandlingMiddleware
         {
             await WriteError(context, HttpStatusCode.Unauthorized, ex.Message);
         }
+        catch (CapabilityDisabledException ex)
+        {
+            await WriteError(context, HttpStatusCode.Forbidden, ex.Message, "CAPABILITY_DISABLED", ex.CapabilityCode, ex.OutletId);
+        }
+        catch (CapabilityRevisionConflictException ex)
+        {
+            await WriteError(context, HttpStatusCode.Conflict, ex.Message, "CAPABILITY_REVISION_CONFLICT");
+        }
+        catch (CapabilityParentDisabledException ex)
+        {
+            await WriteError(context, HttpStatusCode.Conflict, ex.Message, "CAPABILITY_PARENT_DISABLED");
+        }
+        catch (KeyNotFoundException ex)
+        {
+            await WriteError(context, HttpStatusCode.NotFound, ex.Message);
+        }
         catch (InvalidOperationException ex) // dipakai untuk validasi bisnis, mis. stok tidak cukup
         {
             await WriteError(context, HttpStatusCode.BadRequest, ex.Message);
@@ -35,11 +52,17 @@ public class ExceptionHandlingMiddleware
         }
     }
 
-    private static async Task WriteError(HttpContext context, HttpStatusCode statusCode, string message)
+    private static async Task WriteError(
+        HttpContext context,
+        HttpStatusCode statusCode,
+        string message,
+        string? code = null,
+        string? capability = null,
+        Guid? outletId = null)
     {
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = (int)statusCode;
-        var payload = JsonSerializer.Serialize(new { error = message });
+        var payload = JsonSerializer.Serialize(new { error = message, code, capability, outletId });
         await context.Response.WriteAsync(payload);
     }
 }

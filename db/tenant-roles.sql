@@ -84,12 +84,22 @@ BEGIN
         GRANT SELECT, UPDATE ON businesses TO morrus_app;
         REVOKE ALL ON roles, permissions, role_permissions, refresh_tokens FROM morrus_app;
         GRANT SELECT ON roles, permissions, role_permissions TO morrus_app;
+        IF to_regclass('public.capabilities') IS NOT NULL THEN
+            REVOKE ALL ON capabilities, industry_profiles, industry_profile_capabilities FROM morrus_app;
+            GRANT SELECT ON capabilities, industry_profiles, industry_profile_capabilities TO morrus_app;
+            REVOKE ALL ON capability_change_logs FROM morrus_app;
+            GRANT SELECT, INSERT ON capability_change_logs TO morrus_app;
+        END IF;
 
         -- Cross-tenant system role is deliberately narrow: auth/provisioning,
         -- public directory and GoBiz webhook resolution only.
         GRANT SELECT ON businesses, outlets, users, roles, permissions, role_permissions,
             refresh_tokens, gobiz_direct_integrations, gobiz_order_inboxes,
             gobiz_client_configs TO morrus_system;
+        IF to_regclass('public.industry_profiles') IS NOT NULL THEN
+            GRANT SELECT ON capabilities, industry_profiles, industry_profile_capabilities,
+                business_capability_overrides, outlet_capability_overrides TO morrus_system;
+        END IF;
         GRANT INSERT, UPDATE ON businesses, outlets, users, refresh_tokens TO morrus_system;
         GRANT UPDATE ON gobiz_direct_integrations, gobiz_order_inboxes TO morrus_system;
     END IF;

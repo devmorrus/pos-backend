@@ -2,12 +2,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MorrusPOS.Api.Security;
 using MorrusPOS.Application.Features.Accounting;
+using MorrusPOS.Domain.Entities;
 
 namespace MorrusPOS.Api.Controllers;
 
 [ApiController]
 [Route("api/chart-of-accounts")]
 [Authorize]
+[RequiresCapability(CapabilityCodes.AccountingCore)]
 public class ChartOfAccountsController : ControllerBase
 {
     private readonly IChartOfAccountService _chartOfAccountService;

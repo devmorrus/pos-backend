@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MorrusPOS.Api.Security;
 using MorrusPOS.Application.Features.Pricing;
+using MorrusPOS.Domain.Entities;
 
 namespace MorrusPOS.Api.Controllers;
 
@@ -9,6 +10,7 @@ namespace MorrusPOS.Api.Controllers;
 [Route("api/service-charge-rules")]
 [Authorize(Roles = "Owner,Admin,Keuangan")]
 [HasPermission("pricing.manage")]
+[RequiresCapability(CapabilityCodes.PricingTaxService)]
 public class ServiceChargeRulesController : ControllerBase
 {
     private readonly IPricingAdminService _pricingAdminService;

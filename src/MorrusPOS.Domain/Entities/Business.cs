@@ -16,6 +16,10 @@ public class Business : AuditableEntity
     public DateTime? SubscriptionEndDate { get; set; }
     public string? SelectedPackage { get; set; } // Free Trial, Basic, Premium
 
+    public Guid IndustryProfileId { get; set; }
+    public IndustryProfile IndustryProfile { get; set; } = default!;
+    public long CapabilityRevision { get; set; }
+
     // Track the primary Owner user
     public Guid? OwnerId { get; set; }
 
@@ -25,4 +29,5 @@ public class Business : AuditableEntity
     public ICollection<ChartOfAccount> ChartOfAccounts { get; set; } = new List<ChartOfAccount>();
     public ICollection<CashFlow> CashFlows { get; set; } = new List<CashFlow>();
     public ICollection<AccountTransaction> AccountTransactions { get; set; } = new List<AccountTransaction>();
+    public ICollection<BusinessCapabilityOverride> CapabilityOverrides { get; set; } = new List<BusinessCapabilityOverride>();
 }

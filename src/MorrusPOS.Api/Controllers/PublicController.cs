@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Features.Capabilities;
 using MorrusPOS.Infrastructure.Persistence;
+using MorrusPOS.Domain.Entities;
 
 namespace MorrusPOS.Api.Controllers;
 
@@ -19,29 +21,71 @@ public class PublicController : ControllerBase
     private readonly AppDbContext _db;
     private readonly SystemDbContext _systemDb;
     private readonly ITenantContextSetter _tenantContext;
+    private readonly ICapabilityEvaluator _capabilities;
 
     public PublicController(
         AppDbContext db,
         SystemDbContext systemDb,
-        ITenantContextSetter tenantContext)
+        ITenantContextSetter tenantContext,
+        ICapabilityEvaluator capabilities)
     {
         _db = db;
         _systemDb = systemDb;
         _tenantContext = tenantContext;
+        _capabilities = capabilities;
+    }
+
+    [HttpGet("industry-profiles")]
+    public async Task<ActionResult<IReadOnlyList<IndustryProfileDto>>> GetIndustryProfiles(CancellationToken ct)
+    {
+        var profiles = await _systemDb.IndustryProfiles
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .OrderBy(x => x.SortOrder)
+            .Select(x => new IndustryProfileDto(x.Id, x.Code, x.Name, x.Description))
+            .ToListAsync(ct);
+        return Ok(profiles);
     }
 
     // Explicit public directory used to select a tenant storefront.
     [HttpGet("outlets")]
     public async Task<ActionResult<IReadOnlyList<PublicOutletDto>>> GetDirectory(CancellationToken ct)
     {
-        var outlets = await _systemDb.Outlets
+        var storefront = await _systemDb.Capabilities.AsNoTracking()
+            .SingleAsync(x => x.Code == CapabilityCodes.StorefrontPublic && x.IsActive, ct);
+        var rows = await _systemDb.Outlets
             .AsNoTracking()
             .Where(o => o.IsActive)
             .OrderBy(o => o.Business.Name)
             .ThenBy(o => o.Name)
-            .Select(o => new PublicOutletDto(
-                o.Id, o.Business.Slug, o.Code, o.Name, o.Address, o.Phone))
+            .Select(o => new
+            {
+                Outlet = new PublicOutletDto(o.Id, o.Business.Slug, o.Code, o.Name, o.Address, o.Phone),
+                o.BusinessId,
+                o.Business.IndustryProfileId,
+            })
             .ToListAsync(ct);
+
+        var profileDefaults = await _systemDb.IndustryProfileCapabilities.AsNoTracking()
+            .Where(x => x.CapabilityId == storefront.Id)
+            .ToDictionaryAsync(x => x.IndustryProfileId, x => x.IsEnabled, ct);
+        var businessOverrides = await _systemDb.BusinessCapabilityOverrides.AsNoTracking()
+            .Where(x => x.CapabilityId == storefront.Id)
+            .ToDictionaryAsync(x => x.BusinessId, x => x.IsEnabled, ct);
+        var outletOverrides = await _systemDb.OutletCapabilityOverrides.AsNoTracking()
+            .Where(x => x.CapabilityId == storefront.Id)
+            .ToDictionaryAsync(x => x.OutletId, x => x.IsEnabled, ct);
+
+        var outlets = rows
+            .Where(row =>
+            {
+                var businessEnabled = businessOverrides.TryGetValue(row.BusinessId, out var businessOverride)
+                    ? businessOverride
+                    : profileDefaults.GetValueOrDefault(row.IndustryProfileId, storefront.DefaultEnabled);
+                return businessEnabled && outletOverrides.GetValueOrDefault(row.Outlet.Id, true);
+            })
+            .Select(row => row.Outlet)
+            .ToList();
 
         return Ok(outlets);
     }
@@ -63,7 +107,14 @@ public class PublicController : ControllerBase
                 o.Id, businessSlug, o.Code, o.Name, o.Address, o.Phone))
             .ToListAsync(ct);
 
-        return Ok(outlets);
+        var visible = new List<PublicOutletDto>();
+        foreach (var outlet in outlets)
+        {
+            if (await _capabilities.IsEnabledAsync(CapabilityCodes.StorefrontPublic, outlet.Id, ct))
+                visible.Add(outlet);
+        }
+
+        return Ok(visible);
     }
 
     [HttpGet("{businessSlug}/outlets/{code}")]
@@ -82,6 +133,10 @@ public class PublicController : ControllerBase
             .Select(o => new PublicOutletDto(
                 o.Id, businessSlug, o.Code, o.Name, o.Address, o.Phone))
             .FirstOrDefaultAsync(ct);
+
+        if (outlet is not null &&
+            !await _capabilities.IsEnabledAsync(CapabilityCodes.StorefrontPublic, outlet.Id, ct))
+            outlet = null;
 
         return outlet is null
             ? NotFound($"Outlet '{code}' tidak ditemukan atau tidak aktif.")
@@ -105,6 +160,8 @@ public class PublicController : ControllerBase
             .FirstOrDefaultAsync(ct);
         if (!outletId.HasValue)
             return NotFound($"Outlet '{outletCode}' tidak ditemukan atau tidak aktif.");
+        if (!await _capabilities.IsEnabledAsync(CapabilityCodes.StorefrontPublic, outletId.Value, ct))
+            return NotFound();
 
         var products = await _db.InventoryStocks
             .AsNoTracking()
@@ -133,6 +190,8 @@ public class PublicController : ControllerBase
         var businessId = await ResolveTenantAsync(businessSlug, ct);
         if (!businessId.HasValue)
             return NotFound($"Business '{businessSlug}' tidak ditemukan.");
+        if (!await _capabilities.IsEnabledAsync(CapabilityCodes.StorefrontPublic, null, ct))
+            return NotFound();
 
         var categories = await _db.Categories
             .AsNoTracking()

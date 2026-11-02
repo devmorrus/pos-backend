@@ -23,7 +23,11 @@ public record RegisterOwnerRequest(
 );
 
 public record RegisterOwnerOwnerDetails(string Name, string Email, string Password);
-public record RegisterOwnerBusinessDetails(string Name, string Category, string? Phone);
+public record RegisterOwnerBusinessDetails(
+    string Name,
+    string Category,
+    string? Phone,
+    string? IndustryProfileCode = null);
 public record RegisterOwnerOutletDetails(string Name, string Code, string? Address, string? Phone);
 
 public record RefreshTokenRequest(string RefreshToken);

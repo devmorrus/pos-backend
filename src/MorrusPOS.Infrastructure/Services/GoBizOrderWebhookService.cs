@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Features.Capabilities;
 using MorrusPOS.Application.Features.Channels;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -16,18 +17,21 @@ public sealed class GoBizOrderWebhookService : IGoBizOrderWebhookService
     private readonly SystemDbContext _systemDb;
     private readonly ITenantContextSetter _tenantContext;
     private readonly IGoBizConfigProvider _configProvider;
+    private readonly ICapabilityEvaluator _capabilities;
     private readonly ILogger<GoBizOrderWebhookService> _logger;
 
     public GoBizOrderWebhookService(
         AppDbContext dbContext,
         SystemDbContext systemDb,
         ITenantContextSetter tenantContext,
+        ICapabilityEvaluator capabilities,
         IGoBizConfigProvider configProvider,
         ILogger<GoBizOrderWebhookService> logger)
     {
         _dbContext = dbContext;
         _systemDb = systemDb;
         _tenantContext = tenantContext;
+        _capabilities = capabilities;
         _configProvider = configProvider;
         _logger = logger;
     }
@@ -67,6 +71,12 @@ public sealed class GoBizOrderWebhookService : IGoBizOrderWebhookService
             ?? throw new InvalidOperationException("Outlet Morrus POS untuk webhook GoBiz belum memiliki business.");
 
         _tenantContext.SetBusinessOverride(businessId);
+
+        if (!await _capabilities.IsEnabledAsync(CapabilityCodes.ChannelsGoBiz, integration.OutletId, ct))
+        {
+            _logger.LogInformation("GoBiz webhook ignored because capability is disabled for outlet {OutletId}.", integration.OutletId);
+            return;
+        }
 
         // Opsi B: verifikasi signature per-Business (jika WebhookSecret dikonfigurasi).
         await VerifySignatureAsync(integration.OutletId, rawBody, headers, ct);

@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
 using MorrusPOS.Api.Security;
 using MorrusPOS.Application.Features.Accounting;
+using MorrusPOS.Domain.Entities;
 
 namespace MorrusPOS.Api.Controllers;
 
 [ApiController]
 [Route("api/accounting-integrations")]
+[RequiresCapability(CapabilityCodes.AccountingIntegration)]
 public class AccountingIntegrationsController : ControllerBase
 {
     private readonly IAccountingIntegrationService _accountingIntegrationService;

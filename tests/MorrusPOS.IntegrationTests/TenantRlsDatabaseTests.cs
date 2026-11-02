@@ -33,10 +33,10 @@ public class TenantRlsDatabaseTests
             {
                 seed.CommandText = """
                     INSERT INTO businesses
-                        ("Id","Name","Slug","Category","SubscriptionStatus","TrialStartDate","TrialEndDate","CreatedAt","UpdatedAt")
+                        ("Id","Name","Slug","Category","IndustryProfileId","SubscriptionStatus","TrialStartDate","TrialEndDate","CreatedAt","UpdatedAt")
                     VALUES
-                        (@business_a,'RLS Tenant A',@slug_a,'Test','Active',now(),now()+interval '30 days',now(),now()),
-                        (@business_b,'RLS Tenant B',@slug_b,'Test','Active',now(),now()+interval '30 days',now(),now());
+                        (@business_a,'RLS Tenant A',@slug_a,'Test','ca100001-0000-4000-8000-000000000001','Active',now(),now()+interval '30 days',now(),now()),
+                        (@business_b,'RLS Tenant B',@slug_b,'Test','ca100001-0000-4000-8000-000000000001','Active',now(),now()+interval '30 days',now(),now());
                     INSERT INTO outlets
                         ("Id","BusinessId","Name","Code","IsActive","CreatedAt","UpdatedAt")
                     VALUES

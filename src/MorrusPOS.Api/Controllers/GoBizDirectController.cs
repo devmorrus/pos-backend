@@ -1,12 +1,15 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MorrusPOS.Application.Features.Channels;
+using MorrusPOS.Api.Security;
+using MorrusPOS.Domain.Entities;
 
 namespace MorrusPOS.Api.Controllers;
 
 [ApiController]
 [Route("api/gobiz/direct")]
 [Authorize]
+[RequiresCapability(CapabilityCodes.ChannelsGoBiz)]
 public class GoBizDirectController : ControllerBase
 {
     private readonly IGoBizDirectIntegrationService _service;

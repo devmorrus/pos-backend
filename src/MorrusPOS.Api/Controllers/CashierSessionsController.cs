@@ -2,12 +2,15 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Transactions;
+using MorrusPOS.Api.Security;
+using MorrusPOS.Domain.Entities;
 
 namespace MorrusPOS.Api.Controllers;
 
 [ApiController]
 [Route("api/cashier-sessions")]
 [Authorize(Roles = "Owner,Admin,Kasir,KepalaCabang")]
+[RequiresCapability(CapabilityCodes.SalesPos)]
 public class CashierSessionsController : ControllerBase
 {
     private readonly ICashierSessionService _sessionService;

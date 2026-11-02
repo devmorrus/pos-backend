@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Pricing;
+using MorrusPOS.Application.Features.Capabilities;
 using MorrusPOS.Application.Features.Transactions;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -15,10 +16,12 @@ public interface IPricingService
 public class PricingService : IPricingService
 {
     private readonly AppDbContext _dbContext;
+    private readonly ICapabilityEvaluator? _capabilities;
 
-    public PricingService(AppDbContext dbContext)
+    public PricingService(AppDbContext dbContext, ICapabilityEvaluator? capabilities = null)
     {
         _dbContext = dbContext;
+        _capabilities = capabilities;
     }
 
     public async Task<PricingBreakdownDto> CalculateAsync(PricingPreviewRequest request, CancellationToken ct = default)
@@ -40,19 +43,30 @@ public class PricingService : IPricingService
         }
 
         var now = DateTime.UtcNow;
-        var taxRule = await _dbContext.TaxRules
+        var taxServiceEnabled = _capabilities is null ||
+            await _capabilities.IsEnabledAsync(CapabilityCodes.PricingTaxService, request.OutletId, ct);
+        var promotionsEnabled = _capabilities is null ||
+            await _capabilities.IsEnabledAsync(CapabilityCodes.PricingPromotions, request.OutletId, ct);
+        var vouchersEnabled = _capabilities is null ||
+            await _capabilities.IsEnabledAsync(CapabilityCodes.PricingVouchers, request.OutletId, ct);
+        if (!vouchersEnabled && !string.IsNullOrWhiteSpace(request.VoucherCode))
+            throw new CapabilityDisabledException(CapabilityCodes.PricingVouchers, request.OutletId);
+        if (!promotionsEnabled && !string.IsNullOrWhiteSpace(request.SelectedPromoCode))
+            throw new CapabilityDisabledException(CapabilityCodes.PricingPromotions, request.OutletId);
+
+        var taxRule = !taxServiceEnabled ? null : await _dbContext.TaxRules
             .AsNoTracking()
             .Where(rule => rule.OutletId == request.OutletId && rule.IsActive)
             .OrderByDescending(rule => rule.UpdatedAt)
             .FirstOrDefaultAsync(ct);
 
-        var serviceChargeRule = await _dbContext.ServiceChargeRules
+        var serviceChargeRule = !taxServiceEnabled ? null : await _dbContext.ServiceChargeRules
             .AsNoTracking()
             .Where(rule => rule.OutletId == request.OutletId && rule.IsActive)
             .OrderByDescending(rule => rule.UpdatedAt)
             .FirstOrDefaultAsync(ct);
 
-        var promoCandidates = request.Channel == TransactionChannel.Pos
+        var promoCandidates = promotionsEnabled && request.Channel == TransactionChannel.Pos
             ? await _dbContext.PromoCampaigns
                 .AsNoTracking()
                 .Include(p => p.Targets)
@@ -64,7 +78,7 @@ public class PricingService : IPricingService
                 .ToListAsync(ct)
             : new List<PromoCampaign>();
 
-        var voucher = string.IsNullOrWhiteSpace(request.VoucherCode)
+        var voucher = !vouchersEnabled || string.IsNullOrWhiteSpace(request.VoucherCode)
             ? null
             : await _dbContext.Vouchers
                 .AsNoTracking()
