@@ -9,8 +9,8 @@ public class User : AuditableEntity
     public Guid? OutletId { get; set; }
     public Outlet? Outlet { get; set; }
 
-    public Guid? BusinessId { get; set; }
-    public Business? Business { get; set; }
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
 
     public Guid RoleId { get; set; }
     public Role Role { get; set; } = default!;

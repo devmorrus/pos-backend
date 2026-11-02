@@ -14,7 +14,7 @@ case "${TARGET_ENVIRONMENT}" in
   production)
     APP_PATH="/home/morrusdigital/pos-backend"
     TARGET_BRANCH="main"
-    HEALTHCHECK_URL="http://127.0.0.1:8085/api/public/categories"
+    HEALTHCHECK_URL="http://127.0.0.1:8085/health"
     ;;
   *)
     echo "Unknown environment: ${TARGET_ENVIRONMENT}"
@@ -78,12 +78,31 @@ git checkout -f "${TARGET_BRANCH}"
 git reset --hard "${DEPLOY_REF}"
 
 docker compose up -d database
+
+for attempt in {1..30}; do
+  if docker compose exec -T database pg_isready -U morrus -d morrusposs >/dev/null; then
+    break
+  fi
+  if [[ "${attempt}" -eq 30 ]]; then
+    echo "Database did not become ready." >&2
+    exit 1
+  fi
+  sleep 2
+done
+
+# Init scripts only run on a new PostgreSQL volume. Re-apply role ownership and
+# grants on every deployment so existing production volumes are upgraded too.
+docker compose exec -T database psql -U morrus -d morrusposs -v ON_ERROR_STOP=1 \
+  < db/tenant-roles.sql
+
 docker compose build backend
 docker compose up -d --no-deps backend
 docker compose ps
 
 for attempt in {1..30}; do
   if curl --fail --silent --show-error --location --max-time 10 "${HEALTHCHECK_URL}" >/dev/null; then
+    docker compose exec -T database psql -U morrus -d morrusposs -v ON_ERROR_STOP=1 \
+      < db/tenant-verify.sql
     echo "Health check passed."
     exit 0
   fi

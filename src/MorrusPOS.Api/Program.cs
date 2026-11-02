@@ -99,7 +99,9 @@ builder.Services.AddScoped<IValidator<AccountingCashFlowReportFilters>, Accounti
 builder.Services.AddScoped<IValidator<AccountingProfitLossReportFilters>, AccountingProfitLossReportFiltersValidator>();
 
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<CurrentUserService>();
+builder.Services.AddScoped<ICurrentUserService>(sp => sp.GetRequiredService<CurrentUserService>());
+builder.Services.AddScoped<ITenantContextSetter>(sp => sp.GetRequiredService<CurrentUserService>());
 builder.Services.AddScoped<IPosNotificationService, PosNotificationService>();
 
 // ---- JWT Auth ----
@@ -116,6 +118,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Secret"]!))
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    context.HttpContext.Request.Path.StartsWithSegments("/hub/notifications"))
+                    context.Token = accessToken;
+
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -176,7 +190,7 @@ using (var scope = app.Services.CreateScope())
     int dbConfigCount = 0;
     try
     {
-        var db = scope.ServiceProvider.GetRequiredService<MorrusPOS.Infrastructure.Persistence.AppDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<MorrusPOS.Infrastructure.Persistence.SystemDbContext>();
         dbConfigCount = db.Set<MorrusPOS.Domain.Entities.GoBizClientConfig>().Count(x => x.IsActive);
     }
     catch { /* DB belum migrate saat startup awal */ }
@@ -197,8 +211,41 @@ Console.WriteLine($"[DIAGNOSTIC] Uploads Folder Exists: {Directory.Exists(Path.C
 // Auto-migrate database on startup
 using (var scope = app.Services.CreateScope())
 {
-    var context = scope.ServiceProvider.GetRequiredService<MorrusPOS.Infrastructure.Persistence.AppDbContext>();
+    var migrationConnection = builder.Configuration.GetConnectionString("MigrationConnection")
+        ?? throw new InvalidOperationException("MigrationConnection wajib dikonfigurasi dengan role morrus_migration.");
+    var migrationOptions = new DbContextOptionsBuilder<MorrusPOS.Infrastructure.Persistence.AppDbContext>()
+        .UseNpgsql(migrationConnection)
+        .Options;
+    await using var context = new MorrusPOS.Infrastructure.Persistence.AppDbContext(migrationOptions);
     await context.Database.MigrateAsync();
+
+    var runtimeDb = scope.ServiceProvider.GetRequiredService<MorrusPOS.Infrastructure.Persistence.AppDbContext>();
+    await runtimeDb.Database.OpenConnectionAsync();
+    await using var roleCommand = runtimeDb.Database.GetDbConnection().CreateCommand();
+    roleCommand.CommandText = "select rolsuper, rolbypassrls from pg_roles where rolname = current_user;";
+    await using var roleReader = await roleCommand.ExecuteReaderAsync();
+    if (!await roleReader.ReadAsync() || roleReader.GetBoolean(0) || roleReader.GetBoolean(1))
+        throw new InvalidOperationException("Runtime database role must not be superuser or bypass RLS.");
+    await roleReader.DisposeAsync();
+
+    await using var isolationCommand = runtimeDb.Database.GetDbConnection().CreateCommand();
+    isolationCommand.CommandText = """
+        select count(*)
+        from pg_class c
+        join pg_namespace n on n.oid=c.relnamespace
+        where n.nspname='public' and c.relkind='r'
+          and (
+            (exists (select 1 from pg_attribute a where a.attrelid=c.oid and a.attname='BusinessId' and not a.attisdropped)
+             and (not c.relrowsecurity or not c.relforcerowsecurity
+                  or not exists (select 1 from pg_policy p where p.polrelid=c.oid and p.polname='tenant_isolation')))
+            or (c.relname='businesses'
+                and (not c.relrowsecurity or not c.relforcerowsecurity
+                     or not exists (select 1 from pg_policy p where p.polrelid=c.oid and p.polname='tenant_isolation')))
+          );
+        """;
+    var unprotectedTenantTables = Convert.ToInt32(await isolationCommand.ExecuteScalarAsync());
+    if (unprotectedTenantTables > 0)
+        throw new InvalidOperationException($"Database tenant isolation is incomplete for {unprotectedTenantTables} table(s).");
 }
 
 if (app.Environment.IsDevelopment())
@@ -239,6 +286,7 @@ app.UseMiddleware<OutletTenantMiddleware>();
 
 app.MapControllers();
 app.MapHub<NotificationHub>("/hub/notifications");
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 app.Run();
 

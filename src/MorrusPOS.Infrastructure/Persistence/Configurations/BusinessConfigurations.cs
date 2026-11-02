@@ -14,6 +14,8 @@ public class BusinessConfiguration : IEntityTypeConfiguration<Business>
         builder.ToTable("businesses");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Name).HasMaxLength(150).IsRequired();
+        builder.Property(x => x.Slug).HasMaxLength(180).IsRequired();
+        builder.HasIndex(x => x.Slug).IsUnique();
         builder.Property(x => x.Category).HasMaxLength(100).IsRequired();
         builder.Property(x => x.Phone).HasMaxLength(20);
         builder.Property(x => x.SubscriptionStatus).HasMaxLength(20).IsRequired();
@@ -49,6 +51,7 @@ public class BusinessConfiguration : IEntityTypeConfiguration<Business>
         {
             Id = SeedBusinessId,
             Name = "Morrus Demo Business",
+            Slug = "morrus-demo",
             Category = "Retail",
             SubscriptionStatus = "Active",
             TrialStartDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),

@@ -111,7 +111,7 @@ public sealed class GoBizClientConfigService : IGoBizClientConfigService
             var outlet = await _dbContext.Outlets.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == outletId.Value, ct)
                 ?? throw new InvalidOperationException("Outlet tidak valid.");
-            EnsureCanAccess(outlet.BusinessId ?? businessId ?? Guid.Empty);
+            EnsureCanAccess(outlet.BusinessId);
             resolved = await _provider.GetByOutletAsync(outletId.Value, ct);
         }
         else if (businessId.HasValue)

@@ -214,9 +214,8 @@ public class BufferStockService : IBufferStockService
             throw new InvalidOperationException("Produk tidak aktif.");
         }
 
-        // Pastikan produk dan outlet berada pada business yang sama (jika keduanya punya BusinessId).
-        if (outlet.BusinessId.HasValue && product.BusinessId.HasValue &&
-            outlet.BusinessId.Value != product.BusinessId.Value)
+        // Kedua FK tenant wajib terisi; pastikan parent tidak lintas business.
+        if (outlet.BusinessId != product.BusinessId)
         {
             throw new UnauthorizedAccessException("Produk tidak berada pada business outlet tersebut.");
         }

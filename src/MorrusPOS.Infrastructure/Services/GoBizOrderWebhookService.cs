@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Channels;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -12,15 +13,21 @@ namespace MorrusPOS.Infrastructure.Services;
 public sealed class GoBizOrderWebhookService : IGoBizOrderWebhookService
 {
     private readonly AppDbContext _dbContext;
+    private readonly SystemDbContext _systemDb;
+    private readonly ITenantContextSetter _tenantContext;
     private readonly IGoBizConfigProvider _configProvider;
     private readonly ILogger<GoBizOrderWebhookService> _logger;
 
     public GoBizOrderWebhookService(
         AppDbContext dbContext,
+        SystemDbContext systemDb,
+        ITenantContextSetter tenantContext,
         IGoBizConfigProvider configProvider,
         ILogger<GoBizOrderWebhookService> logger)
     {
         _dbContext = dbContext;
+        _systemDb = systemDb;
+        _tenantContext = tenantContext;
         _configProvider = configProvider;
         _logger = logger;
     }
@@ -48,17 +55,28 @@ public sealed class GoBizOrderWebhookService : IGoBizOrderWebhookService
             throw new InvalidOperationException("Order ID GoBiz tidak ditemukan pada webhook.");
         }
 
-        var integration = await _dbContext.GoBizDirectIntegrations.FirstOrDefaultAsync(x => x.GoBizOutletId == goBizOutletId && x.IsActive, ct)
+        // Tenant di-resolve dulu lewat SystemDbContext (bypass RLS, lookup lintas
+        // tenant), lalu business context di-set supaya skip query tidak bocor.
+        var integration = await _systemDb.GoBizDirectIntegrations.FirstOrDefaultAsync(x => x.GoBizOutletId == goBizOutletId && x.IsActive, ct)
             ?? throw new InvalidOperationException("Outlet GoBiz belum terhubung ke outlet Morrus POS.");
+
+        var businessId = await _systemDb.Outlets
+            .Where(o => o.Id == integration.OutletId)
+            .Select(o => (Guid?)o.BusinessId)
+            .FirstOrDefaultAsync(ct)
+            ?? throw new InvalidOperationException("Outlet Morrus POS untuk webhook GoBiz belum memiliki business.");
+
+        _tenantContext.SetBusinessOverride(businessId);
 
         // Opsi B: verifikasi signature per-Business (jika WebhookSecret dikonfigurasi).
         await VerifySignatureAsync(integration.OutletId, rawBody, headers, ct);
 
-        var existing = await _dbContext.GoBizOrderInboxes.FirstOrDefaultAsync(x => x.GoBizOrderId == orderId, ct);
+        // GoBizOrderId unik global (lintas tenant) — dedupe lewat SystemDbContext.
+        var existing = await _systemDb.GoBizOrderInboxes.FirstOrDefaultAsync(x => x.GoBizOrderId == orderId, ct);
         if (existing is not null)
         {
             existing.ProcessedAtUtc ??= DateTime.UtcNow;
-            await _dbContext.SaveChangesAsync(ct);
+            await _systemDb.SaveChangesAsync(ct);
             return;
         }
 
@@ -87,6 +105,7 @@ public sealed class GoBizOrderWebhookService : IGoBizOrderWebhookService
         });
 
         await _dbContext.SaveChangesAsync(ct);
+        await _systemDb.SaveChangesAsync(ct);
     }
 
     private static string? ReadString(JsonElement root, string propertyName)

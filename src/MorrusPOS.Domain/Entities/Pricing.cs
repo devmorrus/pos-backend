@@ -17,6 +17,9 @@ public static class PromoScopeType
 
 public class TaxRule : AuditableEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid OutletId { get; set; }
     public Outlet Outlet { get; set; } = default!;
 
@@ -28,6 +31,9 @@ public class TaxRule : AuditableEntity
 
 public class ServiceChargeRule : AuditableEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid OutletId { get; set; }
     public Outlet Outlet { get; set; } = default!;
 
@@ -38,6 +44,9 @@ public class ServiceChargeRule : AuditableEntity
 
 public class PromoCampaign : AuditableEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid OutletId { get; set; }
     public Outlet Outlet { get; set; } = default!;
 
@@ -57,6 +66,9 @@ public class PromoCampaign : AuditableEntity
 
 public class PromoCampaignTarget : BaseEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid PromoCampaignId { get; set; }
     public PromoCampaign PromoCampaign { get; set; } = default!;
 
@@ -69,6 +81,9 @@ public class PromoCampaignTarget : BaseEntity
 
 public class Voucher : AuditableEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid OutletId { get; set; }
     public Outlet Outlet { get; set; } = default!;
 
@@ -90,6 +105,9 @@ public class Voucher : AuditableEntity
 
 public class VoucherRedemption : BaseEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid VoucherId { get; set; }
     public Voucher Voucher { get; set; } = default!;
 

@@ -49,6 +49,7 @@ public class BillingController : ControllerBase
     }
 
     [HttpPost("simulate-expiry")]
+    [Authorize(Roles = "Owner")]
     public async Task<IActionResult> SimulateExpiry(CancellationToken ct)
     {
         var businessId = _currentUser.BusinessId;
@@ -91,6 +92,7 @@ public class BillingController : ControllerBase
     }
 
     [HttpPost("reactivate")]
+    [Authorize(Roles = "Owner")]
     public async Task<IActionResult> Reactivate(CancellationToken ct)
     {
         var businessId = _currentUser.BusinessId;

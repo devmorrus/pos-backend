@@ -10,6 +10,21 @@ jobs:
   dotnet-check:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: morrusposs
+          POSTGRES_USER: morrus
+          POSTGRES_PASSWORD: password123
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U morrus -d morrusposs"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,5 +40,29 @@ jobs:
       - name: Build solution
         run: dotnet build MorrusPOS.sln --configuration Release --no-restore
 
+      - name: Prepare tenancy database
+        env:
+          PGPASSWORD: password123
+        run: |
+          psql -h localhost -U morrus -d morrusposs -v ON_ERROR_STOP=1 -f db/tenant-roles.sql
+          dotnet tool install --global dotnet-ef --version 10.0.10
+          dotnet ef database update \
+            --context AppDbContext \
+            --project src/MorrusPOS.Infrastructure \
+            --startup-project src/MorrusPOS.Api \
+            --configuration Release \
+            --connection "Host=localhost;Port=5432;Database=morrusposs;Username=morrus_migration;Password=password123"
+          psql -h localhost -U morrus -d morrusposs -v ON_ERROR_STOP=1 -f db/tenant-verify.sql
+
       - name: Run unit tests
         run: dotnet test tests/MorrusPOS.UnitTests/MorrusPOS.UnitTests.csproj --configuration Release --no-build --verbosity normal
+
+      - name: Run integration and RLS tests
+        env:
+          ConnectionStrings__DefaultConnection: Host=localhost;Port=5432;Database=morrusposs;Username=morrus_app;Password=password123
+          ConnectionStrings__SystemConnection: Host=localhost;Port=5432;Database=morrusposs;Username=morrus_system;Password=password123
+          ConnectionStrings__MigrationConnection: Host=localhost;Port=5432;Database=morrusposs;Username=morrus_migration;Password=password123
+          MORRUS_TENANCY_TEST_ADMIN: Host=localhost;Port=5432;Database=morrusposs;Username=morrus;Password=password123
+          MORRUS_TENANCY_TEST_APP: Host=localhost;Port=5432;Database=morrusposs;Username=morrus_app;Password=password123
+          MORRUS_TENANCY_TEST_SYSTEM: Host=localhost;Port=5432;Database=morrusposs;Username=morrus_system;Password=password123
+        run: dotnet test tests/MorrusPOS.IntegrationTests/MorrusPOS.IntegrationTests.csproj --configuration Release --no-build --verbosity normal

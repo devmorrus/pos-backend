@@ -12,6 +12,9 @@ public static class PaymentMethod
 
 public class Payment : BaseEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid TransactionId { get; set; }
     public Transaction Transaction { get; set; } = default!;
 
@@ -27,6 +30,9 @@ public class Payment : BaseEntity
 
 public class Return : BaseEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid TransactionId { get; set; }
     public Transaction Transaction { get; set; } = default!;
 

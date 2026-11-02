@@ -17,8 +17,8 @@ public static class TransactionCustomerType
 
 public class Customer : AuditableEntity
 {
-    public Guid? BusinessId { get; set; }
-    public Business? Business { get; set; }
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
 
     public Guid? CreatedOutletId { get; set; }
     public Outlet? CreatedOutlet { get; set; }

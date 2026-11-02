@@ -12,7 +12,7 @@ public class OutletConfiguration : IEntityTypeConfiguration<Outlet>
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Name).HasMaxLength(150).IsRequired();
         builder.Property(x => x.Code).HasMaxLength(20).IsRequired();
-        builder.HasIndex(x => x.Code).IsUnique();
+        builder.HasIndex(x => new { x.BusinessId, x.Code }).IsUnique();
         builder.Property(x => x.Phone).HasMaxLength(20);
 
         builder.HasData(new Outlet

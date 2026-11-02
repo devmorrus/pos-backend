@@ -4,6 +4,9 @@ namespace MorrusPOS.Domain.Entities;
 
 public class SupplierReturnItem : BaseEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid SupplierReturnId { get; set; }
     public SupplierReturn SupplierReturn { get; set; } = default!;
 

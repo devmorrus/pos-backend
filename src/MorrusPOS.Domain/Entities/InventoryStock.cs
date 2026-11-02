@@ -9,6 +9,9 @@ namespace MorrusPOS.Domain.Entities;
 /// </summary>
 public class InventoryStock : BaseEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid ProductId { get; set; }
     public Product Product { get; set; } = default!;
 

@@ -34,10 +34,7 @@ public sealed class GoBizConfigProvider : IGoBizConfigProvider
             .FirstOrDefaultAsync(x => x.Id == outletId, ct)
             ?? throw new InvalidOperationException("Outlet tidak valid.");
 
-        if (outlet.BusinessId.HasValue)
-            return await GetByBusinessAsync(outlet.BusinessId.Value, ct);
-
-        return FromFallback(null);
+        return await GetByBusinessAsync(outlet.BusinessId, ct);
     }
 
     public async Task<ResolvedGoBizConfig> GetByBusinessAsync(Guid businessId, CancellationToken ct = default)

@@ -24,7 +24,7 @@ public class PurchaseOrderConfiguration : IEntityTypeConfiguration<PurchaseOrder
         builder.ToTable("purchase_orders");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.PoNumber).HasMaxLength(30).IsRequired();
-        builder.HasIndex(x => x.PoNumber).IsUnique();
+        builder.HasIndex(x => new { x.BusinessId, x.PoNumber }).IsUnique();
         builder.Property(x => x.PaymentType).HasMaxLength(20).IsRequired();
         builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
         builder.Property(x => x.TotalAmount).HasColumnType("decimal(14,2)");

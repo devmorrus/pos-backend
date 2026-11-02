@@ -22,21 +22,6 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("ModifierGroupProduct", b =>
-                {
-                    b.Property<Guid>("ModifierGroupsId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ProductsId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("ModifierGroupsId", "ProductsId");
-
-                    b.HasIndex("ProductsId");
-
-                    b.ToTable("ModifierGroupProduct");
-                });
-
             modelBuilder.Entity("MorrusPOS.Domain.Entities.AccountTransaction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -115,6 +100,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -139,6 +127,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BusinessId");
 
                     b.HasIndex("OutletId");
 
@@ -177,6 +167,11 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
                     b.Property<DateTime?>("SubscriptionEndDate")
                         .HasColumnType("timestamp with time zone");
 
@@ -196,6 +191,9 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
                     b.ToTable("businesses", (string)null);
 
                     b.HasData(
@@ -207,6 +205,7 @@ namespace MorrusPOS.Infrastructure.Migrations
                             Name = "Morrus Demo Business",
                             OwnerId = new Guid("a4f78de1-8a9d-4e96-857e-399fa5b5f25a"),
                             SelectedPackage = "Development",
+                            Slug = "morrus-demo",
                             SubscriptionStatus = "Active",
                             TrialEndDate = new DateTime(2026, 1, 31, 0, 0, 0, 0, DateTimeKind.Utc),
                             TrialStartDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -299,6 +298,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<decimal?>("ActualCash")
                         .HasColumnType("decimal(14,2)");
 
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime?>("ClosingTime")
                         .HasColumnType("timestamp with time zone");
 
@@ -333,6 +335,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("OutletId");
 
                     b.HasIndex("UserId");
@@ -346,7 +350,7 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("BusinessId")
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -382,6 +386,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasMaxLength(250)
                         .HasColumnType("character varying(250)");
 
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("ChannelName")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -414,6 +421,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("OutletId", "ChannelName", "Name")
                         .IsUnique();
 
@@ -424,6 +433,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ChannelAccountId")
@@ -472,7 +484,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("CreatedBy");
 
-                    b.HasIndex("SettlementNumber")
+                    b.HasIndex("BusinessId", "SettlementNumber")
                         .IsUnique();
 
                     b.ToTable("channel_settlements", (string)null);
@@ -482,6 +494,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ChannelSettlementId")
@@ -501,6 +516,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("TransactionId");
 
                     b.HasIndex("ChannelSettlementId", "TransactionId")
@@ -517,6 +534,9 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.Property<decimal>("BufferQty")
                         .HasColumnType("decimal(12,2)");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -542,6 +562,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BusinessId");
 
                     b.HasIndex("OutletId");
 
@@ -626,6 +648,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("ConsignmentNumber")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -656,14 +681,14 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ConsignmentNumber")
-                        .IsUnique();
-
                     b.HasIndex("CreatedBy");
 
                     b.HasIndex("OutletId");
 
                     b.HasIndex("SupplierId");
+
+                    b.HasIndex("BusinessId", "ConsignmentNumber")
+                        .IsUnique();
 
                     b.ToTable("consignments", (string)null);
                 });
@@ -672,6 +697,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ConsignmentId")
@@ -704,6 +732,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("ConsignmentId");
 
                     b.HasIndex("ProductId");
@@ -717,6 +747,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -753,10 +786,10 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("OutletId");
 
-                    b.HasIndex("ReturnNumber")
-                        .IsUnique();
-
                     b.HasIndex("SupplierId");
+
+                    b.HasIndex("BusinessId", "ReturnNumber")
+                        .IsUnique();
 
                     b.ToTable("consignment_returns", (string)null);
                 });
@@ -765,6 +798,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ConsignmentReturnId")
@@ -781,6 +817,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("ConsignmentReturnId");
 
                     b.HasIndex("ProductId");
@@ -794,6 +832,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid?>("ConsignmentSettlementId")
@@ -824,6 +865,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("ConsignmentSettlementId");
 
                     b.HasIndex("SupplierId");
@@ -837,6 +880,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -876,10 +922,10 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("OutletId");
 
-                    b.HasIndex("SettlementNumber")
-                        .IsUnique();
-
                     b.HasIndex("SupplierId");
+
+                    b.HasIndex("BusinessId", "SettlementNumber")
+                        .IsUnique();
 
                     b.ToTable("consignment_settlements", (string)null);
                 });
@@ -896,7 +942,7 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<DateTime?>("BirthDate")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid?>("BusinessId")
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -971,10 +1017,10 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("CreatedOutletId");
 
-                    b.HasIndex("CustomerCode")
-                        .IsUnique();
-
                     b.HasIndex("LastTransactionAt");
+
+                    b.HasIndex("BusinessId", "CustomerCode")
+                        .IsUnique();
 
                     b.HasIndex("BusinessId", "Phone")
                         .IsUnique()
@@ -1072,7 +1118,7 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("BusinessId")
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -1143,7 +1189,7 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
 
-                    b.Property<Guid?>("BusinessId")
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("ConnectedAtUtc")
@@ -1202,7 +1248,7 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("BusinessId")
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime?>("ConsumedAtUtc")
@@ -1243,6 +1289,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("ErrorMessage")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
@@ -1280,6 +1329,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("GoBizOrderId")
                         .IsUnique();
 
@@ -1296,6 +1347,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -1334,6 +1388,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("GoBizItemId");
 
                     b.HasIndex("ProductId");
@@ -1350,6 +1406,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -1378,6 +1437,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.ToTable("integration_logs", (string)null);
                 });
 
@@ -1385,6 +1446,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("MinStockAlert")
@@ -1409,13 +1473,15 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("OutletId");
 
+                    b.HasIndex("ProductId");
+
                     b.HasIndex("ProductVariantId");
 
-                    b.HasIndex("ProductId", "OutletId")
+                    b.HasIndex("BusinessId", "ProductId", "OutletId")
                         .IsUnique()
                         .HasFilter("\"ProductVariantId\" IS NULL");
 
-                    b.HasIndex("ProductId", "ProductVariantId", "OutletId")
+                    b.HasIndex("BusinessId", "ProductId", "ProductVariantId", "OutletId")
                         .IsUnique()
                         .HasFilter("\"ProductVariantId\" IS NOT NULL");
 
@@ -1457,10 +1523,33 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.ToTable("ModifierGroups");
                 });
 
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.ModifierGroupProduct", b =>
+                {
+                    b.Property<Guid>("ModifierGroupsId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductsId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ModifierGroupsId", "ProductsId");
+
+                    b.HasIndex("BusinessId");
+
+                    b.HasIndex("ProductsId");
+
+                    b.ToTable("ModifierGroupProduct", (string)null);
+                });
+
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ModifierOption", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("ExtraCost")
@@ -1478,6 +1567,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("ModifierGroupId");
 
                     b.ToTable("ModifierOptions");
@@ -1492,7 +1583,7 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<string>("Address")
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("BusinessId")
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Code")
@@ -1520,9 +1611,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BusinessId");
-
-                    b.HasIndex("Code")
+                    b.HasIndex("BusinessId", "Code")
                         .IsUnique();
 
                     b.ToTable("outlets", (string)null);
@@ -1549,6 +1638,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(14,2)");
 
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("CashierSessionId")
                         .HasColumnType("uuid");
 
@@ -1568,6 +1660,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BusinessId");
 
                     b.HasIndex("CashierSessionId");
 
@@ -1711,6 +1805,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(14,2)");
 
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("CashierSessionId")
                         .HasColumnType("uuid");
 
@@ -1738,6 +1835,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("CashierSessionId");
 
                     b.HasIndex("OutletId");
@@ -1760,7 +1859,7 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<decimal>("BasePrice")
                         .HasColumnType("decimal(14,2)");
 
-                    b.Property<Guid?>("BusinessId")
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("CategoryId")
@@ -1820,15 +1919,13 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Barcode")
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("BusinessId", "Barcode")
                         .IsUnique()
                         .HasFilter("\"Barcode\" IS NOT NULL");
 
-                    b.HasIndex("BusinessId");
-
-                    b.HasIndex("CategoryId");
-
-                    b.HasIndex("Sku")
+                    b.HasIndex("BusinessId", "Sku")
                         .IsUnique();
 
                     b.ToTable("products", (string)null);
@@ -1869,6 +1966,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<Guid>("AttributeId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("ProductVariantId")
                         .HasColumnType("uuid");
 
@@ -1879,6 +1979,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AttributeId");
+
+                    b.HasIndex("BusinessId");
 
                     b.HasIndex("ProductVariantId");
 
@@ -1894,6 +1996,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<string>("BatchNumber")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1918,6 +2023,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("ProductId");
 
                     b.HasIndex("ProductVariantId");
@@ -1929,6 +2036,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ProductId")
@@ -1944,6 +2054,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BusinessId");
 
                     b.HasIndex("ProductId");
 
@@ -1965,6 +2077,9 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.Property<decimal>("BasePrice")
                         .HasColumnType("numeric");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
 
                     b.Property<decimal>("CostPrice")
                         .HasColumnType("numeric");
@@ -1990,6 +2105,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("ProductId");
 
                     b.ToTable("ProductVariants");
@@ -1999,6 +2116,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Code")
@@ -2049,6 +2169,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("OutletId", "Code")
                         .IsUnique()
                         .HasFilter("\"Code\" IS NOT NULL");
@@ -2064,6 +2186,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("CategoryId")
                         .HasColumnType("uuid");
 
@@ -2074,6 +2199,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BusinessId");
 
                     b.HasIndex("CategoryId");
 
@@ -2088,6 +2215,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -2135,10 +2265,10 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("OutletId");
 
-                    b.HasIndex("PoNumber")
-                        .IsUnique();
-
                     b.HasIndex("SupplierId");
+
+                    b.HasIndex("BusinessId", "PoNumber")
+                        .IsUnique();
 
                     b.ToTable("purchase_orders", (string)null);
                 });
@@ -2147,6 +2277,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ProductId")
@@ -2177,6 +2310,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("ProductId");
 
                     b.HasIndex("ProductVariantId");
@@ -2190,6 +2325,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -2219,6 +2357,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("PurchaseOrderId");
 
                     b.HasIndex("ReceivedByUserId");
@@ -2234,6 +2374,9 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.Property<string>("BatchNumber")
                         .HasColumnType("text");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime?>("ExpiryDate")
                         .HasColumnType("timestamp with time zone");
@@ -2252,6 +2395,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("ProductId");
 
                     b.HasIndex("ProductVariantId");
@@ -2265,6 +2410,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -2286,6 +2434,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("Token")
                         .IsUnique();
 
@@ -2298,6 +2448,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -2324,6 +2477,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BusinessId");
 
                     b.HasIndex("ProcessedBy");
 
@@ -2694,6 +2849,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -2716,6 +2874,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("OutletId", "IsActive", "UpdatedAt");
 
                     b.ToTable("service_charge_rules", (string)null);
@@ -2725,6 +2885,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -2763,6 +2926,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("CreatedBy");
 
                     b.HasIndex("OutletId");
@@ -2778,6 +2943,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -2796,6 +2964,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("OutletId");
 
                     b.HasIndex("PerformedBy");
@@ -2807,6 +2977,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("PhysicalQty")
@@ -2829,6 +3002,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("ProductId");
 
                     b.HasIndex("ProductVariantId");
@@ -2845,6 +3020,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid?>("ApprovedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -2882,7 +3060,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("ToOutletId");
 
-                    b.HasIndex("TransferNumber")
+                    b.HasIndex("BusinessId", "TransferNumber")
                         .IsUnique();
 
                     b.ToTable("stock_transfers", (string)null);
@@ -2892,6 +3070,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ProductId")
@@ -2907,6 +3088,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BusinessId");
 
                     b.HasIndex("ProductId");
 
@@ -2926,7 +3109,7 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<string>("Address")
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("BusinessId")
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("ContactPerson")
@@ -2971,6 +3154,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(14,2)");
 
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -2999,6 +3185,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("PurchaseOrderId");
 
                     b.HasIndex("SupplierId");
@@ -3014,6 +3202,9 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(14,2)");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -3046,6 +3237,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("CreatedBy");
 
                     b.HasIndex("PurchaseOrderId");
@@ -3059,6 +3252,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -3098,6 +3294,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("CreatedBy");
 
                     b.HasIndex("PurchaseOrderId");
@@ -3114,6 +3312,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ProductId")
@@ -3136,6 +3337,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("ProductId");
 
                     b.HasIndex("ProductVariantId");
@@ -3154,6 +3357,9 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.Property<bool>("AppliesBeforeServiceCharge")
                         .HasColumnType("boolean");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -3177,6 +3383,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("OutletId", "IsActive", "UpdatedAt");
 
                     b.ToTable("tax_rules", (string)null);
@@ -3198,6 +3406,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<string>("AppliedVoucherCode")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid?>("CashierSessionId")
                         .HasColumnType("uuid");
@@ -3306,12 +3517,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("ExternalCustomerReference");
 
-                    b.HasIndex("TransactionNumber")
-                        .IsUnique();
-
                     b.HasIndex("UserId");
 
                     b.HasIndex("VoidedBy");
+
+                    b.HasIndex("BusinessId", "TransactionNumber")
+                        .IsUnique();
 
                     b.HasIndex("OutletId", "CreatedAt");
 
@@ -3322,6 +3533,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("DiscountAmount")
@@ -3356,6 +3570,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("ProductId");
 
                     b.HasIndex("ProductVariantId");
@@ -3371,7 +3587,7 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("BusinessId")
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -3441,6 +3657,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -3494,6 +3713,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("OutletId", "Code")
                         .IsUnique();
 
@@ -3506,6 +3727,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("RedeemedAmount")
@@ -3522,6 +3746,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.HasIndex("TransactionId")
                         .IsUnique();
 
@@ -3530,27 +3756,12 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.ToTable("voucher_redemptions", (string)null);
                 });
 
-            modelBuilder.Entity("ModifierGroupProduct", b =>
-                {
-                    b.HasOne("MorrusPOS.Domain.Entities.ModifierGroup", null)
-                        .WithMany()
-                        .HasForeignKey("ModifierGroupsId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("MorrusPOS.Domain.Entities.Product", null)
-                        .WithMany()
-                        .HasForeignKey("ProductsId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("MorrusPOS.Domain.Entities.AccountTransaction", b =>
                 {
                     b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
                         .WithMany("AccountTransactions")
                         .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("MorrusPOS.Domain.Entities.ChartOfAccount", "ChartOfAccount")
@@ -3573,6 +3784,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.AuditLog", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
                         .WithMany()
                         .HasForeignKey("OutletId")
@@ -3585,6 +3802,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("Outlet");
 
                     b.Navigation("User");
@@ -3595,7 +3814,7 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
                         .WithMany("CashFlows")
                         .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("MorrusPOS.Domain.Entities.User", "CreatedByUser")
@@ -3632,6 +3851,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.CashierSession", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
                         .WithMany()
                         .HasForeignKey("OutletId")
@@ -3644,6 +3869,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("Outlet");
 
                     b.Navigation("User");
@@ -3654,7 +3881,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
                         .WithMany()
                         .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("MorrusPOS.Domain.Entities.Category", "Parent")
                         .WithMany("Children")
@@ -3668,17 +3896,31 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ChannelAccount", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
                         .WithMany()
                         .HasForeignKey("OutletId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("Outlet");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ChannelSettlement", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.ChannelAccount", "ChannelAccount")
                         .WithMany()
                         .HasForeignKey("ChannelAccountId")
@@ -3691,6 +3933,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("ChannelAccount");
 
                     b.Navigation("CreatedByUser");
@@ -3698,6 +3942,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ChannelSettlementItem", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.ChannelSettlement", "ChannelSettlement")
                         .WithMany("Items")
                         .HasForeignKey("ChannelSettlementId")
@@ -3710,6 +3960,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("ChannelSettlement");
 
                     b.Navigation("Transaction");
@@ -3717,6 +3969,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ChannelStockPolicy", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
                         .WithMany()
                         .HasForeignKey("OutletId")
@@ -3740,6 +3998,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("Outlet");
 
                     b.Navigation("Product");
@@ -3754,7 +4014,7 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
                         .WithMany("ChartOfAccounts")
                         .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
@@ -3776,6 +4036,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.Consignment", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.User", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedBy")
@@ -3794,6 +4060,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("Outlet");
@@ -3803,6 +4071,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ConsignmentItem", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Consignment", "Consignment")
                         .WithMany("Items")
                         .HasForeignKey("ConsignmentId")
@@ -3819,6 +4093,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("ProductVariantId");
 
+                    b.Navigation("Business");
+
                     b.Navigation("Consignment");
 
                     b.Navigation("Product");
@@ -3828,6 +4104,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ConsignmentReturn", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.User", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedBy")
@@ -3846,6 +4128,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("Outlet");
@@ -3855,6 +4139,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ConsignmentReturnItem", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.ConsignmentReturn", "ConsignmentReturn")
                         .WithMany("Items")
                         .HasForeignKey("ConsignmentReturnId")
@@ -3871,6 +4161,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("ProductVariantId");
 
+                    b.Navigation("Business");
+
                     b.Navigation("ConsignmentReturn");
 
                     b.Navigation("Product");
@@ -3880,6 +4172,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ConsignmentSale", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.ConsignmentSettlement", "ConsignmentSettlement")
                         .WithMany("Sales")
                         .HasForeignKey("ConsignmentSettlementId")
@@ -3897,6 +4195,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("ConsignmentSettlement");
 
                     b.Navigation("Supplier");
@@ -3906,6 +4206,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ConsignmentSettlement", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.User", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedBy")
@@ -3924,6 +4230,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("Outlet");
@@ -3935,7 +4243,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 {
                     b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
                         .WithMany()
-                        .HasForeignKey("BusinessId");
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "CreatedOutlet")
                         .WithMany()
@@ -3963,7 +4273,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
                         .WithMany()
                         .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
                         .WithMany()
@@ -3981,7 +4292,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
                         .WithMany()
                         .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
                         .WithMany()
@@ -3999,7 +4311,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
                         .WithMany()
                         .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
                         .WithMany()
@@ -4014,6 +4327,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.GoBizOrderInbox", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
                         .WithMany()
                         .HasForeignKey("OutletId")
@@ -4025,6 +4344,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasForeignKey("TransactionId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.Navigation("Business");
+
                     b.Navigation("Outlet");
 
                     b.Navigation("Transaction");
@@ -4032,6 +4353,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.GoBizProductMapping", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
                         .WithMany()
                         .HasForeignKey("OutletId")
@@ -4049,6 +4376,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasForeignKey("ProductVariantId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.Navigation("Business");
+
                     b.Navigation("Outlet");
 
                     b.Navigation("Product");
@@ -4056,8 +4385,25 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("ProductVariant");
                 });
 
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.IntegrationLog", b =>
+                {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Business");
+                });
+
             modelBuilder.Entity("MorrusPOS.Domain.Entities.InventoryStock", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
                         .WithMany("InventoryStocks")
                         .HasForeignKey("OutletId")
@@ -4074,6 +4420,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .WithMany("InventoryStocks")
                         .HasForeignKey("ProductVariantId");
 
+                    b.Navigation("Business");
+
                     b.Navigation("Outlet");
 
                     b.Navigation("Product");
@@ -4086,19 +4434,54 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
                         .WithMany()
                         .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Business");
                 });
 
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.ModifierGroupProduct", b =>
+                {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.ModifierGroup", "ModifierGroup")
+                        .WithMany()
+                        .HasForeignKey("ModifierGroupsId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductsId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Business");
+
+                    b.Navigation("ModifierGroup");
+
+                    b.Navigation("Product");
+                });
+
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ModifierOption", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.ModifierGroup", "ModifierGroup")
                         .WithMany("Options")
                         .HasForeignKey("ModifierGroupId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Business");
 
                     b.Navigation("ModifierGroup");
                 });
@@ -4108,13 +4491,20 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
                         .WithMany("Outlets")
                         .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Business");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.Payment", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.CashierSession", "CashierSession")
                         .WithMany()
                         .HasForeignKey("CashierSessionId")
@@ -4126,6 +4516,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("CashierSession");
 
                     b.Navigation("Transaction");
@@ -4133,6 +4525,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.PettyCashExpense", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.CashierSession", "CashierSession")
                         .WithMany("PettyCashExpenses")
                         .HasForeignKey("CashierSessionId")
@@ -4151,6 +4549,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("CashierSession");
 
                     b.Navigation("Outlet");
@@ -4163,7 +4563,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
                         .WithMany()
                         .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("MorrusPOS.Domain.Entities.Category", "Category")
                         .WithMany("Products")
@@ -4181,7 +4582,7 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
                         .WithMany()
                         .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Business");
@@ -4195,15 +4596,29 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.ProductVariant", null)
                         .WithMany("AttributeValues")
                         .HasForeignKey("ProductVariantId");
 
                     b.Navigation("Attribute");
+
+                    b.Navigation("Business");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductBatch", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
@@ -4214,6 +4629,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("ProductVariantId");
 
+                    b.Navigation("Business");
+
                     b.Navigation("Product");
 
                     b.Navigation("ProductVariant");
@@ -4221,6 +4638,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductRecipe", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
                         .WithMany("Recipes")
                         .HasForeignKey("ProductId")
@@ -4237,6 +4660,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("Product");
 
                     b.Navigation("ProductVariant");
@@ -4246,28 +4671,50 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductVariant", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
                         .WithMany("Variants")
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("Product");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.PromoCampaign", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
                         .WithMany("PromoCampaigns")
                         .HasForeignKey("OutletId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("Outlet");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.PromoCampaignTarget", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Category", "Category")
                         .WithMany()
                         .HasForeignKey("CategoryId")
@@ -4284,6 +4731,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("Category");
 
                     b.Navigation("Product");
@@ -4293,6 +4742,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.PurchaseOrder", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.User", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedBy")
@@ -4311,6 +4766,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("Outlet");
@@ -4320,6 +4777,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.PurchaseOrderItem", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
@@ -4336,6 +4799,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("Product");
 
                     b.Navigation("ProductVariant");
@@ -4345,6 +4810,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ReceivingNote", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.PurchaseOrder", "PurchaseOrder")
                         .WithMany()
                         .HasForeignKey("PurchaseOrderId")
@@ -4357,6 +4828,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("PurchaseOrder");
 
                     b.Navigation("ReceivedByUser");
@@ -4364,6 +4837,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ReceivingNoteItem", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
@@ -4380,6 +4859,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("Product");
 
                     b.Navigation("ProductVariant");
@@ -4389,17 +4870,31 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.RefreshToken", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.User", "User")
                         .WithMany("RefreshTokens")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("User");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.Return", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.User", "ProcessedByUser")
                         .WithMany()
                         .HasForeignKey("ProcessedBy")
@@ -4417,6 +4912,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasForeignKey("TransactionItemId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Business");
 
                     b.Navigation("ProcessedByUser");
 
@@ -4446,17 +4943,31 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ServiceChargeRule", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
                         .WithMany("ServiceChargeRules")
                         .HasForeignKey("OutletId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("Outlet");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.StockLedger", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.User", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedBy")
@@ -4479,6 +4990,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("ProductVariantId");
 
+                    b.Navigation("Business");
+
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("Outlet");
@@ -4490,6 +5003,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.StockOpname", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
                         .WithMany()
                         .HasForeignKey("OutletId")
@@ -4502,6 +5021,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("Outlet");
 
                     b.Navigation("PerformedByUser");
@@ -4509,6 +5030,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.StockOpnameItem", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
@@ -4525,6 +5052,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("Product");
 
                     b.Navigation("ProductVariant");
@@ -4538,6 +5067,12 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("ApprovedBy")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "FromOutlet")
                         .WithMany()
@@ -4559,6 +5094,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.Navigation("ApprovedByUser");
 
+                    b.Navigation("Business");
+
                     b.Navigation("FromOutlet");
 
                     b.Navigation("RequestedByUser");
@@ -4568,6 +5105,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.StockTransferItem", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
@@ -4584,6 +5127,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("Product");
 
                     b.Navigation("ProductVariant");
@@ -4596,13 +5141,20 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
                         .WithMany()
                         .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Business");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.SupplierDebt", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.PurchaseOrder", "PurchaseOrder")
                         .WithMany()
                         .HasForeignKey("PurchaseOrderId")
@@ -4615,6 +5167,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("PurchaseOrder");
 
                     b.Navigation("Supplier");
@@ -4622,6 +5176,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.SupplierPayment", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.User", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedBy")
@@ -4639,6 +5199,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasForeignKey("SupplierId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Business");
 
                     b.Navigation("CreatedByUser");
 
@@ -4649,6 +5211,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.SupplierReturn", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.User", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedBy")
@@ -4667,6 +5235,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("PurchaseOrder");
@@ -4676,6 +5246,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.SupplierReturnItem", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
@@ -4692,6 +5268,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("Product");
 
                     b.Navigation("ProductVariant");
@@ -4701,17 +5279,31 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.TaxRule", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
                         .WithMany("TaxRules")
                         .HasForeignKey("OutletId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("Outlet");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.Transaction", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.CashierSession", "CashierSession")
                         .WithMany("Transactions")
                         .HasForeignKey("CashierSessionId")
@@ -4739,6 +5331,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasForeignKey("VoidedBy")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.Navigation("Business");
+
                     b.Navigation("CashierSession");
 
                     b.Navigation("Customer");
@@ -4752,6 +5346,12 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.TransactionItem", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
                         .WithMany("TransactionItems")
                         .HasForeignKey("ProductId")
@@ -4768,6 +5368,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("Product");
 
                     b.Navigation("ProductVariant");
@@ -4780,7 +5382,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
                         .WithMany("Users")
                         .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
                         .WithMany("Users")
@@ -4802,17 +5405,31 @@ namespace MorrusPOS.Infrastructure.Migrations
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.Voucher", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
                         .WithMany("Vouchers")
                         .HasForeignKey("OutletId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Business");
+
                     b.Navigation("Outlet");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.VoucherRedemption", b =>
                 {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Transaction", "Transaction")
                         .WithMany("VoucherRedemptions")
                         .HasForeignKey("TransactionId")
@@ -4824,6 +5441,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasForeignKey("VoucherId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Business");
 
                     b.Navigation("Transaction");
 

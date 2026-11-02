@@ -7,8 +7,8 @@ public class GoBizIntegration : AuditableEntity
     public Guid OutletId { get; set; }
     public Outlet Outlet { get; set; } = default!;
 
-    public Guid? BusinessId { get; set; }
-    public Business? Business { get; set; }
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
 
     public string? ExternalMerchantId { get; set; }
     public string AccessToken { get; set; } = default!;
@@ -27,8 +27,8 @@ public class GoBizOAuthState : AuditableEntity
     public Guid OutletId { get; set; }
     public Outlet Outlet { get; set; } = default!;
 
-    public Guid? BusinessId { get; set; }
-    public Business? Business { get; set; }
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
 
     public string State { get; set; } = default!;
     public DateTime ExpiresAtUtc { get; set; }
@@ -40,8 +40,8 @@ public class GoBizDirectIntegration : AuditableEntity
     public Guid OutletId { get; set; }
     public Outlet Outlet { get; set; } = default!;
 
-    public Guid? BusinessId { get; set; }
-    public Business? Business { get; set; }
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
 
     public string PartnerId { get; set; } = default!;
     public string GoBizOutletId { get; set; } = default!;
@@ -57,6 +57,9 @@ public class GoBizDirectIntegration : AuditableEntity
 
 public class GoBizProductMapping : AuditableEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid OutletId { get; set; }
     public Outlet Outlet { get; set; } = default!;
 
@@ -75,6 +78,9 @@ public class GoBizProductMapping : AuditableEntity
 
 public class GoBizOrderInbox : BaseEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public string GoBizOrderId { get; set; } = default!;
     public Guid OutletId { get; set; }
     public Outlet Outlet { get; set; } = default!;

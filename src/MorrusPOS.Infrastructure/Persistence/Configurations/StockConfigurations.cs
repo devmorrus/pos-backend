@@ -14,11 +14,11 @@ public class InventoryStockConfiguration : IEntityTypeConfiguration<InventorySto
         builder.Property(x => x.MinStockAlert).HasColumnType("decimal(12,2)");
 
         // Unique constraints to support both parent stock and variant stock
-        builder.HasIndex(x => new { x.ProductId, x.OutletId })
+        builder.HasIndex(x => new { x.BusinessId, x.ProductId, x.OutletId })
             .IsUnique()
             .HasFilter("\"ProductVariantId\" IS NULL");
 
-        builder.HasIndex(x => new { x.ProductId, x.ProductVariantId, x.OutletId })
+        builder.HasIndex(x => new { x.BusinessId, x.ProductId, x.ProductVariantId, x.OutletId })
             .IsUnique()
             .HasFilter("\"ProductVariantId\" IS NOT NULL");
 
@@ -159,7 +159,7 @@ public class StockTransferConfiguration : IEntityTypeConfiguration<StockTransfer
         builder.ToTable("stock_transfers");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.TransferNumber).HasMaxLength(30).IsRequired();
-        builder.HasIndex(x => x.TransferNumber).IsUnique();
+        builder.HasIndex(x => new { x.BusinessId, x.TransferNumber }).IsUnique();
         builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
 
         builder.HasOne(x => x.FromOutlet)

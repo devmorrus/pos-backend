@@ -8,7 +8,14 @@ public class AppDbContext : DbContext
 {
     private readonly ICurrentUserService? _currentUserService;
 
+    protected bool SystemContext { get; }
+
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+    protected AppDbContext(DbContextOptions options, bool systemContext) : base(options)
+    {
+        SystemContext = systemContext;
+    }
 
     public AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserService currentUserService) : base(options)
     {
@@ -95,6 +102,7 @@ public class AppDbContext : DbContext
     public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
     public DbSet<ModifierGroup> ModifierGroups => Set<ModifierGroup>();
     public DbSet<ModifierOption> ModifierOptions => Set<ModifierOption>();
+    public DbSet<ModifierGroupProduct> ModifierGroupProducts => Set<ModifierGroupProduct>();
     public DbSet<ProductRecipe> ProductRecipes => Set<ProductRecipe>();
     public DbSet<ProductBatch> ProductBatches => Set<ProductBatch>();
     public DbSet<ReceivingNote> ReceivingNotes => Set<ReceivingNote>();
@@ -104,110 +112,173 @@ public class AppDbContext : DbContext
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
-        // SaaS Multitenancy Query Filters for Core Entities
-        modelBuilder.Entity<Outlet>().HasQueryFilter(o => CurrentBusinessId == null || o.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<User>().HasQueryFilter(u => CurrentBusinessId == null || u.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<Product>().HasQueryFilter(p => CurrentBusinessId == null || p.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<Customer>().HasQueryFilter(c => CurrentBusinessId == null || c.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<Category>().HasQueryFilter(c => CurrentBusinessId == null || c.BusinessId == null || c.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<Supplier>().HasQueryFilter(s => CurrentBusinessId == null || s.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<ChartOfAccount>().HasQueryFilter(a => CurrentBusinessId == null || a.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<CashFlow>().HasQueryFilter(cf => CurrentBusinessId == null || cf.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<AccountTransaction>().HasQueryFilter(at => CurrentBusinessId == null || at.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<ProductAttribute>().HasQueryFilter(pa => CurrentBusinessId == null || pa.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<ModifierGroup>().HasQueryFilter(mg => CurrentBusinessId == null || mg.BusinessId == CurrentBusinessId);
+        // Explicit join entity so the many-to-many bridge also carries tenant
+        // identity and can be protected by RLS like every other tenant table.
+        modelBuilder.Entity<Product>()
+            .HasMany(p => p.ModifierGroups)
+            .WithMany(m => m.Products)
+            .UsingEntity<ModifierGroupProduct>(
+                right => right.HasOne(j => j.ModifierGroup)
+                    .WithMany()
+                    .HasForeignKey(j => j.ModifierGroupsId),
+                left => left.HasOne(j => j.Product)
+                    .WithMany()
+                    .HasForeignKey(j => j.ProductsId),
+                join =>
+                {
+                    join.ToTable("ModifierGroupProduct");
+                    join.HasKey(j => new { j.ModifierGroupsId, j.ProductsId });
+                });
 
-        // SaaS Scoping for Operational Transactions & POS Sessions
-        modelBuilder.Entity<Transaction>().HasQueryFilter(t => CurrentBusinessId == null || t.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<CashierSession>().HasQueryFilter(cs => CurrentBusinessId == null || cs.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<Payment>().HasQueryFilter(p => CurrentBusinessId == null || p.Transaction.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<Return>().HasQueryFilter(r => CurrentBusinessId == null || r.Transaction.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<PettyCashExpense>().HasQueryFilter(pe => CurrentBusinessId == null || pe.Outlet.BusinessId == CurrentBusinessId);
+        // SaaS Multitenancy: all tenant-owned rows carry a direct BusinessId.
+        // Fail-closed: tanpa business context, hasil query = kosong. Data lintas
+        // business tidak pernah terlihat dari normal app context.
 
-        // SaaS Scoping for Stocks & Inventory
-        modelBuilder.Entity<InventoryStock>().HasQueryFilter(stock => CurrentBusinessId == null || stock.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<StockLedger>().HasQueryFilter(sl => CurrentBusinessId == null || sl.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<ChannelStockPolicy>().HasQueryFilter(policy => CurrentBusinessId == null || policy.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<StockOpname>().HasQueryFilter(so => CurrentBusinessId == null || so.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<StockTransfer>().HasQueryFilter(st => CurrentBusinessId == null || st.FromOutlet.BusinessId == CurrentBusinessId || st.ToOutlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<Business>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.Id == CurrentBusinessId));
+        modelBuilder.Entity<Outlet>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<User>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<Product>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<Customer>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<Category>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<Supplier>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ChartOfAccount>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<CashFlow>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<AccountTransaction>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ProductAttribute>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ModifierGroup>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
 
-        // SaaS Scoping for Suppliers, Procurement, and Purchase Orders
-        modelBuilder.Entity<PurchaseOrder>().HasQueryFilter(po => CurrentBusinessId == null || po.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<ReceivingNote>().HasQueryFilter(rn => CurrentBusinessId == null || rn.PurchaseOrder.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<SupplierDebt>().HasQueryFilter(sd => CurrentBusinessId == null || sd.Supplier.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<SupplierPayment>().HasQueryFilter(sp => CurrentBusinessId == null || sp.Supplier.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<SupplierReturn>().HasQueryFilter(sr => CurrentBusinessId == null || sr.PurchaseOrder.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<Transaction>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<TransactionItem>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<Payment>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<Return>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<CashierSession>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<PettyCashExpense>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<AuditLog>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
 
-        // SaaS Scoping for Consignments
-        modelBuilder.Entity<Consignment>().HasQueryFilter(c => CurrentBusinessId == null || c.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<ConsignmentSale>().HasQueryFilter(cs => CurrentBusinessId == null || cs.Supplier.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<ConsignmentSettlement>().HasQueryFilter(cset => CurrentBusinessId == null || cset.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<ConsignmentReturn>().HasQueryFilter(cr => CurrentBusinessId == null || cr.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<InventoryStock>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<StockLedger>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<StockOpname>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<StockOpnameItem>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<StockTransfer>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<StockTransferItem>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ChannelStockPolicy>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ProductVariant>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ProductRecipe>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ProductBatch>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ProductAttributeValue>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ModifierOption>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ModifierGroupProduct>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
 
-        // SaaS Scoping for Online Channels Integration
-        modelBuilder.Entity<ChannelAccount>().HasQueryFilter(ca => CurrentBusinessId == null || ca.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<ChannelSettlement>().HasQueryFilter(cset => CurrentBusinessId == null || cset.ChannelAccount.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<GoBizIntegration>().HasQueryFilter(gi => CurrentBusinessId == null || gi.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<GoBizOAuthState>().HasQueryFilter(gs => CurrentBusinessId == null || gs.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<GoBizClientConfig>().HasQueryFilter(c => CurrentBusinessId == null || c.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<GoBizDirectIntegration>().HasQueryFilter(gi => CurrentBusinessId == null || gi.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<GoBizProductMapping>().HasQueryFilter(gm => CurrentBusinessId == null || gm.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<GoBizOrderInbox>().HasQueryFilter(go => CurrentBusinessId == null || go.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<PurchaseOrder>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<PurchaseOrderItem>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ReceivingNote>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ReceivingNoteItem>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<SupplierDebt>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<SupplierPayment>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<SupplierReturn>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<SupplierReturnItem>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
 
-        // SaaS Scoping for Pricing
-        modelBuilder.Entity<TaxRule>().HasQueryFilter(tr => CurrentBusinessId == null || tr.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<ServiceChargeRule>().HasQueryFilter(sr => CurrentBusinessId == null || sr.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<PromoCampaign>().HasQueryFilter(pc => CurrentBusinessId == null || pc.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<Voucher>().HasQueryFilter(v => CurrentBusinessId == null || v.Outlet.BusinessId == CurrentBusinessId);
-        modelBuilder.Entity<VoucherRedemption>().HasQueryFilter(vr => CurrentBusinessId == null || vr.Transaction.Outlet.BusinessId == CurrentBusinessId);
+        modelBuilder.Entity<Consignment>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ConsignmentItem>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ConsignmentSale>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ConsignmentSettlement>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ConsignmentReturn>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ConsignmentReturnItem>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+
+        modelBuilder.Entity<ChannelAccount>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ChannelSettlement>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ChannelSettlementItem>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<GoBizIntegration>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<GoBizOAuthState>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<GoBizClientConfig>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<GoBizDirectIntegration>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<GoBizProductMapping>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<GoBizOrderInbox>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<IntegrationLog>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<RefreshToken>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+
+        modelBuilder.Entity<TaxRule>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ServiceChargeRule>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<PromoCampaign>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<PromoCampaignTarget>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<Voucher>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<VoucherRedemption>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+
+        // Global tables (tidak tenant-owned): roles, permissions,
+        // role_permissions. Business adalah root tenant dan difilter lewat Id.
+
+        // FK ke businesses dibuat EF via konvensi (nav `Business` + `BusinessId`);
+        // hapus business tidak boleh menghapus rantai data tenant.
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            var nav = entityType.FindNavigation("Business");
+            if (nav?.ForeignKey != null)
+                nav.ForeignKey.DeleteBehavior = DeleteBehavior.Restrict;
+        }
 
         base.OnModelCreating(modelBuilder);
     }
 
     public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
-        AutoAssignBusinessId();
+        ValidateTenantChanges();
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        AutoAssignBusinessId();
+        ValidateTenantChanges();
         return base.SaveChangesAsync(cancellationToken);
     }
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
-        AutoAssignBusinessId();
+        ValidateTenantChanges();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
     public override int SaveChanges()
     {
-        AutoAssignBusinessId();
+        ValidateTenantChanges();
         return base.SaveChanges();
     }
 
-    private void AutoAssignBusinessId()
+    private void ValidateTenantChanges()
     {
-        var currentBusinessId = CurrentBusinessId;
-        if (currentBusinessId.HasValue)
-        {
-            var addedEntries = ChangeTracker.Entries()
-                .Where(e => e.State == EntityState.Added);
+        if (SystemContext)
+            return;
 
-            foreach (var entry in addedEntries)
+        var currentBusinessId = CurrentBusinessId;
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.State == EntityState.Unchanged || entry.State == EntityState.Detached)
+                continue;
+
+            var businessIdProperty = entry.Properties.FirstOrDefault(p => p.Metadata.Name == "BusinessId");
+            if (businessIdProperty is null)
+                continue;
+
+            if (!currentBusinessId.HasValue)
             {
-                var businessIdProperty = entry.Properties.FirstOrDefault(p => p.Metadata.Name == "BusinessId");
-                if (businessIdProperty != null)
-                {
-                    var currentValue = businessIdProperty.CurrentValue;
-                    if (currentValue == null || (currentValue is Guid guidVal && guidVal == Guid.Empty))
-                    {
-                        businessIdProperty.CurrentValue = currentBusinessId.Value;
-                    }
-                }
+                throw new InvalidOperationException("Business context wajib tersedia untuk operasi tenant.");
             }
+
+            var currentValue = businessIdProperty.CurrentValue;
+            if (entry.State == EntityState.Added &&
+                (currentValue is null || (currentValue is Guid addedId && addedId == Guid.Empty)))
+            {
+                businessIdProperty.CurrentValue = currentBusinessId.Value;
+                continue;
+            }
+
+            if (currentValue is not Guid value || value == Guid.Empty || value != currentBusinessId.Value)
+            {
+                throw new InvalidOperationException("Data tenant tidak sesuai dengan business context aktif.");
+            }
+
+            if (entry.State == EntityState.Modified && businessIdProperty.IsModified &&
+                businessIdProperty.OriginalValue is Guid originalValue && originalValue != value)
+                throw new InvalidOperationException("BusinessId data tenant tidak boleh diubah.");
         }
     }
 }

@@ -23,7 +23,7 @@ public class DashboardAndReportServiceTests : IDisposable
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
 
-        _dbContext = new AppDbContext(options);
+        _dbContext = new AppDbContext(options, TestTenant.CurrentUser);
     }
 
     public void Dispose()

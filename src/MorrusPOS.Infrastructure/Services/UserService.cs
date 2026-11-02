@@ -9,15 +9,18 @@ namespace MorrusPOS.Infrastructure.Services;
 public class UserService : IUserService
 {
     private readonly AppDbContext _dbContext;
+    private readonly SystemDbContext _systemDb;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ICurrentUserService _currentUserService;
 
     public UserService(
         AppDbContext dbContext,
+        SystemDbContext systemDb,
         IPasswordHasher passwordHasher,
         ICurrentUserService currentUserService)
     {
         _dbContext = dbContext;
+        _systemDb = systemDb;
         _passwordHasher = passwordHasher;
         _currentUserService = currentUserService;
     }
@@ -72,9 +75,9 @@ public class UserService : IUserService
 
     public async Task<UserDto> CreateAsync(CreateUserRequest request, CancellationToken ct = default)
     {
-        // 1. Email uniqueness check (tanpa query filter agar cek di seluruh database)
-        var emailExists = await _dbContext.Users
-            .IgnoreQueryFilters()
+        // 1. Email uniqueness check — global (lintas business via SystemDbContext,
+        //    yang bypass RLS), karena login masuk lewat email global.
+        var emailExists = await _systemDb.Users
             .AnyAsync(u => u.Email.ToLower() == request.Email.ToLower(), ct);
         if (emailExists)
         {
@@ -138,7 +141,8 @@ public class UserService : IUserService
             Id = Guid.NewGuid(),
             OutletId = request.OutletId,
             RoleId = request.RoleId,
-            BusinessId = _currentUserService.BusinessId,
+            BusinessId = _currentUserService.BusinessId
+                ?? throw new InvalidOperationException("Business context wajib tersedia."),
             Name = request.Name,
             Email = request.Email,
             PasswordHash = _passwordHasher.Hash(request.Password),
@@ -177,7 +181,8 @@ public class UserService : IUserService
         // Email uniqueness check if changed
         if (user.Email.ToLower() != request.Email.ToLower())
         {
-            var emailExists = await _dbContext.Users.AnyAsync(u => u.Email.ToLower() == request.Email.ToLower() && u.Id != id, ct);
+            // Global check via SystemDbContext (bypass RLS) — email unik lintas business.
+            var emailExists = await _systemDb.Users.AnyAsync(u => u.Email.ToLower() == request.Email.ToLower() && u.Id != id, ct);
             if (emailExists)
             {
                 throw new InvalidOperationException("Email sudah terdaftar pada pengguna lain.");

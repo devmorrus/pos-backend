@@ -11,6 +11,9 @@ public static class ConsignmentSettlementStatus
 
 public class ConsignmentSettlement : AuditableEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid SupplierId { get; set; }
     public Supplier Supplier { get; set; } = default!;
 

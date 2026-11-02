@@ -17,7 +17,7 @@ public class BufferStockServiceTests
             .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
             .Options;
 
-        return new AppDbContext(options);
+        return new AppDbContext(options, TestTenant.CurrentUser);
     }
 
     private static async Task<(Guid outletId, Guid productId, Guid categoryId, Guid userId)> SeedBasicAsync(AppDbContext db)

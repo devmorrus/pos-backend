@@ -11,6 +11,9 @@ public static class ChannelSettlementStatus
 
 public class ChannelSettlement : AuditableEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid ChannelAccountId { get; set; }
     public ChannelAccount ChannelAccount { get; set; } = default!;
 

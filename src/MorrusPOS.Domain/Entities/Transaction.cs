@@ -22,6 +22,9 @@ public static class TransactionChannel
 
 public class Transaction : BaseEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid OutletId { get; set; }
     public Outlet Outlet { get; set; } = default!;
 
@@ -75,6 +78,9 @@ public class Transaction : BaseEntity
 
 public class TransactionItem : BaseEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid TransactionId { get; set; }
     public Transaction Transaction { get; set; } = default!;
 

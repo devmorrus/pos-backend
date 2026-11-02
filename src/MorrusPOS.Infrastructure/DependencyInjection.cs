@@ -26,8 +26,14 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration config)
     {
-        services.AddDbContext<AppDbContext>(options =>
-            options.UseNpgsql(config.GetConnectionString("DefaultConnection")));
+        services.AddScoped<TenantDbConnectionInterceptor>();
+        services.AddDbContext<AppDbContext>((serviceProvider, options) =>
+            options.UseNpgsql(config.GetConnectionString("DefaultConnection")
+                    ?? throw new InvalidOperationException("DefaultConnection wajib dikonfigurasi."))
+                .AddInterceptors(serviceProvider.GetRequiredService<TenantDbConnectionInterceptor>()));
+        services.AddDbContext<SystemDbContext>(options =>
+            options.UseNpgsql(config.GetConnectionString("SystemConnection")
+                ?? throw new InvalidOperationException("SystemConnection wajib dikonfigurasi dengan role morrus_system.")));
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped(typeof(IRepository<>), typeof(GenericRepository<>));

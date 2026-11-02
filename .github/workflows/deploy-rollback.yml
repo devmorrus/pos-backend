@@ -46,4 +46,4 @@ jobs:
             --retry 5 \
             --retry-delay 5 \
             --max-time 30 \
-            https://api-pos.morrusdigitalconnecting.com/api/public/categories >/dev/null
+            https://api-pos.morrusdigitalconnecting.com/health >/dev/null

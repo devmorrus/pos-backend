@@ -95,7 +95,9 @@ public class ChartOfAccountServiceTests
             AccountName = "Kas Lama",
             AccountType = ChartOfAccountType.Asset,
         });
+        _currentUser.BusinessId = _businessId;
         await _dbContext.SaveChangesAsync();
+        _currentUser.BusinessId = _businessId;
 
         var service = new ChartOfAccountService(_dbContext, _currentUser);
         var act = () => service.CreateAsync(new CreateChartOfAccountRequest(
@@ -120,7 +122,9 @@ public class ChartOfAccountServiceTests
             AccountName = "Kas Biz B",
             AccountType = ChartOfAccountType.Asset,
         });
+        _currentUser.BusinessId = _otherBusinessId;
         await _dbContext.SaveChangesAsync();
+        _currentUser.BusinessId = _businessId;
 
         var service = new ChartOfAccountService(_dbContext, _currentUser);
         var result = await service.CreateAsync(new CreateChartOfAccountRequest(

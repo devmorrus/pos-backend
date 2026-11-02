@@ -4,6 +4,9 @@ namespace MorrusPOS.Domain.Entities;
 
 public class PettyCashExpense : AuditableEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid OutletId { get; set; }
     public Outlet Outlet { get; set; } = default!;
 

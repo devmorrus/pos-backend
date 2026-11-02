@@ -24,7 +24,7 @@ public class TransactionServiceTests
             .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
             .Options;
 
-        _dbContext = new AppDbContext(options);
+        _dbContext = new AppDbContext(options, TestTenant.CurrentUser);
         _stockServiceMock = Substitute.For<IStockService>();
         _currentUserMock = Substitute.For<ICurrentUserService>();
         _notificationServiceMock = Substitute.For<IPosNotificationService>();

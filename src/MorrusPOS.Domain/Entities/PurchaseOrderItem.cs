@@ -4,6 +4,9 @@ namespace MorrusPOS.Domain.Entities;
 
 public class PurchaseOrderItem : BaseEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid PurchaseOrderId { get; set; }
     public PurchaseOrder PurchaseOrder { get; set; } = default!;
 

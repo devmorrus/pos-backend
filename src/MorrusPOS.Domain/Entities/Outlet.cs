@@ -10,8 +10,8 @@ public class Outlet : AuditableEntity
     public string? Phone { get; set; }
     public bool IsActive { get; set; } = true;
 
-    public Guid? BusinessId { get; set; }
-    public Business? Business { get; set; }
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
 
     // Navigation
     public ICollection<User> Users { get; set; } = new List<User>();

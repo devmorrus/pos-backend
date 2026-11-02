@@ -4,8 +4,8 @@ namespace MorrusPOS.Domain.Entities;
 
 public class Product : AuditableEntity
 {
-    public Guid? BusinessId { get; set; }
-    public Business? Business { get; set; }
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
 
     public Guid CategoryId { get; set; }
     public Category Category { get; set; } = default!;

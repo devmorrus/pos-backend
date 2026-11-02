@@ -35,7 +35,7 @@ public class ConsignmentSettlementTests
             .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
             .Options;
 
-        _dbContext = new AppDbContext(options);
+        _dbContext = new AppDbContext(options, TestTenant.CurrentUser);
         _currentUserMock = Substitute.For<ICurrentUserService>();
         _currentUserMock.OutletId.Returns((Guid?)null);
     }

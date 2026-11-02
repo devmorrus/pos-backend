@@ -22,6 +22,9 @@ public static class StockMovementType
 /// </summary>
 public class StockLedger : BaseEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid ProductId { get; set; }
     public Product Product { get; set; } = default!;
 
@@ -47,6 +50,9 @@ public class StockLedger : BaseEntity
 
 public class StockOpname : BaseEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid OutletId { get; set; }
     public Outlet Outlet { get; set; } = default!;
 
@@ -61,6 +67,9 @@ public class StockOpname : BaseEntity
 
 public class StockOpnameItem : BaseEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid StockOpnameId { get; set; }
     public StockOpname StockOpname { get; set; } = default!;
 

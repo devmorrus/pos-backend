@@ -26,10 +26,10 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.ToTable("products");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Sku).HasMaxLength(50).IsRequired();
-        builder.HasIndex(x => x.Sku).IsUnique();
+        builder.HasIndex(x => new { x.BusinessId, x.Sku }).IsUnique();
         builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Barcode).HasMaxLength(50);
-        builder.HasIndex(x => x.Barcode).IsUnique().HasFilter("\"Barcode\" IS NOT NULL");
+        builder.HasIndex(x => new { x.BusinessId, x.Barcode }).IsUnique().HasFilter("\"Barcode\" IS NOT NULL");
         builder.Property(x => x.BasePrice).HasColumnType("decimal(14,2)");
         builder.Property(x => x.CostPrice).HasColumnType("decimal(14,2)");
         builder.Property(x => x.Unit).HasMaxLength(20).IsRequired();
@@ -52,7 +52,7 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.ToTable("customers");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.CustomerCode).HasMaxLength(40).IsRequired();
-        builder.HasIndex(x => x.CustomerCode).IsUnique();
+        builder.HasIndex(x => new { x.BusinessId, x.CustomerCode }).IsUnique();
         builder.Property(x => x.Name).HasMaxLength(150).IsRequired();
         builder.Property(x => x.Phone).HasMaxLength(30).IsRequired();
         builder.Property(x => x.Email).HasMaxLength(150);
@@ -80,7 +80,7 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
         builder.ToTable("transactions");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.TransactionNumber).HasMaxLength(30).IsRequired();
-        builder.HasIndex(x => x.TransactionNumber).IsUnique();
+        builder.HasIndex(x => new { x.BusinessId, x.TransactionNumber }).IsUnique();
         builder.Property(x => x.Channel).HasMaxLength(20).IsRequired();
         builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
         builder.Property(x => x.CustomerType).HasMaxLength(30).IsRequired();

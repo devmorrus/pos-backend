@@ -13,18 +13,24 @@ namespace MorrusPOS.UnitTests;
 public class UserServiceTests
 {
     private readonly AppDbContext _dbContext;
+    private readonly SystemDbContext _systemDb;
     private readonly IPasswordHasher _passwordHasherMock;
     private readonly ICurrentUserService _currentUserMock;
 
     public UserServiceTests()
     {
+        var dbName = Guid.NewGuid().ToString();
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName: dbName)
             .Options;
 
-        _dbContext = new AppDbContext(options);
+        _dbContext = new AppDbContext(options, TestTenant.CurrentUser);
+        _systemDb = new SystemDbContext(new DbContextOptionsBuilder<SystemDbContext>()
+            .UseInMemoryDatabase(dbName)
+            .Options);
         _passwordHasherMock = Substitute.For<IPasswordHasher>();
         _currentUserMock = Substitute.For<ICurrentUserService>();
+        _currentUserMock.BusinessId.Returns(TestTenant.BusinessId);
     }
 
     [Fact]
@@ -41,7 +47,7 @@ public class UserServiceTests
         _currentUserMock.Role.Returns("Owner");
         _passwordHasherMock.Hash(Arg.Any<string>()).Returns("hashed_password");
 
-        var service = new UserService(_dbContext, _passwordHasherMock, _currentUserMock);
+        var service = new UserService(_dbContext, _systemDb, _passwordHasherMock, _currentUserMock);
         var request = new CreateUserRequest(
             OutletId: outletId,
             RoleId: roleId,
@@ -79,7 +85,7 @@ public class UserServiceTests
         });
         await _dbContext.SaveChangesAsync();
 
-        var service = new UserService(_dbContext, _passwordHasherMock, _currentUserMock);
+        var service = new UserService(_dbContext, _systemDb, _passwordHasherMock, _currentUserMock);
         var request = new CreateUserRequest(
             OutletId: null,
             RoleId: roleId,
@@ -106,7 +112,7 @@ public class UserServiceTests
         _currentUserMock.Role.Returns("Admin");
         _currentUserMock.OutletId.Returns(adminOutletId);
 
-        var service = new UserService(_dbContext, _passwordHasherMock, _currentUserMock);
+        var service = new UserService(_dbContext, _systemDb, _passwordHasherMock, _currentUserMock);
         var request = new CreateUserRequest(
             OutletId: adminOutletId,
             RoleId: ownerRoleId,

@@ -32,7 +32,7 @@ public class ChannelSettlementConfiguration : IEntityTypeConfiguration<ChannelSe
         builder.ToTable("channel_settlements");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.SettlementNumber).HasMaxLength(30).IsRequired();
-        builder.HasIndex(x => x.SettlementNumber).IsUnique();
+        builder.HasIndex(x => new { x.BusinessId, x.SettlementNumber }).IsUnique();
         builder.Property(x => x.PeriodStartDate).IsRequired();
         builder.Property(x => x.PeriodEndDate).IsRequired();
         builder.Property(x => x.GrossAmount).HasColumnType("decimal(14,2)");

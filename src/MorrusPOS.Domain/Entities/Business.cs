@@ -5,6 +5,7 @@ namespace MorrusPOS.Domain.Entities;
 public class Business : AuditableEntity
 {
     public string Name { get; set; } = default!;
+    public string Slug { get; set; } = string.Empty;
     public string Category { get; set; } = default!; // e.g. F&B, Retail, Services
     public string? Phone { get; set; }
 

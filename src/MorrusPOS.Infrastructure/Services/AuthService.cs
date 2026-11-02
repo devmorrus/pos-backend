@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Auth;
 using MorrusPOS.Domain.Entities;
@@ -8,11 +9,11 @@ namespace MorrusPOS.Infrastructure.Services;
 
 public class AuthService : IAuthService
 {
-    private readonly AppDbContext _context;
+    private readonly SystemDbContext _context;
     private readonly IPasswordHasher _hasher;
     private readonly IJwtTokenService _jwt;
 
-    public AuthService(AppDbContext context, IPasswordHasher hasher, IJwtTokenService jwt)
+    public AuthService(SystemDbContext context, IPasswordHasher hasher, IJwtTokenService jwt)
     {
         _context = context;
         _hasher = hasher;
@@ -41,6 +42,7 @@ public class AuthService : IAuthService
 
         var refreshToken = new RefreshToken
         {
+            BusinessId = businessId,
             UserId = user.Id,
             Token = refreshTokenString,
             ExpiresAt = DateTime.UtcNow.AddDays(7)
@@ -91,6 +93,7 @@ public class AuthService : IAuthService
 
         var newRefreshToken = new RefreshToken
         {
+            BusinessId = businessId,
             UserId = user.Id,
             Token = newRefreshTokenString,
             ExpiresAt = DateTime.UtcNow.AddDays(7)
@@ -151,10 +154,12 @@ public class AuthService : IAuthService
         try
         {
             // Create Business
+            var businessId = Guid.NewGuid();
             var business = new Business
             {
-                Id = Guid.NewGuid(),
+                Id = businessId,
                 Name = request.Business.Name,
+                Slug = CreateBusinessSlug(request.Business.Name, businessId),
                 Category = request.Business.Category,
                 Phone = request.Business.Phone,
                 SubscriptionStatus = "Trial",
@@ -210,6 +215,7 @@ public class AuthService : IAuthService
 
             var refreshToken = new RefreshToken
             {
+                BusinessId = business.Id,
                 UserId = user.Id,
                 Token = refreshTokenString,
                 ExpiresAt = DateTime.UtcNow.AddDays(7)
@@ -238,6 +244,13 @@ public class AuthService : IAuthService
             await transaction.RollbackAsync(ct);
             throw;
         }
+    }
+
+    private static string CreateBusinessSlug(string name, Guid businessId)
+    {
+        var slug = Regex.Replace(name.Trim().ToLowerInvariant(), "[^a-z0-9]+", "-").Trim('-');
+        var prefix = string.IsNullOrEmpty(slug) ? "business" : slug;
+        return $"{prefix}-{businessId.ToString("N")[..8]}";
     }
 
     private async Task<IReadOnlyList<string>> GetPermissionsForRoleAsync(string roleName, CancellationToken ct)

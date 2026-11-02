@@ -5,6 +5,9 @@ namespace MorrusPOS.Domain.Entities;
 
 public class ConsignmentReturnItem : BaseEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid ConsignmentReturnId { get; set; }
     public ConsignmentReturn ConsignmentReturn { get; set; } = default!;
 

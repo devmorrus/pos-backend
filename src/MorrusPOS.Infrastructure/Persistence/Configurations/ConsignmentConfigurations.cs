@@ -11,7 +11,7 @@ public class ConsignmentConfiguration : IEntityTypeConfiguration<Consignment>
         builder.ToTable("consignments");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.ConsignmentNumber).HasMaxLength(30).IsRequired();
-        builder.HasIndex(x => x.ConsignmentNumber).IsUnique();
+        builder.HasIndex(x => new { x.BusinessId, x.ConsignmentNumber }).IsUnique();
         builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
 
         builder.HasOne(x => x.Supplier)
@@ -90,7 +90,7 @@ public class ConsignmentSettlementConfiguration : IEntityTypeConfiguration<Consi
         builder.ToTable("consignment_settlements");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.SettlementNumber).HasMaxLength(30).IsRequired();
-        builder.HasIndex(x => x.SettlementNumber).IsUnique();
+        builder.HasIndex(x => new { x.BusinessId, x.SettlementNumber }).IsUnique();
         builder.Property(x => x.TotalAmount).HasColumnType("decimal(14,2)");
         builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
 
@@ -118,7 +118,7 @@ public class ConsignmentReturnConfiguration : IEntityTypeConfiguration<Consignme
         builder.ToTable("consignment_returns");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.ReturnNumber).HasMaxLength(30).IsRequired();
-        builder.HasIndex(x => x.ReturnNumber).IsUnique();
+        builder.HasIndex(x => new { x.BusinessId, x.ReturnNumber }).IsUnique();
         builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
 
         builder.HasOne(x => x.Supplier)

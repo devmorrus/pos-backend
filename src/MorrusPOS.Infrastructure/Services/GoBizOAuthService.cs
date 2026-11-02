@@ -16,7 +16,9 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly AppDbContext _dbContext;
+    private readonly SystemDbContext _systemDb;
     private readonly ICurrentUserService _currentUserService;
+    private readonly ITenantContextSetter _tenantContext;
     private readonly HttpClient _httpClient;
     private readonly ILogger<GoBizOAuthService> _logger;
     private readonly IGoBizConfigProvider _configProvider;
@@ -25,7 +27,9 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
 
     public GoBizOAuthService(
         AppDbContext dbContext,
+        SystemDbContext systemDb,
         ICurrentUserService currentUserService,
+        ITenantContextSetter tenantContext,
         HttpClient httpClient,
         ILogger<GoBizOAuthService> logger,
         IGoBizConfigProvider configProvider,
@@ -33,7 +37,9 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
         IGoBizOAuthStateStore stateStore)
     {
         _dbContext = dbContext;
+        _systemDb = systemDb;
         _currentUserService = currentUserService;
+        _tenantContext = tenantContext;
         _httpClient = httpClient;
         _logger = logger;
         _configProvider = configProvider;
@@ -73,6 +79,15 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
             throw new GoBizOAuthException("GOBIZ_STATE_INVALID", "State OAuth GoBiz tidak valid atau sudah kedaluwarsa.");
         }
 
+        // Callback tidak membawa JWT. Resolve/restore tenant dari state sekali
+        // pakai, lalu semua query berikut tetap lewat AppDbContext + RLS.
+        var businessId = oauthState.BusinessId ?? await _systemDb.Outlets
+            .Where(o => o.Id == oauthState.OutletId)
+            .Select(o => (Guid?)o.BusinessId)
+            .FirstOrDefaultAsync(ct)
+            ?? throw new GoBizOAuthException("GOBIZ_STATE_INVALID", "Tenant OAuth GoBiz tidak dapat di-resolve.");
+        _tenantContext.SetBusinessOverride(businessId);
+
         var cfg = await _configProvider.GetByOutletAsync(oauthState.OutletId, ct);
         EnsureConfigured(cfg);
 
@@ -85,7 +100,7 @@ public sealed class GoBizOAuthService : IGoBizOAuthService
             {
                 Id = Guid.NewGuid(),
                 OutletId = oauthState.OutletId,
-                BusinessId = oauthState.BusinessId,
+                BusinessId = businessId,
                 CreatedAt = DateTime.UtcNow
             };
             _dbContext.GoBizIntegrations.Add(integration);

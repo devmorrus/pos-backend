@@ -32,13 +32,14 @@ public class PurchaseOrderServiceTests
             .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
             .Options;
 
-        _dbContext = new AppDbContext(options);
         _stockServiceMock = Substitute.For<IStockService>();
         _currentUserServiceMock = Substitute.For<ICurrentUserService>();
         _notificationServiceMock = Substitute.For<IPosNotificationService>();
+        _currentUserServiceMock.BusinessId.Returns(TestTenant.BusinessId);
         _currentUserServiceMock.Role.Returns("Owner");
         _currentUserServiceMock.OutletId.Returns((Guid?)null);
         _currentUserServiceMock.UserId.Returns(_userId);
+        _dbContext = new AppDbContext(options, _currentUserServiceMock);
     }
 
     private async Task SeedBaseDataAsync(decimal initialCostPrice = 8000m)

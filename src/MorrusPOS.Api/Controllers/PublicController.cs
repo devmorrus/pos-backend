@@ -1,13 +1,15 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Infrastructure.Persistence;
 
 namespace MorrusPOS.Api.Controllers;
 
 /// <summary>
-/// Public endpoints untuk customer storefront — tidak memerlukan autentikasi.
-/// Hanya mengekspos data yang aman untuk publik (nama, harga jual, stok tersedia).
+/// Public storefront. The directory endpoint exposes only safe listing fields;
+/// every catalog/data endpoint first resolves a business slug, then executes
+/// through the normal tenant-filtered/RLS AppDbContext.
 /// </summary>
 [ApiController]
 [Route("api/public")]
@@ -15,109 +17,123 @@ namespace MorrusPOS.Api.Controllers;
 public class PublicController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly SystemDbContext _systemDb;
+    private readonly ITenantContextSetter _tenantContext;
 
-    public PublicController(AppDbContext db)
+    public PublicController(
+        AppDbContext db,
+        SystemDbContext systemDb,
+        ITenantContextSetter tenantContext)
     {
         _db = db;
+        _systemDb = systemDb;
+        _tenantContext = tenantContext;
     }
 
-    // -------------------------------------------------------------------------
-    // GET /api/public/outlets
-    // Daftar outlet yang aktif — ditampilkan di halaman pemilihan outlet customer
-    // -------------------------------------------------------------------------
+    // Explicit public directory used to select a tenant storefront.
     [HttpGet("outlets")]
-    public async Task<ActionResult<IReadOnlyList<PublicOutletDto>>> GetOutlets(CancellationToken ct)
+    public async Task<ActionResult<IReadOnlyList<PublicOutletDto>>> GetDirectory(CancellationToken ct)
     {
-        var outlets = await _db.Outlets
+        var outlets = await _systemDb.Outlets
             .AsNoTracking()
             .Where(o => o.IsActive)
-            .OrderBy(o => o.Name)
+            .OrderBy(o => o.Business.Name)
+            .ThenBy(o => o.Name)
             .Select(o => new PublicOutletDto(
-                o.Id,
-                o.Code,
-                o.Name,
-                o.Address,
-                o.Phone))
+                o.Id, o.Business.Slug, o.Code, o.Name, o.Address, o.Phone))
             .ToListAsync(ct);
 
         return Ok(outlets);
     }
 
-    // -------------------------------------------------------------------------
-    // GET /api/public/outlets/{code}
-    // Detail satu outlet by Code (slug di URL).
-    // Dipakai saat customer reload page atau direct URL — untuk restore context.
-    // -------------------------------------------------------------------------
-    [HttpGet("outlets/{code}")]
-    public async Task<ActionResult<PublicOutletDto>> GetOutletByCode(string code, CancellationToken ct)
+    [HttpGet("{businessSlug}/outlets")]
+    public async Task<ActionResult<IReadOnlyList<PublicOutletDto>>> GetOutlets(
+        string businessSlug,
+        CancellationToken ct)
     {
+        var businessId = await ResolveTenantAsync(businessSlug, ct);
+        if (!businessId.HasValue)
+            return NotFound($"Business '{businessSlug}' tidak ditemukan.");
+
+        var outlets = await _db.Outlets
+            .AsNoTracking()
+            .Where(o => o.IsActive)
+            .OrderBy(o => o.Name)
+            .Select(o => new PublicOutletDto(
+                o.Id, businessSlug, o.Code, o.Name, o.Address, o.Phone))
+            .ToListAsync(ct);
+
+        return Ok(outlets);
+    }
+
+    [HttpGet("{businessSlug}/outlets/{code}")]
+    public async Task<ActionResult<PublicOutletDto>> GetOutletByCode(
+        string businessSlug,
+        string code,
+        CancellationToken ct)
+    {
+        var businessId = await ResolveTenantAsync(businessSlug, ct);
+        if (!businessId.HasValue)
+            return NotFound($"Business '{businessSlug}' tidak ditemukan.");
+
         var outlet = await _db.Outlets
             .AsNoTracking()
             .Where(o => o.Code.ToLower() == code.ToLower() && o.IsActive)
             .Select(o => new PublicOutletDto(
-                o.Id,
-                o.Code,
-                o.Name,
-                o.Address,
-                o.Phone))
+                o.Id, businessSlug, o.Code, o.Name, o.Address, o.Phone))
             .FirstOrDefaultAsync(ct);
 
-        if (outlet is null)
-            return NotFound($"Outlet dengan kode '{code}' tidak ditemukan atau tidak aktif.");
-
-        return Ok(outlet);
+        return outlet is null
+            ? NotFound($"Outlet '{code}' tidak ditemukan atau tidak aktif.")
+            : Ok(outlet);
     }
 
-    // -------------------------------------------------------------------------
-    // GET /api/public/catalog/{outletCode}
-    // Katalog produk aktif + stok tersedia untuk outlet tertentu.
-    // Join antara Products, InventoryStocks, dan Categories.
-    // Hanya ekspos harga jual (Price), bukan HPP/CostPrice.
-    // -------------------------------------------------------------------------
-    [HttpGet("catalog/{outletCode}")]
+    [HttpGet("{businessSlug}/catalog/{outletCode}")]
     public async Task<ActionResult<IReadOnlyList<PublicProductDto>>> GetCatalog(
+        string businessSlug,
         string outletCode,
         CancellationToken ct)
     {
-        // Validasi outlet dulu
-        var outletExists = await _db.Outlets
-            .AsNoTracking()
-            .AnyAsync(o => o.Code.ToLower() == outletCode.ToLower() && o.IsActive, ct);
+        var businessId = await ResolveTenantAsync(businessSlug, ct);
+        if (!businessId.HasValue)
+            return NotFound($"Business '{businessSlug}' tidak ditemukan.");
 
-        if (!outletExists)
-            return NotFound($"Outlet dengan kode '{outletCode}' tidak ditemukan atau tidak aktif.");
-
-        var rawProducts = await _db.InventoryStocks
+        var outletId = await _db.Outlets
             .AsNoTracking()
-            .Where(s =>
-                s.Outlet.Code.ToLower() == outletCode.ToLower() &&
-                s.Product.IsActive)
+            .Where(o => o.Code.ToLower() == outletCode.ToLower() && o.IsActive)
+            .Select(o => (Guid?)o.Id)
+            .FirstOrDefaultAsync(ct);
+        if (!outletId.HasValue)
+            return NotFound($"Outlet '{outletCode}' tidak ditemukan atau tidak aktif.");
+
+        var products = await _db.InventoryStocks
+            .AsNoTracking()
+            .Where(s => s.OutletId == outletId.Value && s.Product.IsActive)
+            .OrderBy(s => s.Product.Category.Name)
+            .ThenBy(s => s.Product.Name)
             .Select(s => new PublicProductDto(
                 s.Product.Id,
                 s.Product.Name,
                 s.Product.Sku,
                 s.Product.BasePrice,
                 s.Product.Unit,
-                s.Product.Category != null ? s.Product.Category.Name : null,
-                s.Product.Category != null ? s.Product.Category.Id : (Guid?)null,
+                s.Product.Category.Name,
+                s.Product.Category.Id,
                 s.QtyOnHand))
             .ToListAsync(ct);
-
-        var products = rawProducts
-            .OrderBy(p => p.CategoryName ?? "~")
-            .ThenBy(p => p.Name)
-            .ToList();
 
         return Ok(products);
     }
 
-    // -------------------------------------------------------------------------
-    // GET /api/public/categories
-    // Semua kategori — untuk filter di halaman katalog customer
-    // -------------------------------------------------------------------------
-    [HttpGet("categories")]
-    public async Task<ActionResult<IReadOnlyList<PublicCategoryDto>>> GetCategories(CancellationToken ct)
+    [HttpGet("{businessSlug}/categories")]
+    public async Task<ActionResult<IReadOnlyList<PublicCategoryDto>>> GetCategories(
+        string businessSlug,
+        CancellationToken ct)
     {
+        var businessId = await ResolveTenantAsync(businessSlug, ct);
+        if (!businessId.HasValue)
+            return NotFound($"Business '{businessSlug}' tidak ditemukan.");
+
         var categories = await _db.Categories
             .AsNoTracking()
             .OrderBy(c => c.Name)
@@ -126,14 +142,25 @@ public class PublicController : ControllerBase
 
         return Ok(categories);
     }
-}
 
-// ---------------------------------------------------------------------------
-// DTOs — hanya ekspos data publik yang aman
-// ---------------------------------------------------------------------------
+    private async Task<Guid?> ResolveTenantAsync(string businessSlug, CancellationToken ct)
+    {
+        var businessId = await _systemDb.Businesses
+            .AsNoTracking()
+            .Where(b => b.Slug.ToLower() == businessSlug.ToLower())
+            .Select(b => (Guid?)b.Id)
+            .FirstOrDefaultAsync(ct);
+
+        if (businessId.HasValue)
+            _tenantContext.SetBusinessOverride(businessId.Value);
+
+        return businessId;
+    }
+}
 
 public record PublicOutletDto(
     Guid Id,
+    string BusinessSlug,
     string Code,
     string Name,
     string? Address,
@@ -149,6 +176,4 @@ public record PublicProductDto(
     Guid? CategoryId,
     decimal QtyOnHand);
 
-public record PublicCategoryDto(
-    Guid Id,
-    string Name);
+public record PublicCategoryDto(Guid Id, string Name);

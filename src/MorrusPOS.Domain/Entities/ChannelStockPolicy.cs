@@ -10,6 +10,9 @@ namespace MorrusPOS.Domain.Entities;
 /// </summary>
 public class ChannelStockPolicy : BaseEntity
 {
+    // Tenant scope: row milik business ini; FK businesses via konvensi EF
+    public Guid BusinessId { get; set; }
+    public Business Business { get; set; } = default!;
     public Guid OutletId { get; set; }
     public Outlet Outlet { get; set; } = default!;
 

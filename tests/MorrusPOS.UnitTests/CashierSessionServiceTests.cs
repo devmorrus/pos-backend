@@ -21,7 +21,7 @@ public class CashierSessionServiceTests
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
 
-        _dbContext = new AppDbContext(options);
+        _dbContext = new AppDbContext(options, TestTenant.CurrentUser);
         _currentUserMock = Substitute.For<ICurrentUserService>();
     }
 

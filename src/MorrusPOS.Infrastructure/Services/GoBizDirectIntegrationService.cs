@@ -191,15 +191,14 @@ public sealed class GoBizDirectIntegrationService : IGoBizDirectIntegrationServi
         var outlet = await _dbContext.Outlets.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == outletId, ct)
             ?? throw new InvalidOperationException("Outlet tidak valid.");
-        var businessId = outlet.BusinessId ?? _currentUserService.BusinessId;
+        var businessId = outlet.BusinessId;
 
         var query = _dbContext.Products
             .Include(p => p.Category)
             .Include(p => p.Variants)
             .Include(p => p.ModifierGroups).ThenInclude(g => g.Options)
             .Where(p => p.IsActive && !p.IsRawMaterial);
-        if (businessId.HasValue)
-            query = query.Where(p => p.BusinessId == businessId.Value);
+        query = query.Where(p => p.BusinessId == businessId);
 
         var products = await query
             .OrderBy(p => p.Category!.Name).ThenBy(p => p.Name)
