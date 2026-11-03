@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Features.Capabilities;
 using MorrusPOS.Application.Features.Transactions;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -10,11 +11,16 @@ public class CashierSessionService : ICashierSessionService
 {
     private readonly AppDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
+    private readonly ICapabilityEvaluator? _capabilities;
 
-    public CashierSessionService(AppDbContext dbContext, ICurrentUserService currentUserService)
+    public CashierSessionService(
+        AppDbContext dbContext,
+        ICurrentUserService currentUserService,
+        ICapabilityEvaluator? capabilities = null)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
+        _capabilities = capabilities;
     }
 
     public async Task<CashierSessionDto> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -29,12 +35,15 @@ public class CashierSessionService : ICashierSessionService
             throw new InvalidOperationException("Sesi kasir tidak ditemukan.");
         }
 
+        await EnsureSalesPosAsync(session.OutletId, ct);
+
         return await BuildSessionDtoAsync(session, ct);
     }
 
     public async Task<CashierSessionDto?> GetActiveSessionAsync(Guid userId, Guid outletId, CancellationToken ct = default)
     {
         await EnsureOutletAccessibleAsync(outletId, ct);
+        await EnsureSalesPosAsync(outletId, ct);
 
         var session = await _dbContext.CashierSessions
             .Include(s => s.Outlet)
@@ -48,6 +57,7 @@ public class CashierSessionService : ICashierSessionService
     {
         await EnsureOperationalRoleAsync();
         await EnsureOutletAccessibleAsync(outletId, ct);
+        await EnsureSalesPosAsync(outletId, ct);
 
         // Check if there is already an active session for this user at this outlet
         var existing = await GetActiveSessionAsync(userId, outletId, ct);
@@ -102,6 +112,8 @@ public class CashierSessionService : ICashierSessionService
             }
         }
 
+        await EnsureSalesPosAsync(session.OutletId, ct);
+
         var totalCashReceived = await _dbContext.Payments
             .Where(p => p.CashierSessionId == sessionId && p.Method == PaymentMethod.Cash)
             .SumAsync(p => p.Amount, ct);
@@ -147,6 +159,8 @@ public class CashierSessionService : ICashierSessionService
                 throw new UnauthorizedAccessException("Anda tidak memiliki akses untuk mencatat pengeluaran di sesi kasir ini.");
             }
         }
+
+        await EnsureSalesPosAsync(session.OutletId, ct);
 
         if (request.Amount <= 0)
         {
@@ -205,6 +219,8 @@ public class CashierSessionService : ICashierSessionService
             }
         }
 
+        await EnsureSalesPosAsync(session.OutletId, ct);
+
         var expenses = await _dbContext.PettyCashExpenses
             .AsNoTracking()
             .Include(pe => pe.Outlet)
@@ -257,6 +273,10 @@ public class CashierSessionService : ICashierSessionService
             summary
         );
     }
+
+    private Task EnsureSalesPosAsync(Guid outletId, CancellationToken ct)
+        => _capabilities?.EnsureEnabledAsync(CapabilityCodes.SalesPos, outletId, ct)
+            ?? Task.CompletedTask;
 
     private static PettyCashExpenseDto MapPettyCashToDto(PettyCashExpense pe)
     {

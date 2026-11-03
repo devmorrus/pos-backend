@@ -44,11 +44,15 @@ public class StockTransferService : IStockTransferService
             throw new InvalidOperationException("Transfer Stok tidak ditemukan.");
         }
 
+        await EnsureEnabledAsync(transfer.FromOutletId, ct);
+        await EnsureEnabledAsync(transfer.ToOutletId, ct);
+
         return MapToDto(transfer);
     }
 
     public async Task<IReadOnlyList<StockTransferDto>> GetOutgoingTransfersAsync(Guid outletId, CancellationToken ct = default)
     {
+        await EnsureEnabledAsync(outletId, ct);
         var transfers = await _dbContext.StockTransfers
             .Include(t => t.FromOutlet)
             .Include(t => t.ToOutlet)
@@ -64,6 +68,7 @@ public class StockTransferService : IStockTransferService
 
     public async Task<IReadOnlyList<StockTransferDto>> GetIncomingTransfersAsync(Guid outletId, CancellationToken ct = default)
     {
+        await EnsureEnabledAsync(outletId, ct);
         var transfers = await _dbContext.StockTransfers
             .Include(t => t.FromOutlet)
             .Include(t => t.ToOutlet)
@@ -176,8 +181,8 @@ public class StockTransferService : IStockTransferService
             throw new InvalidOperationException("Transfer Stok tidak ditemukan.");
         }
 
-        if (_capabilityEvaluator is not null)
-            await _capabilityEvaluator.EnsureEnabledAsync(CapabilityCodes.InventoryTransfer, transfer.ToOutletId, ct);
+        await EnsureEnabledAsync(transfer.FromOutletId, ct);
+        await EnsureEnabledAsync(transfer.ToOutletId, ct);
 
         if (transfer.Status != StockTransferStatus.Pending)
         {
@@ -234,6 +239,9 @@ public class StockTransferService : IStockTransferService
         {
             throw new InvalidOperationException("Transfer Stok tidak ditemukan.");
         }
+
+        await EnsureEnabledAsync(transfer.FromOutletId, ct);
+        await EnsureEnabledAsync(transfer.ToOutletId, ct);
 
         if (transfer.Status != StockTransferStatus.Pending)
         {
@@ -316,4 +324,8 @@ public class StockTransferService : IStockTransferService
             throw new UnauthorizedAccessException("Approve atau reject transfer hanya bisa dilakukan oleh outlet tujuan.");
         }
     }
+
+    private Task EnsureEnabledAsync(Guid outletId, CancellationToken ct)
+        => _capabilityEvaluator?.EnsureEnabledAsync(CapabilityCodes.InventoryTransfer, outletId, ct)
+            ?? Task.CompletedTask;
 }

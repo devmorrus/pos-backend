@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Features.Capabilities;
 using MorrusPOS.Application.Features.Stock;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -11,15 +12,18 @@ public class StockOpnameService : IStockOpnameService
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockService;
     private readonly IPosNotificationService _notificationService;
+    private readonly ICapabilityEvaluator? _capabilities;
 
     public StockOpnameService(
         AppDbContext dbContext,
         IStockService stockService,
-        IPosNotificationService notificationService)
+        IPosNotificationService notificationService,
+        ICapabilityEvaluator? capabilities = null)
     {
         _dbContext = dbContext;
         _stockService = stockService;
         _notificationService = notificationService;
+        _capabilities = capabilities;
     }
 
     public async Task<StockOpnameDto> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -35,11 +39,14 @@ public class StockOpnameService : IStockOpnameService
             throw new InvalidOperationException("Laporan Stok Opname tidak ditemukan.");
         }
 
+        await EnsureEnabledAsync(opname.OutletId, ct);
+
         return MapToDto(opname);
     }
 
     public async Task<IReadOnlyList<StockOpnameDto>> GetByOutletAsync(Guid outletId, CancellationToken ct = default)
     {
+        await EnsureEnabledAsync(outletId, ct);
         var opnames = await _dbContext.StockOpnames
             .Include(o => o.Outlet)
             .Include(o => o.PerformedByUser)
@@ -53,6 +60,7 @@ public class StockOpnameService : IStockOpnameService
 
     public async Task<StockOpnameDto> CreateAsync(Guid userId, CreateStockOpnameRequest request, CancellationToken ct = default)
     {
+        await EnsureEnabledAsync(request.OutletId, ct);
         var opname = new StockOpname
         {
             Id = Guid.NewGuid(),
@@ -141,4 +149,8 @@ public class StockOpnameService : IStockOpnameService
             )).ToList()
         );
     }
+
+    private Task EnsureEnabledAsync(Guid outletId, CancellationToken ct)
+        => _capabilities?.EnsureEnabledAsync(CapabilityCodes.InventoryOpname, outletId, ct)
+            ?? Task.CompletedTask;
 }

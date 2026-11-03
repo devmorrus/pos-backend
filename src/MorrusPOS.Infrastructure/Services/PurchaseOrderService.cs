@@ -48,12 +48,17 @@ public class PurchaseOrderService : IPurchaseOrderService
             throw new InvalidOperationException("Purchase Order tidak ditemukan.");
 
         await EnsureOutletAccessibleAsync(po.OutletId, ct);
+        if (_capabilities is not null)
+            await _capabilities.EnsureEnabledAsync(CapabilityCodes.ProcurementPurchasing, po.OutletId, ct);
 
         return MapToDto(po);
     }
 
     public async Task<IReadOnlyList<PurchaseOrderDto>> GetByOutletAsync(Guid outletId, CancellationToken ct = default)
     {
+        await EnsureOutletAccessibleAsync(outletId, ct);
+        if (_capabilities is not null)
+            await _capabilities.EnsureEnabledAsync(CapabilityCodes.ProcurementPurchasing, outletId, ct);
         var pos = await _dbContext.PurchaseOrders
             .Include(p => p.Supplier)
             .Include(p => p.Outlet)

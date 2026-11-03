@@ -61,6 +61,8 @@ public class TransactionService : ITransactionService
     {
         await EnsureTransactionReadRoleAsync();
         await EnsureOutletAccessibleAsync(outletId, ct);
+        if (_capabilityEvaluator is not null)
+            await _capabilityEvaluator.EnsureEnabledAsync(CapabilityCodes.SalesTransactions, outletId, ct);
 
         var transactions = await _dbContext.Transactions
             .Include(t => t.Outlet)
@@ -86,6 +88,8 @@ public class TransactionService : ITransactionService
 
         await EnsureTransactionReadRoleAsync();
         await EnsureOutletAccessibleAsync(trx.OutletId, ct);
+        if (_capabilityEvaluator is not null)
+            await _capabilityEvaluator.EnsureEnabledAsync(CapabilityCodes.SalesTransactions, trx.OutletId, ct);
 
         return MapToDto(trx);
     }
@@ -110,6 +114,8 @@ public class TransactionService : ITransactionService
         }
 
         await EnsureOutletAccessibleAsync(transaction.OutletId, ct);
+        if (_capabilityEvaluator is not null)
+            await _capabilityEvaluator.EnsureEnabledAsync(CapabilityCodes.SalesTransactions, transaction.OutletId, ct);
 
         if (transaction.Status == TransactionStatus.Voided)
         {
@@ -243,6 +249,8 @@ public class TransactionService : ITransactionService
         }
 
         await EnsureOutletAccessibleAsync(transaction.OutletId, ct);
+        if (_capabilityEvaluator is not null)
+            await _capabilityEvaluator.EnsureEnabledAsync(CapabilityCodes.SalesTransactions, transaction.OutletId, ct);
 
         if (transaction.Status == TransactionStatus.Voided)
         {
@@ -811,7 +819,9 @@ public class TransactionService : ITransactionService
             var stockUpdates = request.Items.Select(i => new StockUpdateItem(i.ProductId, i.Qty)).ToList();
             await _notificationService.SendStockUpdateAsync(request.OutletId, stockUpdates, ct);
 
-            return await GetByIdAsync(newTrx.Id, ct);
+            var result = await GetTransactionAggregateAsync(newTrx.Id, ct)
+                ?? throw new InvalidOperationException("Transaksi tidak ditemukan setelah checkout.");
+            return MapToDto(result);
         }
         catch
         {

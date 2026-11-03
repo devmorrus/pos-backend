@@ -4,6 +4,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Channels;
+using MorrusPOS.Api.Security;
+using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Services;
 
 namespace MorrusPOS.Api.Controllers;
@@ -33,6 +35,7 @@ public class GoBizController : ControllerBase
 
     [HttpGet("connect")]
     [Authorize]
+    [RequiresCapability(CapabilityCodes.ChannelsGoBiz)]
     public async Task<IActionResult> Connect([FromQuery] Guid outletId, CancellationToken ct)
     {
         var result = await _goBizOAuthService.CreateConnectUrlAsync(ResolveTargetOutletId(outletId), ct);
@@ -41,6 +44,7 @@ public class GoBizController : ControllerBase
 
     [HttpPost("connect-url")]
     [Authorize]
+    [RequiresCapability(CapabilityCodes.ChannelsGoBiz)]
     public async Task<ActionResult<GoBizConnectUrlResponse>> CreateConnectUrl([FromBody] GoBizConnectUrlRequest request, CancellationToken ct)
     {
         var result = await _goBizOAuthService.CreateConnectUrlAsync(ResolveTargetOutletId(request.OutletId), ct);
@@ -78,6 +82,7 @@ public class GoBizController : ControllerBase
 
     [HttpGet("status")]
     [Authorize]
+    [RequiresCapability(CapabilityCodes.ChannelsGoBiz)]
     public async Task<ActionResult<GoBizConnectionStatusDto>> GetStatus([FromQuery] Guid outletId, CancellationToken ct)
     {
         var result = await _goBizOAuthService.GetStatusAsync(ResolveTargetOutletId(outletId), ct);
@@ -86,6 +91,7 @@ public class GoBizController : ControllerBase
 
     [HttpPost("disconnect")]
     [Authorize]
+    [RequiresCapability(CapabilityCodes.ChannelsGoBiz)]
     public async Task<IActionResult> Disconnect([FromQuery] Guid outletId, CancellationToken ct)
     {
         await _goBizOAuthService.DisconnectAsync(ResolveTargetOutletId(outletId), ct);
@@ -94,6 +100,7 @@ public class GoBizController : ControllerBase
 
     [HttpGet("debug/config")]
     [Authorize]
+    [RequiresCapability(CapabilityCodes.ChannelsGoBiz)]
     public ActionResult<GoBizDebugConfigDto> DebugConfig()
     {
         if (!_hostEnvironment.IsDevelopment())

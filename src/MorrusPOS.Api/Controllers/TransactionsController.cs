@@ -10,7 +10,6 @@ namespace MorrusPOS.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = "Owner,Admin,Kasir,Keuangan,KepalaCabang")]
-[RequiresCapability(CapabilityCodes.SalesTransactions)]
 public class TransactionsController : ControllerBase
 {
     private readonly ITransactionService _transactionService;
@@ -23,6 +22,7 @@ public class TransactionsController : ControllerBase
     }
 
     [HttpGet]
+    [RequiresCapability(CapabilityCodes.SalesTransactions)]
     public async Task<ActionResult<IReadOnlyList<TransactionListItemDto>>> GetRecent(
         [FromQuery] Guid? outletId,
         [FromQuery] int take = 20,
@@ -40,6 +40,7 @@ public class TransactionsController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequiresCapability(CapabilityCodes.SalesTransactions)]
     public async Task<ActionResult<TransactionDto>> GetById(Guid id, CancellationToken ct)
     {
         var result = await _transactionService.GetByIdAsync(id, ct);
@@ -64,6 +65,7 @@ public class TransactionsController : ControllerBase
 
     [HttpPost("{id}/void")]
     [HasPermission("transaction.void")]
+    [RequiresCapability(CapabilityCodes.SalesTransactions)]
     public async Task<ActionResult<TransactionDto>> Void(Guid id, VoidTransactionRequest request, CancellationToken ct)
     {
         var result = await _transactionService.VoidAsync(id, request, ct);
@@ -71,6 +73,7 @@ public class TransactionsController : ControllerBase
     }
 
     [HttpPost("{id}/refund")]
+    [RequiresCapability(CapabilityCodes.SalesTransactions)]
     public async Task<ActionResult<TransactionDto>> Refund(Guid id, RefundTransactionRequest request, CancellationToken ct)
     {
         var result = await _transactionService.RefundAsync(id, request, ct);

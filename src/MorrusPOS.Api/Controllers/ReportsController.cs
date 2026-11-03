@@ -13,7 +13,6 @@ namespace MorrusPOS.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-[RequiresCapability(CapabilityCodes.ReportsOperational)]
 public class ReportsController : ControllerBase
 {
     private readonly IReportService _reportService;
@@ -75,6 +74,7 @@ public class ReportsController : ControllerBase
 
     [HttpGet("purchases")]
     [HasPermission("report.view")]
+    [RequiresCapability(CapabilityCodes.ReportsOperational)]
     public async Task<ActionResult<PurchaseRecapReportDto>> GetPurchaseRecap(
         [FromQuery] Guid? outletId,
         [FromQuery] DateTime startDate,
@@ -88,6 +88,7 @@ public class ReportsController : ControllerBase
 
     [HttpGet("purchases/export-excel")]
     [HasPermission("report.view")]
+    [RequiresCapability(CapabilityCodes.ReportsOperational)]
     public async Task<IActionResult> ExportPurchaseRecapExcel(
         [FromQuery] Guid? outletId,
         [FromQuery] DateTime startDate,
@@ -101,6 +102,7 @@ public class ReportsController : ControllerBase
 
     [HttpGet("sales")]
     [HasPermission("report.view")]
+    [RequiresCapability(CapabilityCodes.ReportsOperational)]
     public async Task<ActionResult<SalesRecapReportDto>> GetSalesRecap(
         [FromQuery] Guid? outletId,
         [FromQuery] DateTime startDate,
@@ -114,6 +116,7 @@ public class ReportsController : ControllerBase
 
     [HttpGet("sales/export-excel")]
     [HasPermission("report.view")]
+    [RequiresCapability(CapabilityCodes.ReportsOperational)]
     public async Task<IActionResult> ExportSalesRecapExcel(
         [FromQuery] Guid? outletId,
         [FromQuery] DateTime startDate,
@@ -151,6 +154,7 @@ public class ReportsController : ControllerBase
 
     [HttpGet("suppliers")]
     [HasPermission("supplier.manage")]
+    [RequiresCapability(CapabilityCodes.ReportsOperational)]
     public async Task<ActionResult<SupplierReportDto>> GetSupplierReport(
         [FromQuery] SupplierReportFilters filters,
         CancellationToken ct = default)
@@ -162,6 +166,7 @@ public class ReportsController : ControllerBase
 
     [HttpGet("suppliers/export-excel")]
     [HasPermission("supplier.manage")]
+    [RequiresCapability(CapabilityCodes.ReportsOperational)]
     public async Task<IActionResult> ExportSupplierReportExcel(
         [FromQuery] SupplierReportFilters filters,
         CancellationToken ct = default)
@@ -173,6 +178,7 @@ public class ReportsController : ControllerBase
 
     [HttpGet("stock-card")]
     [HasPermission("stock.manage")]
+    [RequiresCapability(CapabilityCodes.ReportsOperational)]
     public async Task<ActionResult<StockCardReportDto>> GetStockCardReport(
         [FromQuery] StockCardReportFilters filters,
         CancellationToken ct = default)
@@ -184,6 +190,7 @@ public class ReportsController : ControllerBase
 
     [HttpGet("stock-card/export-excel")]
     [HasPermission("stock.manage")]
+    [RequiresCapability(CapabilityCodes.ReportsOperational)]
     public async Task<IActionResult> ExportStockCardExcel(
         [FromQuery] StockCardReportFilters filters,
         CancellationToken ct = default)

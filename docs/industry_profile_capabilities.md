@@ -67,6 +67,18 @@ Hasil di outlet:    false (sumber: BusinessDisabled)
 - Revision tidak cocok: HTTP `409` dengan kode `CAPABILITY_REVISION_CONFLICT`. Klien harus memuat ulang snapshot lalu mengulang perubahan.
 - Setiap perubahan menaikkan `CapabilityRevision` dan menulis audit ke `capability_change_logs`.
 
+## Menu dan perlindungan API
+
+- Web dan mobile mengambil snapshot dari `GET /api/capabilities/effective?outletId={id}` setelah login atau pergantian outlet.
+- Menu hanya tampil jika role/permission **dan** seluruh capability yang dibutuhkan aktif. POS membutuhkan `sales.pos` dan `catalog.products` karena layar kasir memuat katalog produk.
+- Direct URL/screen tetap memakai capability guard; menu yang disembunyikan bukan mekanisme keamanan.
+- Backend adalah sumber kebenaran dan tetap menolak request yang dimanipulasi dengan `403 CAPABILITY_DISABLED`.
+- Endpoint berbasis entity ID (misalnya detail transaksi, tutup sesi kasir, stock opname, transfer, dan purchase order) memeriksa ulang capability memakai outlet entity di service; Owner tidak dapat melewati Outlet override dengan menghilangkan `outletId` dari request.
+- `sales.pos` melindungi sesi kasir, checkout, dan pricing preview; `sales.transactions` secara terpisah melindungi histori/detail/void/refund.
+- `reports.operational` dan `reports.accounting` diterapkan per endpoint dan tidak saling menjadi prasyarat.
+- Jika snapshot gagal dimuat, client fail closed dan menampilkan retry. Respons `CAPABILITY_DISABLED` menandai snapshot stale dan memicu reload tanpa mengulang write otomatis.
+- Mobile memuat ulang snapshot saat outlet berubah, aplikasi kembali aktif, base URL berubah, atau API menandai capability stale. Snapshot tidak disimpan permanen agar menu lama tidak dipakai setelah konfigurasi berubah.
+
 ## Onboarding
 
 Daftar profil diambil dari `GET /api/public/industry-profiles`, bukan hardcode di frontend. Registrasi mengirim `business.industryProfileCode`; backend memetakan kategori bisnis dari profil tersebut. Jika profil tidak valid, registrasi ditolak.
@@ -99,4 +111,5 @@ Pengujian terkait:
 dotnet test tests/MorrusPOS.UnitTests/MorrusPOS.UnitTests.csproj
 dotnet test tests/MorrusPOS.IntegrationTests/MorrusPOS.IntegrationTests.csproj
 cd ../frontend && npm run test:e2e
+cd ../mobile && flutter test && flutter build apk --debug
 ```

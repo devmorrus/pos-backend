@@ -268,6 +268,115 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
     }
 
     [Fact]
+    public async Task MixedControllers_Should_EvaluateEachActionCapabilityIndependently()
+    {
+        var adminConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_ADMIN");
+        if (string.IsNullOrWhiteSpace(adminConnection)) return;
+
+        var businessId = Guid.NewGuid();
+        var outletId = Guid.NewGuid();
+        var disabledOutletId = Guid.NewGuid();
+        var cashierSessionId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        await using var admin = new NpgsqlConnection(adminConnection);
+        await admin.OpenAsync();
+        try
+        {
+            await using var seed = admin.CreateCommand();
+            seed.CommandText = """
+                INSERT INTO businesses
+                    ("Id","Name","Slug","Category","IndustryProfileId","SubscriptionStatus","TrialStartDate","TrialEndDate","CreatedAt","UpdatedAt")
+                VALUES (@business,'Mixed Capabilities',@slug,'General','ca100001-0000-4000-8000-000000000001','Active',now(),now()+interval '30 days',now(),now());
+                INSERT INTO outlets ("Id","BusinessId","Name","Code","IsActive","CreatedAt","UpdatedAt")
+                VALUES
+                    (@outlet,@business,'Mixed Outlet',@code,true,now(),now()),
+                    (@disabledOutlet,@business,'Disabled POS Outlet',@disabledCode,true,now(),now());
+                INSERT INTO users
+                    ("Id","BusinessId","RoleId","Name","Email","PasswordHash","IsActive","CreatedAt","UpdatedAt")
+                VALUES (@user,@business,'e1a7b077-44a3-4b63-95e0-59a8501170ea','Mixed Owner',@email,'test',true,now(),now());
+                UPDATE businesses SET "OwnerId"=@user WHERE "Id"=@business;
+                INSERT INTO cashier_sessions
+                    ("Id","BusinessId","OutletId","UserId","OpeningTime","OpeningCash","ExpectedCash","Status","CreatedAt","UpdatedAt")
+                VALUES (@cashierSession,@business,@disabledOutlet,@user,now(),0,0,'open',now(),now());
+                INSERT INTO business_capability_overrides
+                    ("BusinessId","CapabilityId","IsEnabled","Reason","UpdatedByUserId","CreatedAt","UpdatedAt")
+                VALUES
+                    (@business,'ca200000-0000-4000-8000-000000000002',false,'Separate POS from history',@user,now(),now()),
+                    (@business,'ca200000-0000-4000-8000-000000000025',false,'Separate report groups',@user,now(),now()),
+                    (@business,'ca200000-0000-4000-8000-000000000026',true,'Separate report groups',@user,now(),now());
+                INSERT INTO outlet_capability_overrides
+                    ("BusinessId","OutletId","CapabilityId","IsEnabled","Reason","UpdatedByUserId","CreatedAt","UpdatedAt")
+                VALUES (@business,@disabledOutlet,'ca200000-0000-4000-8000-000000000001',false,'Disable POS',@user,now(),now());
+                """;
+            seed.Parameters.AddWithValue("business", businessId);
+            seed.Parameters.AddWithValue("outlet", outletId);
+            seed.Parameters.AddWithValue("disabledOutlet", disabledOutletId);
+            seed.Parameters.AddWithValue("cashierSession", cashierSessionId);
+            seed.Parameters.AddWithValue("user", userId);
+            seed.Parameters.AddWithValue("slug", $"mixed-{suffix}");
+            seed.Parameters.AddWithValue("code", $"MIX-{suffix}");
+            seed.Parameters.AddWithValue("disabledCode", $"OFF-{suffix}");
+            seed.Parameters.AddWithValue("email", $"mixed-{suffix}@example.test");
+            await seed.ExecuteNonQueryAsync();
+
+            using var scope = _factory.Services.CreateScope();
+            var jwt = scope.ServiceProvider.GetRequiredService<IJwtTokenService>();
+            var client = _factory.CreateClient();
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+                "Bearer",
+                jwt.GenerateAccessToken(userId, null, "Owner", businessId, "Active", DateTime.UtcNow.AddYears(1)));
+
+            var checkout = await client.PostAsJsonAsync("/api/transactions/checkout", new { });
+            Assert.NotEqual(HttpStatusCode.Forbidden, checkout.StatusCode);
+
+            var history = await client.GetAsync($"/api/transactions?outletId={outletId}");
+            Assert.Equal(HttpStatusCode.Forbidden, history.StatusCode);
+            using (var payload = JsonDocument.Parse(await history.Content.ReadAsStringAsync()))
+                Assert.Equal("sales.transactions", payload.RootElement.GetProperty("capability").GetString());
+
+            var accountingReport = await client.GetAsync(
+                "/api/reports/profit-loss?startDate=2026-01-01&endDate=2026-01-31");
+            Assert.NotEqual(HttpStatusCode.Forbidden, accountingReport.StatusCode);
+
+            var operationalReport = await client.GetAsync(
+                "/api/reports/sales?startDate=2026-01-01&endDate=2026-01-31");
+            Assert.Equal(HttpStatusCode.Forbidden, operationalReport.StatusCode);
+            using (var payload = JsonDocument.Parse(await operationalReport.Content.ReadAsStringAsync()))
+                Assert.Equal("reports.operational", payload.RootElement.GetProperty("capability").GetString());
+
+            var goBizStatus = await client.GetAsync($"/api/gobiz/status?outletId={outletId}");
+            Assert.Equal(HttpStatusCode.Forbidden, goBizStatus.StatusCode);
+            using (var payload = JsonDocument.Parse(await goBizStatus.Content.ReadAsStringAsync()))
+                Assert.Equal("channels.gobiz", payload.RootElement.GetProperty("capability").GetString());
+
+            var closeDisabledSession = await client.PostAsJsonAsync(
+                $"/api/cashier-sessions/close/{cashierSessionId}", new { actualCash = 0 });
+            Assert.Equal(HttpStatusCode.Forbidden, closeDisabledSession.StatusCode);
+            using (var payload = JsonDocument.Parse(await closeDisabledSession.Content.ReadAsStringAsync()))
+                Assert.Equal("sales.pos", payload.RootElement.GetProperty("capability").GetString());
+        }
+        finally
+        {
+            await using var cleanup = admin.CreateCommand();
+            cleanup.CommandText = """
+                delete from business_capability_overrides where "BusinessId"=@business;
+                delete from outlet_capability_overrides where "BusinessId"=@business;
+                delete from cashier_sessions where "Id"=@cashierSession;
+                delete from users where "Id"=@user;
+                delete from outlets where "Id" in (@outlet,@disabledOutlet);
+                delete from businesses where "Id"=@business;
+                """;
+            cleanup.Parameters.AddWithValue("business", businessId);
+            cleanup.Parameters.AddWithValue("outlet", outletId);
+            cleanup.Parameters.AddWithValue("disabledOutlet", disabledOutletId);
+            cleanup.Parameters.AddWithValue("cashierSession", cashierSessionId);
+            cleanup.Parameters.AddWithValue("user", userId);
+            await cleanup.ExecuteNonQueryAsync();
+        }
+    }
+
+    [Fact]
     public async Task Admin_Should_ReadCapabilityConfiguration_ButNotChangeIt()
     {
         var adminConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_ADMIN");
