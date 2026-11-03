@@ -2030,13 +2030,24 @@ namespace MorrusPOS.Infrastructure.Migrations
                         },
                         new
                         {
+                            Id = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            Code = "electronics",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Toko gadget, komputer, aksesori, dan perangkat elektronik.",
+                            IsActive = true,
+                            Name = "Elektronik",
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
                             Id = new Guid("ca100002-0000-4000-8000-000000000002"),
                             Code = "food-beverage",
                             CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Kafe, restoran, bakery, dan usaha kuliner.",
                             IsActive = true,
-                            Name = "Food & Beverage",
-                            SortOrder = 2,
+                            Name = "F&B",
+                            SortOrder = 3,
                             UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
                         },
                         new
@@ -2046,8 +2057,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Toko retail dan perdagangan umum.",
                             IsActive = true,
-                            Name = "Retail",
-                            SortOrder = 3,
+                            Name = "Retail Umum",
+                            SortOrder = 4,
                             UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
                         },
                         new
@@ -2058,7 +2069,7 @@ namespace MorrusPOS.Infrastructure.Migrations
                             Description = "Minimarket, sembako, dan produk dengan batch/expiry.",
                             IsActive = true,
                             Name = "Grocery",
-                            SortOrder = 4,
+                            SortOrder = 5,
                             UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
                         },
                         new
@@ -2069,7 +2080,7 @@ namespace MorrusPOS.Infrastructure.Migrations
                             Description = "Butik, pakaian, dan produk dengan varian.",
                             IsActive = true,
                             Name = "Fashion",
-                            SortOrder = 5,
+                            SortOrder = 6,
                             UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
                         },
                         new
@@ -2080,7 +2091,7 @@ namespace MorrusPOS.Infrastructure.Migrations
                             Description = "Salon, laundry, dan bisnis jasa.",
                             IsActive = true,
                             Name = "Services",
-                            SortOrder = 6,
+                            SortOrder = 7,
                             UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
                         });
                 });
@@ -2264,6 +2275,168 @@ namespace MorrusPOS.Infrastructure.Migrations
                             IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
                             CapabilityId = new Guid("ca200000-0000-4000-8000-000000000027"),
                             IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000001"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000002"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000003"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000004"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000005"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000006"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000007"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000008"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000009"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000010"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000011"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000012"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000013"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000014"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000015"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000016"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000017"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000018"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000019"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000020"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000021"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000022"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000023"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000024"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000025"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000026"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000027"),
+                            IsEnabled = true
                         },
                         new
                         {

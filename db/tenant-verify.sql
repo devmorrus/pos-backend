@@ -72,9 +72,41 @@ BEGIN
     END IF;
 
     IF to_regclass('public.industry_profiles') IS NOT NULL AND
-       (SELECT count(*) FROM industry_profiles WHERE "IsActive") < 6
+       (SELECT count(*) FROM industry_profiles WHERE "IsActive") < 7
     THEN
         RAISE EXCEPTION 'Capability verification failed: industry profile catalog is incomplete';
+    END IF;
+
+    IF to_regclass('public.industry_profiles') IS NOT NULL AND EXISTS (
+        SELECT 1
+        FROM (VALUES ('electronics'), ('food-beverage'), ('retail')) AS required(code)
+        LEFT JOIN industry_profiles profile
+          ON profile."Code" = required.code AND profile."IsActive"
+        WHERE profile."Id" IS NULL)
+    THEN
+        RAISE EXCEPTION 'Capability verification failed: required ready-to-use industry profile is missing';
+    END IF;
+
+    IF to_regclass('public.industry_profiles') IS NOT NULL AND EXISTS (
+        SELECT 1
+        FROM industry_profiles
+        GROUP BY "Code"
+        HAVING count(*) > 1)
+    THEN
+        RAISE EXCEPTION 'Capability verification failed: duplicate industry profile code';
+    END IF;
+
+    IF to_regclass('public.industry_profile_capabilities') IS NOT NULL AND EXISTS (
+        SELECT 1
+        FROM industry_profiles profile
+        WHERE profile."IsActive"
+          AND (SELECT count(*)
+               FROM industry_profile_capabilities mapping
+               JOIN capabilities capability ON capability."Id" = mapping."CapabilityId"
+               WHERE mapping."IndustryProfileId" = profile."Id" AND capability."IsActive")
+              <> (SELECT count(*) FROM capabilities WHERE "IsActive"))
+    THEN
+        RAISE EXCEPTION 'Capability verification failed: industry profile capability mapping is incomplete';
     END IF;
 
     IF to_regclass('public.capabilities') IS NOT NULL AND (

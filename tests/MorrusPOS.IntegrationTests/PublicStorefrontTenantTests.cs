@@ -27,6 +27,9 @@ public class PublicStorefrontTenantTests : IClassFixture<WebApplicationFactory<P
         Assert.Equal(HttpStatusCode.NotFound, legacyGlobalCategories.StatusCode);
 
         var profiles = await _client.GetFromJsonAsync<List<IndustryProfileDto>>("/api/public/industry-profiles");
-        Assert.Equal(6, profiles?.Count);
+        Assert.NotNull(profiles);
+        Assert.Contains(profiles, x => x.Code == "electronics" && x.Name == "Elektronik");
+        Assert.Contains(profiles, x => x.Code == "food-beverage" && x.Name == "F&B");
+        Assert.Contains(profiles, x => x.Code == "retail" && x.Name == "Retail Umum");
     }
 }

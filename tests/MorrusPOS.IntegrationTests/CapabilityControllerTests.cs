@@ -183,8 +183,16 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
         }
     }
 
-    [Fact]
-    public async Task Registration_Should_AssignSelectedIndustryProfile()
+    [Theory]
+    [InlineData("Elektronik", "electronics", "Elektronik", "inventory.transfer", "catalog.modifiers")]
+    [InlineData("F&B", "food-beverage", "F&B", "catalog.modifiers", "inventory.transfer")]
+    [InlineData("Retail Umum", "retail", "Retail Umum", "procurement.supplier_debt", "channels.gobiz")]
+    public async Task Registration_Should_AssignReadyIndustryProfile(
+        string category,
+        string profileCode,
+        string profileName,
+        string enabledCapability,
+        string disabledCapability)
     {
         var adminConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_ADMIN");
         if (string.IsNullOrWhiteSpace(adminConnection)) return;
@@ -192,12 +200,19 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
         var client = _factory.CreateClient();
         var response = await client.PostAsJsonAsync("/api/auth/register-owner", new RegisterOwnerRequest(
             new RegisterOwnerOwnerDetails("Capability Owner", $"register-{suffix}@example.test", "Password123!"),
-            new RegisterOwnerBusinessDetails("Capability Business", "Services", null, "services"),
+            new RegisterOwnerBusinessDetails("Capability Business", category, null, profileCode),
             "Free Trial",
             new RegisterOwnerOutletDetails("Main Outlet", $"REG-{suffix}", null, null)));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var session = await response.Content.ReadFromJsonAsync<LoginResponse>();
         Assert.NotNull(session?.BusinessId);
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", session!.AccessToken);
+        var snapshot = await client.GetFromJsonAsync<EffectiveCapabilitySnapshot>("/api/capabilities/effective");
+        Assert.NotNull(snapshot);
+        Assert.Equal(profileCode, snapshot.IndustryProfile.Code);
+        Assert.True(snapshot.Capabilities.Single(x => x.Code == enabledCapability).Enabled);
+        Assert.False(snapshot.Capabilities.Single(x => x.Code == disabledCapability).Enabled);
 
         await using var admin = new NpgsqlConnection(adminConnection);
         await admin.OpenAsync();
@@ -205,12 +220,15 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
         {
             await using var verify = admin.CreateCommand();
             verify.CommandText = """
-                select ip."Code"
+                select ip."Code", ip."Name"
                 from businesses b join industry_profiles ip on ip."Id"=b."IndustryProfileId"
                 where b."Id"=@business;
                 """;
             verify.Parameters.AddWithValue("business", session!.BusinessId!.Value);
-            Assert.Equal("services", await verify.ExecuteScalarAsync());
+            await using var reader = await verify.ExecuteReaderAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(profileCode, reader.GetString(0));
+            Assert.Equal(profileName, reader.GetString(1));
         }
         finally
         {
@@ -224,5 +242,216 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
             cleanup.Parameters.AddWithValue("business", session!.BusinessId!.Value);
             await cleanup.ExecuteNonQueryAsync();
         }
+    }
+
+    [Fact]
+    public async Task ActiveIndustryProfiles_Should_MapEveryActiveCapability()
+    {
+        var adminConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_ADMIN");
+        if (string.IsNullOrWhiteSpace(adminConnection)) return;
+
+        await using var admin = new NpgsqlConnection(adminConnection);
+        await admin.OpenAsync();
+        await using var command = admin.CreateCommand();
+        command.CommandText = """
+            select count(*)
+            from industry_profiles profile
+            where profile."IsActive"
+              and (select count(*)
+                   from industry_profile_capabilities mapping
+                   join capabilities capability on capability."Id"=mapping."CapabilityId"
+                   where mapping."IndustryProfileId"=profile."Id" and capability."IsActive")
+                  <> (select count(*) from capabilities where "IsActive");
+            """;
+
+        Assert.Equal(0L, (long)(await command.ExecuteScalarAsync())!);
+    }
+
+    [Fact]
+    public async Task Admin_Should_ReadCapabilityConfiguration_ButNotChangeIt()
+    {
+        var adminConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_ADMIN");
+        if (string.IsNullOrWhiteSpace(adminConnection)) return;
+
+        var businessId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        await using var admin = new NpgsqlConnection(adminConnection);
+        await admin.OpenAsync();
+        try
+        {
+            await using var seed = admin.CreateCommand();
+            seed.CommandText = """
+                INSERT INTO businesses
+                    ("Id","Name","Slug","Category","IndustryProfileId","SubscriptionStatus","TrialStartDate","TrialEndDate","CreatedAt","UpdatedAt")
+                VALUES (@business,'Capability Read Only',@slug,'General','ca100001-0000-4000-8000-000000000001','Active',now(),now()+interval '30 days',now(),now());
+                INSERT INTO users
+                    ("Id","BusinessId","RoleId","Name","Email","PasswordHash","IsActive","CreatedAt","UpdatedAt")
+                VALUES (@user,@business,'d54f590a-6e54-4f05-8461-8ff62dfd8d4c','Admin Test',@email,'test',true,now(),now());
+                """;
+            seed.Parameters.AddWithValue("business", businessId);
+            seed.Parameters.AddWithValue("user", userId);
+            seed.Parameters.AddWithValue("slug", $"cap-readonly-{suffix}");
+            seed.Parameters.AddWithValue("email", $"cap-readonly-{suffix}@example.test");
+            await seed.ExecuteNonQueryAsync();
+
+            using var scope = _factory.Services.CreateScope();
+            var jwt = scope.ServiceProvider.GetRequiredService<IJwtTokenService>();
+            var client = _factory.CreateClient();
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+                "Bearer",
+                jwt.GenerateAccessToken(userId, null, "Admin", businessId, "Active", DateTime.UtcNow.AddYears(1)));
+
+            var configuration = await client.GetAsync("/api/capabilities/configuration");
+            Assert.Equal(HttpStatusCode.OK, configuration.StatusCode);
+
+            var profileChange = await client.PutAsJsonAsync("/api/capabilities/industry-profile", new
+            {
+                profileCode = "electronics",
+                expectedRevision = 0,
+                reason = "Admin tidak boleh mengubah",
+            });
+            Assert.Equal(HttpStatusCode.Forbidden, profileChange.StatusCode);
+
+            var overrideChange = await client.PutAsJsonAsync("/api/capabilities/business-overrides", new
+            {
+                expectedRevision = 0,
+                reason = "Admin tidak boleh mengubah",
+                items = new[] { new { code = "consignment", enabled = (bool?)true } },
+            });
+            Assert.Equal(HttpStatusCode.Forbidden, overrideChange.StatusCode);
+        }
+        finally
+        {
+            await using var cleanup = admin.CreateCommand();
+            cleanup.CommandText = """
+                delete from users where "Id"=@user;
+                delete from businesses where "Id"=@business;
+                """;
+            cleanup.Parameters.AddWithValue("business", businessId);
+            cleanup.Parameters.AddWithValue("user", userId);
+            await cleanup.ExecuteNonQueryAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Tenant_Should_NotReadAnotherTenantConfiguration()
+    {
+        var adminConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_ADMIN");
+        if (string.IsNullOrWhiteSpace(adminConnection)) return;
+
+        var businessA = Guid.NewGuid();
+        var businessB = Guid.NewGuid();
+        var outletA = Guid.NewGuid();
+        var outletB = Guid.NewGuid();
+        var userA = Guid.NewGuid();
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        await using var admin = new NpgsqlConnection(adminConnection);
+        await admin.OpenAsync();
+        try
+        {
+            await using var seed = admin.CreateCommand();
+            seed.CommandText = """
+                INSERT INTO businesses
+                    ("Id","Name","Slug","Category","IndustryProfileId","SubscriptionStatus","TrialStartDate","TrialEndDate","CreatedAt","UpdatedAt")
+                VALUES
+                    (@businessA,'Tenant A',@slugA,'General','ca100001-0000-4000-8000-000000000001','Active',now(),now()+interval '30 days',now(),now()),
+                    (@businessB,'Tenant B',@slugB,'General','ca100001-0000-4000-8000-000000000001','Active',now(),now()+interval '30 days',now(),now());
+                INSERT INTO outlets ("Id","BusinessId","Name","Code","IsActive","CreatedAt","UpdatedAt")
+                VALUES
+                    (@outletA,@businessA,'Outlet A',@codeA,true,now(),now()),
+                    (@outletB,@businessB,'Outlet B',@codeB,true,now(),now());
+                INSERT INTO users
+                    ("Id","BusinessId","RoleId","Name","Email","PasswordHash","IsActive","CreatedAt","UpdatedAt")
+                VALUES (@userA,@businessA,'e1a7b077-44a3-4b63-95e0-59a8501170ea','Owner A',@emailA,'test',true,now(),now());
+                """;
+            seed.Parameters.AddWithValue("businessA", businessA);
+            seed.Parameters.AddWithValue("businessB", businessB);
+            seed.Parameters.AddWithValue("outletA", outletA);
+            seed.Parameters.AddWithValue("outletB", outletB);
+            seed.Parameters.AddWithValue("userA", userA);
+            seed.Parameters.AddWithValue("slugA", $"tenant-a-{suffix}");
+            seed.Parameters.AddWithValue("slugB", $"tenant-b-{suffix}");
+            seed.Parameters.AddWithValue("codeA", $"TA-{suffix}");
+            seed.Parameters.AddWithValue("codeB", $"TB-{suffix}");
+            seed.Parameters.AddWithValue("emailA", $"tenant-a-{suffix}@example.test");
+            await seed.ExecuteNonQueryAsync();
+
+            using var scope = _factory.Services.CreateScope();
+            var jwt = scope.ServiceProvider.GetRequiredService<IJwtTokenService>();
+            var client = _factory.CreateClient();
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+                "Bearer",
+                jwt.GenerateAccessToken(userA, null, "Owner", businessA, "Active", DateTime.UtcNow.AddYears(1)));
+
+            var effective = await client.GetAsync($"/api/capabilities/effective?outletId={outletB}");
+            Assert.Equal(HttpStatusCode.NotFound, effective.StatusCode);
+
+            var configuration = await client.GetAsync($"/api/capabilities/configuration?outletId={outletB}");
+            Assert.Equal(HttpStatusCode.NotFound, configuration.StatusCode);
+        }
+        finally
+        {
+            await using var cleanup = admin.CreateCommand();
+            cleanup.CommandText = """
+                delete from users where "Id"=@userA;
+                delete from outlets where "Id" in (@outletA,@outletB);
+                delete from businesses where "Id" in (@businessA,@businessB);
+                """;
+            cleanup.Parameters.AddWithValue("userA", userA);
+            cleanup.Parameters.AddWithValue("outletA", outletA);
+            cleanup.Parameters.AddWithValue("outletB", outletB);
+            cleanup.Parameters.AddWithValue("businessA", businessA);
+            cleanup.Parameters.AddWithValue("businessB", businessB);
+            await cleanup.ExecuteNonQueryAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Owner_Should_ChangeIndustryProfile_WithRevisionAndAudit()
+    {
+        var adminConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_ADMIN");
+        if (string.IsNullOrWhiteSpace(adminConnection)) return;
+
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var client = _factory.CreateClient();
+        var registration = await client.PostAsJsonAsync("/api/auth/register-owner", new RegisterOwnerRequest(
+            new RegisterOwnerOwnerDetails("Profile Owner", $"profile-{suffix}@example.test", "Password123!"),
+            new RegisterOwnerBusinessDetails("Profile Business", "Retail Umum", null, "retail"),
+            "Free Trial",
+            new RegisterOwnerOutletDetails("Main Outlet", $"PRO-{suffix}", null, null)));
+        Assert.Equal(HttpStatusCode.OK, registration.StatusCode);
+        var session = await registration.Content.ReadFromJsonAsync<LoginResponse>();
+        Assert.NotNull(session?.BusinessId);
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", session!.AccessToken);
+        var response = await client.PutAsJsonAsync("/api/capabilities/industry-profile", new
+        {
+            profileCode = "electronics",
+            expectedRevision = 0,
+            reason = "Menyesuaikan jenis usaha",
+        });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var snapshot = await response.Content.ReadFromJsonAsync<EffectiveCapabilitySnapshot>();
+        Assert.NotNull(snapshot);
+        Assert.Equal(1, snapshot.Revision);
+        Assert.Equal("electronics", snapshot.IndustryProfile.Code);
+
+        var history = await client.GetFromJsonAsync<List<CapabilityChangeLogDto>>("/api/capabilities/history");
+        Assert.Contains(history!, x =>
+            x.ChangeType == "IndustryProfileChanged" && x.Reason == "Menyesuaikan jenis usaha");
+
+        await using var admin = new NpgsqlConnection(adminConnection);
+        await admin.OpenAsync();
+        await using var cleanup = admin.CreateCommand();
+        cleanup.CommandText = """
+            delete from capability_change_logs where "BusinessId"=@business;
+            delete from refresh_tokens where "BusinessId"=@business;
+            delete from users where "BusinessId"=@business;
+            delete from outlets where "BusinessId"=@business;
+            delete from businesses where "Id"=@business;
+            """;
+        cleanup.Parameters.AddWithValue("business", session.BusinessId.Value);
+        await cleanup.ExecuteNonQueryAsync();
     }
 }

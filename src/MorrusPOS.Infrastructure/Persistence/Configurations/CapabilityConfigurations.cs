@@ -12,6 +12,7 @@ public static class IndustryProfileSeedIds
     public static readonly Guid Grocery = Guid.Parse("ca100004-0000-4000-8000-000000000004");
     public static readonly Guid Fashion = Guid.Parse("ca100005-0000-4000-8000-000000000005");
     public static readonly Guid Services = Guid.Parse("ca100006-0000-4000-8000-000000000006");
+    public static readonly Guid Electronics = Guid.Parse("ca100007-0000-4000-8000-000000000007");
 }
 
 internal static class CapabilitySeed
@@ -101,11 +102,12 @@ public class IndustryProfileConfiguration : IEntityTypeConfiguration<IndustryPro
         var seedDate = new DateTime(2026, 11, 2, 0, 0, 0, DateTimeKind.Utc);
         builder.HasData(
             Profile(IndustryProfileSeedIds.General, "general", "General", "Konfigurasi umum untuk bisnis lintas industri.", 1, seedDate),
-            Profile(IndustryProfileSeedIds.FoodBeverage, "food-beverage", "Food & Beverage", "Kafe, restoran, bakery, dan usaha kuliner.", 2, seedDate),
-            Profile(IndustryProfileSeedIds.Retail, "retail", "Retail", "Toko retail dan perdagangan umum.", 3, seedDate),
-            Profile(IndustryProfileSeedIds.Grocery, "grocery", "Grocery", "Minimarket, sembako, dan produk dengan batch/expiry.", 4, seedDate),
-            Profile(IndustryProfileSeedIds.Fashion, "fashion", "Fashion", "Butik, pakaian, dan produk dengan varian.", 5, seedDate),
-            Profile(IndustryProfileSeedIds.Services, "services", "Services", "Salon, laundry, dan bisnis jasa.", 6, seedDate));
+            Profile(IndustryProfileSeedIds.Electronics, "electronics", "Elektronik", "Toko gadget, komputer, aksesori, dan perangkat elektronik.", 2, seedDate),
+            Profile(IndustryProfileSeedIds.FoodBeverage, "food-beverage", "F&B", "Kafe, restoran, bakery, dan usaha kuliner.", 3, seedDate),
+            Profile(IndustryProfileSeedIds.Retail, "retail", "Retail Umum", "Toko retail dan perdagangan umum.", 4, seedDate),
+            Profile(IndustryProfileSeedIds.Grocery, "grocery", "Grocery", "Minimarket, sembako, dan produk dengan batch/expiry.", 5, seedDate),
+            Profile(IndustryProfileSeedIds.Fashion, "fashion", "Fashion", "Butik, pakaian, dan produk dengan varian.", 6, seedDate),
+            Profile(IndustryProfileSeedIds.Services, "services", "Services", "Salon, laundry, dan bisnis jasa.", 7, seedDate));
     }
 
     private static IndustryProfile Profile(Guid id, string code, string name, string description, int order, DateTime seedDate)
@@ -142,6 +144,11 @@ public class IndustryProfileCapabilityConfiguration : IEntityTypeConfiguration<I
         var profiles = new Dictionary<Guid, HashSet<string>>
         {
             [IndustryProfileSeedIds.General] = [.. defaults],
+            [IndustryProfileSeedIds.Electronics] = [.. defaults,
+                CapabilityCodes.CatalogVariants, CapabilityCodes.InventoryTransfer,
+                CapabilityCodes.ProcurementPurchasing, CapabilityCodes.ProcurementSupplierDebt,
+                CapabilityCodes.ProcurementSupplierReturn, CapabilityCodes.ChannelsSettlement,
+                CapabilityCodes.PricingPromotions, CapabilityCodes.PricingVouchers, CapabilityCodes.StorefrontPublic],
             [IndustryProfileSeedIds.FoodBeverage] = [.. defaults,
                 CapabilityCodes.CatalogVariants, CapabilityCodes.CatalogModifiers, CapabilityCodes.CatalogRecipes,
                 CapabilityCodes.InventoryBufferStock, CapabilityCodes.ProcurementPurchasing,

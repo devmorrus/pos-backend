@@ -262,8 +262,9 @@ public class AuthService : IAuthService
     private static string MapLegacyCategoryToProfile(string category)
         => category.Trim().ToLowerInvariant() switch
         {
-            "food & beverage" or "f&b" => "food-beverage",
-            "retail" => "retail",
+            "food & beverage" or "food and beverage" or "f&b" => "food-beverage",
+            "retail" or "retail umum" => "retail",
+            "electronics" or "electronic" or "elektronik" => "electronics",
             "grocery" => "grocery",
             "fashion" => "fashion",
             "services" or "service" => "services",

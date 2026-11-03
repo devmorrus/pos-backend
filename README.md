@@ -346,6 +346,11 @@ Sistem backend ini mengimplementasikan modul bisnis retail POS lengkap:
    - Pencatatan pengeluaran operasional harian (seperti ATK, konsumsi, transportasi) langsung memotong saldo kas laci POS aktif.
    - Validasi ketat: Kasir wajib memiliki sesi kasir aktif yang masih terbuka untuk dapat melakukan pencatatan kas keluar.
 
+6. **Profil Industri & Capability**:
+   - Profil siap pakai: General, Elektronik, F&B, Retail Umum, Grocery, Fashion, Services.
+   - Fitur aktif mengikuti urutan default global → profil → override Business → override Outlet.
+   - Detail perilaku, backfill, dan rollback ada di [docs/industry_profile_capabilities.md](docs/industry_profile_capabilities.md).
+
 ## Saran Setelah API Berjalan
 
 1. Buat data awal: outlet, role, permission, dan user.
