@@ -66,6 +66,7 @@ BEGIN
           AND p.proname IN (
               'fn_update_inventory_stock','fn_reconcile_inventory_stock',
               'fn_guard_inventory_stock_projection','fn_prevent_stock_ledger_mutation',
+              'fn_prevent_idempotency_mutation',
               'app_current_business_id','app_prevent_business_change')
     LOOP
         EXECUTE format('ALTER FUNCTION %s OWNER TO morrus_migration',r.signature);
@@ -102,6 +103,10 @@ BEGIN
             GRANT SELECT, INSERT ON stock_reconciliation_runs, stock_reconciliation_items TO morrus_app;
             REVOKE ALL ON FUNCTION fn_reconcile_inventory_stock(uuid,boolean) FROM PUBLIC;
             GRANT EXECUTE ON FUNCTION fn_reconcile_inventory_stock(uuid,boolean) TO morrus_app;
+        END IF;
+        IF to_regclass('public.idempotency_records') IS NOT NULL THEN
+            REVOKE ALL ON idempotency_records FROM morrus_app;
+            GRANT SELECT, INSERT ON idempotency_records TO morrus_app;
         END IF;
 
         -- Cross-tenant system role is deliberately narrow: auth/provisioning,

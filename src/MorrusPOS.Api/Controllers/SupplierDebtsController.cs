@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MorrusPOS.Api.Security;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Common.Exceptions;
 using MorrusPOS.Application.Features.Suppliers;
 using MorrusPOS.Domain.Entities;
 
@@ -74,6 +75,11 @@ public class SupplierDebtsController : ControllerBase
     [HasPermission("supplier.manage")]
     public async Task<ActionResult<SupplierPaymentDto>> Pay(CreateSupplierPaymentRequest request, CancellationToken ct)
     {
+        if (Request.Headers.TryGetValue("Idempotency-Key", out var value) &&
+            (!Guid.TryParse(value.ToString(), out var headerId) || headerId == Guid.Empty ||
+             (request.Id != Guid.Empty && request.Id != headerId)))
+            throw new IdempotencyException(IdempotencyErrorCodes.KeyInvalid,
+                "Idempotency-Key harus berupa UUID valid dan sama dengan payment request ID.");
         var userId = _currentUser.UserId;
         if (userId == null)
             return BadRequest("User tidak valid.");

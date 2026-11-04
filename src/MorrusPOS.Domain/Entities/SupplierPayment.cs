@@ -25,6 +25,7 @@ public class SupplierPayment : BaseEntity
     public string? ReferenceNumber { get; set; }
 
     public string Status { get; set; } = SupplierPaymentStatus.Paid;
+    public string? RequestHash { get; set; }
 
     public Guid CreatedBy { get; set; }
     public User CreatedByUser { get; set; } = default!;

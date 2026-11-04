@@ -1992,6 +1992,67 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.ToTable("gobiz_product_mappings", (string)null);
                 });
 
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.IdempotencyRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("IdempotencyKey")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid?>("OutletId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("ResourceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ResourceType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OutletId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("BusinessId", "Operation", "IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("BusinessId", "OutletId", "CreatedAt");
+
+                    b.HasIndex("BusinessId", "ResourceType", "ResourceId");
+
+                    b.ToTable("idempotency_records", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_idempotency_records_Operation", "\"Operation\" IN ('checkout','refund','supplier_payment')");
+
+                            t.HasCheckConstraint("CK_idempotency_records_RequestHash", "length(\"RequestHash\") = 64");
+                        });
+                });
+
             modelBuilder.Entity("MorrusPOS.Domain.Entities.IndustryProfile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4522,6 +4583,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<Guid>("RefundRequestId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("TransactionId")
                         .HasColumnType("uuid");
 
@@ -4530,13 +4594,15 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BusinessId");
-
                     b.HasIndex("ProcessedBy");
 
                     b.HasIndex("TransactionId");
 
                     b.HasIndex("TransactionItemId");
+
+                    b.HasIndex("BusinessId", "RefundRequestId");
+
+                    b.HasIndex("BusinessId", "TransactionId", "RefundRequestId");
 
                     b.ToTable("returns", (string)null);
                 });
@@ -5497,6 +5563,11 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("RequestHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .IsFixedLength();
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -5747,6 +5818,11 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.Property<decimal>("PromoDiscountTotal")
                         .HasColumnType("decimal(14,2)");
+
+                    b.Property<string>("RequestHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .IsFixedLength();
 
                     b.Property<decimal>("ServiceChargeTotal")
                         .HasColumnType("decimal(14,2)");
@@ -6742,6 +6818,32 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("Product");
 
                     b.Navigation("ProductVariant");
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.IdempotencyRecord", b =>
+                {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
+                        .WithMany()
+                        .HasForeignKey("OutletId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MorrusPOS.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Business");
+
+                    b.Navigation("Outlet");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.IndustryProfileCapability", b =>

@@ -7,6 +7,8 @@ using MorrusPOS.Application.Features.Capabilities;
 using MorrusPOS.Application.Features.Transactions;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace MorrusPOS.Infrastructure.Services;
 
@@ -19,13 +21,15 @@ public class TransactionService : ITransactionService
     private readonly IPricingService _pricingService;
     private readonly IAccountingIntegrationService? _accountingIntegrationService;
     private readonly ICapabilityEvaluator? _capabilityEvaluator;
+    private readonly IIdempotencyService? _idempotencyService;
 
     public TransactionService(
         AppDbContext dbContext,
         IStockService stockService,
         ICurrentUserService currentUserService,
         IPosNotificationService notificationService,
-        IAccountingIntegrationService? accountingIntegrationService = null)
+        IAccountingIntegrationService? accountingIntegrationService = null,
+        IIdempotencyService? idempotencyService = null)
         : this(
             dbContext,
             stockService,
@@ -33,7 +37,8 @@ public class TransactionService : ITransactionService
             notificationService,
             new PricingService(dbContext),
             accountingIntegrationService,
-            null)
+            null,
+            idempotencyService)
     {
     }
 
@@ -44,7 +49,8 @@ public class TransactionService : ITransactionService
         IPosNotificationService notificationService,
         IPricingService pricingService,
         IAccountingIntegrationService? accountingIntegrationService = null,
-        ICapabilityEvaluator? capabilityEvaluator = null)
+        ICapabilityEvaluator? capabilityEvaluator = null,
+        IIdempotencyService? idempotencyService = null)
     {
         _dbContext = dbContext;
         _stockService = stockService;
@@ -53,6 +59,7 @@ public class TransactionService : ITransactionService
         _pricingService = pricingService;
         _accountingIntegrationService = accountingIntegrationService;
         _capabilityEvaluator = capabilityEvaluator;
+        _idempotencyService = idempotencyService;
     }
 
     public async Task<IReadOnlyList<TransactionListItemDto>> GetRecentByOutletAsync(
@@ -236,6 +243,33 @@ public class TransactionService : ITransactionService
     {
         await EnsureRefundRoleAsync();
 
+        if (request.Id == Guid.Empty)
+            throw new IdempotencyException(IdempotencyErrorCodes.KeyRequired,
+                "Refund request ID wajib tersedia.");
+        var requestHash = ComputeRequestHash(request);
+        using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
+        IdempotencyClaim? idempotencyClaim = null;
+        if (_idempotencyService is not null)
+        {
+            idempotencyClaim = await _idempotencyService.ClaimAsync(
+                IdempotencyOperation.Refund, request.Id, requestHash,
+                _currentUserService.UserId ?? throw new UnauthorizedAccessException("User refund tidak valid."),
+                _currentUserService.OutletId, ct);
+            if (idempotencyClaim.Replayed)
+            {
+                await dbTx.CommitAsync(ct);
+                return await GetByIdAsync(idempotencyClaim.ResourceId!.Value, ct);
+            }
+        }
+        if (_dbContext.Database.IsRelational())
+        {
+            var businessId = _currentUserService.BusinessId
+                ?? throw new UnauthorizedAccessException("Business refund tidak valid.");
+            await _dbContext.Database.SqlQuery<int>(
+                $"SELECT 1 AS \"Value\" FROM (SELECT pg_advisory_xact_lock(hashtextextended({$"{businessId:N}:refund-resource:{id:N}"},0))) lock_row")
+                .SingleAsync(ct);
+        }
+
         var transaction = await GetTransactionAggregateAsync(id, ct);
         if (transaction == null)
         {
@@ -283,7 +317,6 @@ public class TransactionService : ITransactionService
             .GroupBy(itemReturn => itemReturn.TransactionItemId)
             .ToDictionary(group => group.Key, group => group.Sum(itemReturn => itemReturn.Qty));
 
-        using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
         try
         {
             foreach (var refundItem in request.Items)
@@ -320,6 +353,7 @@ public class TransactionService : ITransactionService
                     Id = Guid.NewGuid(),
                     TransactionId = transaction.Id,
                     TransactionItemId = transactionItem.Id,
+                    RefundRequestId = request.Id,
                     Qty = refundItem.Qty,
                     Reason = string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim(),
                     RefundMethod = refundMethod,
@@ -410,6 +444,8 @@ public class TransactionService : ITransactionService
                 transaction.Status = TransactionStatus.Refunded;
             }
 
+            if (idempotencyClaim is { Replayed: false } && _idempotencyService is not null)
+                _idempotencyService.Complete(idempotencyClaim, "transaction", transaction.Id);
             await _dbContext.SaveChangesAsync(ct);
             await dbTx.CommitAsync(ct);
 
@@ -451,6 +487,27 @@ public class TransactionService : ITransactionService
             throw new InvalidOperationException("Minimal satu pembayaran wajib diisi.");
         }
 
+        if (request.Id == Guid.Empty)
+            throw new IdempotencyException(IdempotencyErrorCodes.KeyRequired,
+                "Checkout request ID wajib tersedia.");
+        request = request with
+        {
+            Payments = request.Payments.Select((payment, index) => payment.Id == Guid.Empty
+                ? payment with { Id = CreateDeterministicGuid(request.Id, $"payment:{index}") }
+                : payment).ToList()
+        };
+        if (request.Payments.Select(x => x.Id).Distinct().Count() != request.Payments.Count)
+            throw new IdempotencyException(IdempotencyErrorCodes.KeyInvalid,
+                "Payment request ID dalam satu checkout tidak boleh duplikat.");
+        var requestHash = ComputeRequestHash(request);
+
+        using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
+        IdempotencyClaim? idempotencyClaim = null;
+        if (_idempotencyService is not null)
+            idempotencyClaim = await _idempotencyService.ClaimAsync(
+                IdempotencyOperation.Checkout, request.Id, requestHash,
+                _currentUserService.UserId.Value, request.OutletId, ct);
+
         var existing = await _dbContext.Transactions
             .Include(t => t.Outlet)
             .Include(t => t.User)
@@ -461,7 +518,22 @@ public class TransactionService : ITransactionService
         if (existing != null)
         {
             await EnsureOutletAccessibleAsync(existing.OutletId, ct);
+            if (!string.IsNullOrWhiteSpace(existing.RequestHash) &&
+                !string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal))
+                throw new IdempotencyException(IdempotencyErrorCodes.KeyReused,
+                    "Checkout request ID sudah digunakan untuk payload yang berbeda.");
+            if (idempotencyClaim is { Replayed: false } && _idempotencyService is not null)
+            {
+                _idempotencyService.Complete(idempotencyClaim, "transaction", existing.Id);
+                await _dbContext.SaveChangesAsync(ct);
+            }
+            await dbTx.CommitAsync(ct);
             return await GetByIdAsync(existing.Id, ct);
+        }
+        if (idempotencyClaim is { Replayed: true })
+        {
+            await dbTx.CommitAsync(ct);
+            return await GetByIdAsync(idempotencyClaim.ResourceId!.Value, ct);
         }
 
         var session = await _dbContext.CashierSessions
@@ -485,7 +557,6 @@ public class TransactionService : ITransactionService
             }
         }
 
-        using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
         try
         {
             var validatedItems = new List<ValidatedCheckoutItem>();
@@ -617,6 +688,7 @@ public class TransactionService : ITransactionService
                 AmountPaid = amountPaid,
                 DueAmount = dueAmount,
                 PaymentDueDate = request.PaymentDueDate,
+                RequestHash = requestHash,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -770,7 +842,7 @@ public class TransactionService : ITransactionService
                 {
                     var payment = new Payment
                     {
-                        Id = Guid.NewGuid(),
+                        Id = payReq.Id,
                         TransactionId = newTrx.Id,
                         CashierSessionId = request.CashierSessionId,
                         Method = payReq.Method,
@@ -804,6 +876,8 @@ public class TransactionService : ITransactionService
                 selectedCustomer.UpdatedAt = DateTime.UtcNow;
             }
 
+            if (idempotencyClaim is { Replayed: false } && _idempotencyService is not null)
+                _idempotencyService.Complete(idempotencyClaim, "transaction", newTrx.Id);
             await _dbContext.SaveChangesAsync(ct);
             if (_accountingIntegrationService != null)
             {
@@ -1370,6 +1444,21 @@ public class TransactionService : ITransactionService
 
     private static bool IsSupportedPaymentMethod(string method)
         => method is PaymentMethod.Cash or PaymentMethod.Qris or PaymentMethod.Transfer or PaymentMethod.Edc;
+
+    private string ComputeRequestHash<T>(T request)
+        => _idempotencyService?.ComputeRequestHash(request)
+           ?? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+               System.Text.Json.JsonSerializer.Serialize(request)))).ToLowerInvariant();
+
+    private static Guid CreateDeterministicGuid(Guid namespaceId, string value)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes($"{namespaceId:N}:{value}"));
+        Span<byte> guidBytes = stackalloc byte[16];
+        bytes.AsSpan(0, 16).CopyTo(guidBytes);
+        guidBytes[6] = (byte)((guidBytes[6] & 0x0F) | 0x50);
+        guidBytes[8] = (byte)((guidBytes[8] & 0x3F) | 0x80);
+        return new Guid(guidBytes);
+    }
 }
 
 file sealed record ValidatedCheckoutItem(Product Product, CheckoutItemRequest Request);

@@ -8,6 +8,9 @@ public class CreateSupplierPaymentRequestValidator : AbstractValidator<CreateSup
 
     public CreateSupplierPaymentRequestValidator()
     {
+        RuleFor(x => x.Id)
+            .NotEmpty().WithMessage("Supplier payment request ID wajib diisi.");
+
         RuleFor(x => x.PurchaseOrderId)
             .NotEmpty().WithMessage("Purchase Order wajib dipilih.");
 

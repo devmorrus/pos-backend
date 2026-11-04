@@ -48,7 +48,9 @@ public class TrackingSchemaPostgresTests
               AND EXISTS (
                 SELECT 1 FROM pg_indexes
                 WHERE schemaname='public' AND tablename='stock_ledger'
-                  AND indexdef LIKE 'CREATE UNIQUE INDEX%"BusinessId", "PostingKey"%');
+                  AND indexdef LIKE 'CREATE UNIQUE INDEX%"BusinessId", "PostingKey"%')
+              AND EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='UX_payments_Business_Method_Reference')
+              AND EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='UX_supplier_payments_Business_Method_Reference');
             """;
 
         Assert.True((bool)(await command.ExecuteScalarAsync())!);

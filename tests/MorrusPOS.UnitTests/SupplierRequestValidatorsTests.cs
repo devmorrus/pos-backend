@@ -338,7 +338,8 @@ public class SupplierRequestValidatorsTests
             PurchaseOrderId: Guid.NewGuid(),
             Amount: 500000,
             PaymentMethod: "Transfer Bank",
-            ReferenceNumber: "TRF-2026-001"
+            ReferenceNumber: "TRF-2026-001",
+            Id: Guid.NewGuid()
         );
 
         var result = _paymentValidator.TestValidate(request);

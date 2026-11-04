@@ -30,6 +30,7 @@ public class TransactionServiceTests
         _currentUserMock = Substitute.For<ICurrentUserService>();
         _notificationServiceMock = Substitute.For<IPosNotificationService>();
         _currentUserMock.Role.Returns("Admin");
+        _currentUserMock.BusinessId.Returns(TestTenant.BusinessId);
     }
 
     [Fact]
@@ -53,7 +54,8 @@ public class TransactionServiceTests
         _currentUserMock.UserId.Returns(userId);
         _currentUserMock.OutletId.Returns(outletId);
 
-        var service = new TransactionService(_dbContext, _stockServiceMock, _currentUserMock, _notificationServiceMock);
+        var service = new TransactionService(_dbContext, _stockServiceMock, _currentUserMock, _notificationServiceMock,
+            idempotencyService: new IdempotencyService(_dbContext, _currentUserMock));
 
         var checkoutId = Guid.NewGuid();
         var request = new CheckoutRequest(
@@ -77,10 +79,19 @@ public class TransactionServiceTests
 
         // Act
         var result = await service.CheckoutAsync(request);
+        var replay = await service.CheckoutAsync(request);
 
         // Assert
         result.Should().NotBeNull();
         result.TransactionNumber.Should().StartWith("TRX-");
+        replay.Id.Should().Be(result.Id);
+        (await _dbContext.Transactions.CountAsync()).Should().Be(1);
+        (await _dbContext.Payments.CountAsync()).Should().Be(1);
+        (await _dbContext.IdempotencyRecords.CountAsync()).Should().Be(1);
+
+        var conflict = () => service.CheckoutAsync(request with { GrandTotal = 20001 });
+        await conflict.Should().ThrowAsync<IdempotencyException>()
+            .Where(x => x.Code == IdempotencyErrorCodes.KeyReused);
 
         // Verify stock adjustment call
         await _stockServiceMock.Received(1).AddMovementAsync(
@@ -144,7 +155,8 @@ public class TransactionServiceTests
         _currentUserMock.UserId.Returns(userId);
         _currentUserMock.OutletId.Returns(outletId);
 
-        var service = new TransactionService(_dbContext, new StockService(_dbContext, _currentUserMock), _currentUserMock, _notificationServiceMock);
+        var service = new TransactionService(_dbContext, new StockService(_dbContext, _currentUserMock), _currentUserMock, _notificationServiceMock,
+            idempotencyService: new IdempotencyService(_dbContext, _currentUserMock));
         var checkoutId = Guid.NewGuid();
         var request = new CheckoutRequest(
             Id: checkoutId,
@@ -180,13 +192,17 @@ public class TransactionServiceTests
         ledger.QtyChange.Should().Be(-1);
         ledger.DocumentItemId.Should().Be(result.Items[0].Id);
 
-        var refunded = await service.RefundAsync(result.Id, new RefundTransactionRequest(
+        var refundRequest = new RefundTransactionRequest(
             "refund", "Customer return", [new RefundTransactionItemRequest(prodId, 1)
             {
                 TransactionItemId = result.Items[0].Id,
                 SerialIds = [serialId]
-            }]));
+            }], Guid.NewGuid());
+        var refunded = await service.RefundAsync(result.Id, refundRequest);
+        var refundReplay = await service.RefundAsync(result.Id, refundRequest);
         refunded.Items[0].Serials.Should().ContainSingle(x => x.ProductSerialId == serialId && x.IsReturned);
+        refundReplay.Id.Should().Be(result.Id);
+        (await _dbContext.Returns.CountAsync()).Should().Be(1);
     }
 
     [Fact]
@@ -230,7 +246,7 @@ public class TransactionServiceTests
             {
                 TransactionItemId = checkout.Items[0].Id,
                 BatchAllocations = [new BatchAllocationRequest(otherBatchId, 1)]
-            }]));
+            }], Guid.NewGuid()));
 
         var exception = await act.Should().ThrowAsync<TrackingValidationException>();
         exception.Which.Code.Should().Be(TrackingErrorCodes.TrackingAllocationMismatch);

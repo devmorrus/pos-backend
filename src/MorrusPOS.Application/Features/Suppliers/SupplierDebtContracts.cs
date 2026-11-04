@@ -32,7 +32,8 @@ public record CreateSupplierPaymentRequest(
     Guid PurchaseOrderId,
     decimal Amount,
     string PaymentMethod,
-    string? ReferenceNumber
+    string? ReferenceNumber,
+    Guid Id = default
 );
 
 public interface ISupplierDebtService

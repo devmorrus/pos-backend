@@ -122,7 +122,8 @@ public record BatchAllocationRequest(Guid ProductBatchId, decimal Qty);
 public record PaymentRequest(
     string Method,
     decimal Amount,
-    string? ReferenceNumber
+    string? ReferenceNumber,
+    Guid Id = default
 );
 
 public record CheckoutRequest(
@@ -212,7 +213,8 @@ public record RefundTransactionItemRequest(
 public record RefundTransactionRequest(
     string RefundMethod,
     string? Reason,
-    List<RefundTransactionItemRequest> Items
+    List<RefundTransactionItemRequest> Items,
+    Guid Id = default
 );
 
 public interface ITransactionService

@@ -102,6 +102,7 @@ public class SupplierPaymentConfiguration : IEntityTypeConfiguration<SupplierPay
         builder.Property(x => x.PaymentMethod).HasMaxLength(30).IsRequired();
         builder.Property(x => x.ReferenceNumber).HasMaxLength(100);
         builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.RequestHash).HasMaxLength(64).IsFixedLength();
 
         builder.HasOne(x => x.Supplier)
             .WithMany()

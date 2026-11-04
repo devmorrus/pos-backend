@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Common.Exceptions;
 using MorrusPOS.Application.Features.Suppliers;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -32,6 +33,7 @@ public class SupplierDebtServiceTests
         _currentUserServiceMock.Role.Returns("Owner");
         _currentUserServiceMock.OutletId.Returns((Guid?)null);
         _currentUserServiceMock.UserId.Returns(_userId);
+        _currentUserServiceMock.BusinessId.Returns(TestTenant.BusinessId);
     }
 
     private async Task<SupplierDebt> SeedDebtAsync(decimal amount = 100000m, decimal soldQty = 10m)
@@ -95,20 +97,30 @@ public class SupplierDebtServiceTests
     public async Task PayDebtAsync_Should_ReduceRemainingAmount_And_SetStatus_ToPartiallyPaid()
     {
         var debt = await SeedDebtAsync(amount: 100000);
-        var service = new SupplierDebtService(_dbContext, _currentUserServiceMock);
+        var service = new SupplierDebtService(_dbContext, _currentUserServiceMock,
+            idempotencyService: new IdempotencyService(_dbContext, _currentUserServiceMock));
 
         var request = new CreateSupplierPaymentRequest(
             PurchaseOrderId: debt.PurchaseOrderId,
             Amount: 40000,
             PaymentMethod: "Transfer",
-            ReferenceNumber: "TRF-001"
+            ReferenceNumber: "TRF-001",
+            Id: Guid.NewGuid()
         );
 
         var result = await service.PayDebtAsync(_userId, request);
+        var replay = await service.PayDebtAsync(_userId, request);
 
         result.Should().NotBeNull();
         result.Amount.Should().Be(40000);
         result.PaymentMethod.Should().Be("Transfer");
+        replay.Id.Should().Be(result.Id);
+        (await _dbContext.SupplierPayments.CountAsync()).Should().Be(1);
+        (await _dbContext.IdempotencyRecords.CountAsync()).Should().Be(1);
+
+        var conflict = () => service.PayDebtAsync(_userId, request with { Amount = 30000 });
+        await conflict.Should().ThrowAsync<IdempotencyException>()
+            .Where(x => x.Code == IdempotencyErrorCodes.KeyReused);
 
         // Verify debt was updated
         var updatedDebt = await _dbContext.SupplierDebts.FindAsync(debt.Id);
@@ -129,7 +141,8 @@ public class SupplierDebtServiceTests
             PurchaseOrderId: debt.PurchaseOrderId,
             Amount: 100000, // Full payment
             PaymentMethod: "Cash",
-            ReferenceNumber: null
+            ReferenceNumber: null,
+            Id: Guid.NewGuid()
         );
 
         await service.PayDebtAsync(_userId, request);
@@ -152,7 +165,8 @@ public class SupplierDebtServiceTests
             PurchaseOrderId: debt.PurchaseOrderId,
             Amount: 150000, // Exceeds remaining!
             PaymentMethod: "Cash",
-            ReferenceNumber: null
+            ReferenceNumber: null,
+            Id: Guid.NewGuid()
         );
 
         var act = () => service.PayDebtAsync(_userId, request);
@@ -169,11 +183,11 @@ public class SupplierDebtServiceTests
 
         // First: pay off the full amount
         await service.PayDebtAsync(_userId, new CreateSupplierPaymentRequest(
-            debt.PurchaseOrderId, 100000, "Cash", null));
+            debt.PurchaseOrderId, 100000, "Cash", null, Guid.NewGuid()));
 
         // Second: try paying again after it's fully paid
         var act = () => service.PayDebtAsync(_userId, new CreateSupplierPaymentRequest(
-            debt.PurchaseOrderId, 10000, "Cash", null));
+            debt.PurchaseOrderId, 10000, "Cash", null, Guid.NewGuid()));
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*sudah lunas*");
     }
@@ -190,7 +204,8 @@ public class SupplierDebtServiceTests
             PurchaseOrderId: debt.PurchaseOrderId,
             Amount: 10000,
             PaymentMethod: "Cash",
-            ReferenceNumber: null
+            ReferenceNumber: null,
+            Id: Guid.NewGuid()
         );
 
         var act = () => service.PayDebtAsync(_userId, request);
@@ -208,7 +223,8 @@ public class SupplierDebtServiceTests
             PurchaseOrderId: debt.PurchaseOrderId,
             Amount: 40000,
             PaymentMethod: "Cash",
-            ReferenceNumber: null
+            ReferenceNumber: null,
+            Id: Guid.NewGuid()
         );
 
         var result = await service.PayDebtAsync(_userId, request);

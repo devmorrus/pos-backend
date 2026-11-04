@@ -18,6 +18,9 @@ public class RefundTransactionRequestValidator : AbstractValidator<RefundTransac
 {
     public RefundTransactionRequestValidator()
     {
+        RuleFor(x => x.Id)
+            .NotEmpty().WithMessage("Refund request ID wajib diisi.");
+
         RuleFor(x => x.RefundMethod)
             .NotEmpty().WithMessage("Metode refund wajib diisi.");
 

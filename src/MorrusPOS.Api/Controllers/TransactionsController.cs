@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using MorrusPOS.Api.Security;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Transactions;
+using MorrusPOS.Application.Common.Exceptions;
 using MorrusPOS.Domain.Entities;
 
 namespace MorrusPOS.Api.Controllers;
@@ -51,6 +52,7 @@ public class TransactionsController : ControllerBase
     [RequiresCapability(CapabilityCodes.SalesPos)]
     public async Task<ActionResult<TransactionDto>> Checkout(CheckoutRequest request, CancellationToken ct)
     {
+        ValidateIdempotencyHeader(request.Id);
         var result = await _transactionService.CheckoutAsync(request, ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
@@ -76,8 +78,19 @@ public class TransactionsController : ControllerBase
     [RequiresCapability(CapabilityCodes.SalesTransactions)]
     public async Task<ActionResult<TransactionDto>> Refund(Guid id, RefundTransactionRequest request, CancellationToken ct)
     {
+        ValidateIdempotencyHeader(request.Id);
         var result = await _transactionService.RefundAsync(id, request, ct);
         return Ok(result);
+    }
+
+    private void ValidateIdempotencyHeader(Guid requestId)
+    {
+        if (!Request.Headers.TryGetValue("Idempotency-Key", out var value)) return;
+        if (!Guid.TryParse(value.ToString(), out var headerId) || headerId == Guid.Empty)
+            throw new IdempotencyException(IdempotencyErrorCodes.KeyInvalid, "Idempotency-Key harus berupa UUID valid.");
+        if (requestId != Guid.Empty && requestId != headerId)
+            throw new IdempotencyException(IdempotencyErrorCodes.KeyReused,
+                "Idempotency-Key header tidak sama dengan request ID.");
     }
 
 

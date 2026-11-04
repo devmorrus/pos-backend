@@ -48,6 +48,7 @@ public class Transaction : BaseEntity
     public string? ExternalCustomerPhone { get; set; }
     public string? LoyaltyReference { get; set; }
     public string? ChannelOrderReference { get; set; }
+    public string? RequestHash { get; set; }
 
     public decimal Subtotal { get; set; }
     public decimal DiscountTotal { get; set; }

@@ -95,6 +95,7 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
         builder.Property(x => x.ExternalCustomerPhone).HasMaxLength(30);
         builder.Property(x => x.LoyaltyReference).HasMaxLength(150);
         builder.Property(x => x.ChannelOrderReference).HasMaxLength(150);
+        builder.Property(x => x.RequestHash).HasMaxLength(64).IsFixedLength();
 
         foreach (var prop in new[]
                  {
@@ -202,6 +203,8 @@ public class ReturnConfiguration : IEntityTypeConfiguration<Return>
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Qty).HasColumnType("decimal(10,2)");
         builder.Property(x => x.RefundMethod).HasMaxLength(20).IsRequired();
+        builder.HasIndex(x => new { x.BusinessId, x.RefundRequestId });
+        builder.HasIndex(x => new { x.BusinessId, x.TransactionId, x.RefundRequestId });
 
         builder.HasOne(x => x.Transaction)
             .WithMany(t => t.Returns)

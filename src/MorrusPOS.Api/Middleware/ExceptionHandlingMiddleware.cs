@@ -56,6 +56,24 @@ public class ExceptionHandlingMiddleware
                 : HttpStatusCode.BadRequest;
             await WriteError(context, status, ex.Message, ex.Code);
         }
+        catch (IdempotencyException ex)
+        {
+            var status = ex.Code is IdempotencyErrorCodes.KeyReused or
+                IdempotencyErrorCodes.InProgress or IdempotencyErrorCodes.PaymentReferenceDuplicate
+                ? HttpStatusCode.Conflict
+                : HttpStatusCode.BadRequest;
+            if (ex.Code == IdempotencyErrorCodes.InProgress)
+                context.Response.Headers.RetryAfter = "1";
+            await WriteError(context, status, ex.Message, ex.Code);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException paymentPg &&
+            paymentPg.ConstraintName is "UX_payments_Business_Method_Reference" or
+                "UX_supplier_payments_Business_Method_Reference")
+        {
+            await WriteError(context, HttpStatusCode.Conflict,
+                "Nomor referensi pembayaran sudah digunakan.",
+                IdempotencyErrorCodes.PaymentReferenceDuplicate);
+        }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException postgres && IsStockIntegrityError(postgres))
         {
             var pg = (PostgresException)ex.InnerException!;

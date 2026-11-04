@@ -38,6 +38,7 @@ public class Return : BaseEntity
 
     public Guid TransactionItemId { get; set; }
     public TransactionItem TransactionItem { get; set; } = default!;
+    public Guid RefundRequestId { get; set; }
 
     public decimal Qty { get; set; }
     public string? Reason { get; set; }

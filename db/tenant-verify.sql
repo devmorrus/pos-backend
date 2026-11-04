@@ -223,6 +223,21 @@ BEGIN
     THEN
         RAISE EXCEPTION 'Stock integrity verification failed: inventory projection differs from ledger';
     END IF;
+
+    IF to_regclass('public.idempotency_records') IS NOT NULL AND (
+        has_table_privilege('morrus_app','public.idempotency_records','UPDATE') OR
+        has_table_privilege('morrus_app','public.idempotency_records','DELETE') OR
+        NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='trg_prevent_idempotency_mutation' AND NOT tgisinternal))
+    THEN
+        RAISE EXCEPTION 'Idempotency verification failed: receipt is mutable';
+    END IF;
+
+    IF to_regclass('public.idempotency_records') IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM pg_indexes WHERE schemaname='public' AND tablename='idempotency_records'
+          AND indexdef LIKE 'CREATE UNIQUE INDEX%"BusinessId", "Operation", "IdempotencyKey"%')
+    THEN
+        RAISE EXCEPTION 'Idempotency verification failed: business operation key uniqueness is missing';
+    END IF;
 END
 $verify$;
 

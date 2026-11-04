@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using MorrusPOS.Application.Common.Exceptions;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Accounting;
 using MorrusPOS.Application.Features.Suppliers;
@@ -12,15 +13,18 @@ public class SupplierDebtService : ISupplierDebtService
     private readonly AppDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
     private readonly IAccountingIntegrationService? _accountingIntegrationService;
+    private readonly IIdempotencyService? _idempotencyService;
 
     public SupplierDebtService(
         AppDbContext dbContext,
         ICurrentUserService currentUserService,
-        IAccountingIntegrationService? accountingIntegrationService = null)
+        IAccountingIntegrationService? accountingIntegrationService = null,
+        IIdempotencyService? idempotencyService = null)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
         _accountingIntegrationService = accountingIntegrationService;
+        _idempotencyService = idempotencyService;
     }
 
     public async Task<IReadOnlyList<SupplierDebtDto>> GetDebtsAsync(Guid outletId, string? status = null, CancellationToken ct = default)
@@ -71,6 +75,37 @@ public class SupplierDebtService : ISupplierDebtService
 
     public async Task<SupplierPaymentDto> PayDebtAsync(Guid userId, CreateSupplierPaymentRequest request, CancellationToken ct = default)
     {
+        if (request.Id == Guid.Empty)
+            throw new IdempotencyException(IdempotencyErrorCodes.KeyRequired,
+                "Supplier payment request ID wajib tersedia.");
+        var requestHash = _idempotencyService?.ComputeRequestHash(request) ?? string.Empty;
+        using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
+        try
+        {
+            IdempotencyClaim? claim = null;
+            if (_idempotencyService is not null)
+            {
+                claim = await _idempotencyService.ClaimAsync(
+                    IdempotencyOperation.SupplierPayment, request.Id, requestHash,
+                    userId, _currentUserService.OutletId, ct);
+                if (claim.Replayed)
+                {
+                    var existing = await _dbContext.SupplierPayments
+                        .Include(x => x.Supplier).Include(x => x.PurchaseOrder)
+                        .SingleAsync(x => x.Id == claim.ResourceId, ct);
+                    await dbTx.CommitAsync(ct);
+                    return MapPaymentToDto(existing);
+                }
+            }
+            if (_dbContext.Database.IsRelational())
+            {
+                var businessId = _currentUserService.BusinessId
+                    ?? throw new UnauthorizedAccessException("Business pembayaran supplier tidak valid.");
+                await _dbContext.Database.SqlQuery<int>(
+                    $"SELECT 1 AS \"Value\" FROM (SELECT pg_advisory_xact_lock(hashtextextended({$"{businessId:N}:supplier-debt:{request.PurchaseOrderId:N}"},0))) lock_row")
+                    .SingleAsync(ct);
+            }
+
         // 1. Find the debt for the given PO
         var debt = await _dbContext.SupplierDebts
             .Include(d => d.Supplier)
@@ -107,7 +142,7 @@ public class SupplierDebtService : ISupplierDebtService
         // 5. Record payment entry
         var payment = new SupplierPayment
         {
-            Id = Guid.NewGuid(),
+            Id = request.Id,
             SupplierId = debt.SupplierId,
             PurchaseOrderId = debt.PurchaseOrderId,
             PaymentDate = DateTime.UtcNow,
@@ -115,11 +150,14 @@ public class SupplierDebtService : ISupplierDebtService
             PaymentMethod = request.PaymentMethod,
             ReferenceNumber = request.ReferenceNumber,
             Status = SupplierPaymentStatus.Paid,
+            RequestHash = requestHash,
             CreatedBy = userId,
             CreatedAt = DateTime.UtcNow
         };
 
         _dbContext.SupplierPayments.Add(payment);
+        if (claim is { Replayed: false } && _idempotencyService is not null)
+            _idempotencyService.Complete(claim, "supplier_payment", payment.Id);
         await _dbContext.SaveChangesAsync(ct);
         if (_accountingIntegrationService != null)
         {
@@ -130,7 +168,15 @@ public class SupplierDebtService : ISupplierDebtService
         await _dbContext.Entry(payment).Reference(p => p.Supplier).LoadAsync(ct);
         await _dbContext.Entry(payment).Reference(p => p.PurchaseOrder).LoadAsync(ct);
 
+        await dbTx.CommitAsync(ct);
+
         return MapPaymentToDto(payment);
+        }
+        catch
+        {
+            await dbTx.RollbackAsync(ct);
+            throw;
+        }
     }
 
     private static SupplierDebtDto MapDebtToDto(SupplierDebt d)
