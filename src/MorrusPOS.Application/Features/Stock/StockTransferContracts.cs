@@ -5,7 +5,15 @@ public record StockTransferItemDto(
     string ProductName,
     string Sku,
     decimal Qty
-);
+)
+{
+    public Guid? ProductVariantId { get; init; }
+    public Guid? ProductBatchId { get; init; }
+    public string? BatchNumber { get; init; }
+    public DateTime? ExpiryDate { get; init; }
+    public Guid? ProductSerialId { get; init; }
+    public string? SerialNumber { get; init; }
+}
 
 public record StockTransferDto(
     Guid Id,
@@ -26,7 +34,12 @@ public record StockTransferDto(
 public record StockTransferItemRequest(
     Guid ProductId,
     decimal Qty
-);
+)
+{
+    public Guid? ProductVariantId { get; init; }
+    public Guid? ProductBatchId { get; init; }
+    public IReadOnlyList<Guid>? ProductSerialIds { get; init; }
+}
 
 public record CreateStockTransferRequest(
     Guid FromOutletId,

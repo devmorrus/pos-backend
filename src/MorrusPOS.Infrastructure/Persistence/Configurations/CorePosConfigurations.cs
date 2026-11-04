@@ -33,6 +33,10 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(x => x.BasePrice).HasColumnType("decimal(14,2)");
         builder.Property(x => x.CostPrice).HasColumnType("decimal(14,2)");
         builder.Property(x => x.Unit).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.TrackingMode).HasMaxLength(20).IsRequired()
+            .HasDefaultValue(ProductTrackingModes.Quantity);
+        builder.ToTable("products", t => t.HasCheckConstraint(
+            "CK_products_TrackingMode", "\"TrackingMode\" IN ('none','quantity','batch','serial')"));
         builder.Property(x => x.ImageUrl).HasMaxLength(500);
         builder.Property(x => x.IsTaxable);
         builder.Property(x => x.IsServiceChargeable);
@@ -146,13 +150,15 @@ public class TransactionItemConfiguration : IEntityTypeConfiguration<Transaction
 {
     public void Configure(EntityTypeBuilder<TransactionItem> builder)
     {
-        builder.ToTable("transaction_items");
+        builder.ToTable("transaction_items", t => t.HasCheckConstraint(
+            "CK_transaction_items_TrackingModeSnapshot", "\"TrackingModeSnapshot\" IN ('none','quantity','batch','serial')"));
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Qty).HasColumnType("decimal(10,2)");
         builder.Property(x => x.UnitPrice).HasColumnType("decimal(14,2)");
         builder.Property(x => x.UnitCost).HasColumnType("decimal(14,2)");
         builder.Property(x => x.DiscountAmount).HasColumnType("decimal(14,2)");
         builder.Property(x => x.LineTotal).HasColumnType("decimal(14,2)");
+        builder.Property(x => x.TrackingModeSnapshot).HasMaxLength(20).IsRequired();
 
         builder.HasOne(x => x.Transaction)
             .WithMany(t => t.Items)

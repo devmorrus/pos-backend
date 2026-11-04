@@ -34,6 +34,12 @@ public class StockLedger : BaseEntity
     public Guid OutletId { get; set; }
     public Outlet Outlet { get; set; } = default!;
 
+    public Guid? ProductBatchId { get; set; }
+    public ProductBatch? ProductBatch { get; set; }
+    public Guid? ProductSerialId { get; set; }
+    public ProductSerial? ProductSerial { get; set; }
+    public Guid? DocumentItemId { get; set; }
+
     public string MovementType { get; set; } = default!;
     public decimal QtyChange { get; set; } // positif = masuk, negatif = keluar
 
@@ -78,6 +84,11 @@ public class StockOpnameItem : BaseEntity
 
     public Guid? ProductVariantId { get; set; }
     public ProductVariant? ProductVariant { get; set; }
+
+    public Guid? ProductBatchId { get; set; }
+    public ProductBatch? ProductBatch { get; set; }
+    public Guid? ProductSerialId { get; set; }
+    public ProductSerial? ProductSerial { get; set; }
 
     public decimal SystemQty { get; set; }
     public decimal PhysicalQty { get; set; }

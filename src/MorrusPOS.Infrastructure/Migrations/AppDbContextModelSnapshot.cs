@@ -722,6 +722,21 @@ namespace MorrusPOS.Infrastructure.Migrations
                             Scope = "Outlet",
                             SortOrder = 27,
                             UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("ca200000-0000-4000-8000-000000000028"),
+                            Code = "catalog.serial_tracking",
+                            CreatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultEnabled = false,
+                            Description = "Serial / IMEI Produk",
+                            IsActive = true,
+                            IsTenantConfigurable = true,
+                            Module = "Catalog",
+                            Name = "Serial / IMEI Produk",
+                            Scope = "Business",
+                            SortOrder = 28,
+                            UpdatedAt = new DateTime(2026, 11, 2, 0, 0, 0, 0, DateTimeKind.Utc)
                         });
                 });
 
@@ -2278,6 +2293,12 @@ namespace MorrusPOS.Infrastructure.Migrations
                         },
                         new
                         {
+                            IndustryProfileId = new Guid("ca100001-0000-4000-8000-000000000001"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000028"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
                             IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
                             CapabilityId = new Guid("ca200000-0000-4000-8000-000000000001"),
                             IsEnabled = true
@@ -2440,6 +2461,12 @@ namespace MorrusPOS.Infrastructure.Migrations
                         },
                         new
                         {
+                            IndustryProfileId = new Guid("ca100007-0000-4000-8000-000000000007"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000028"),
+                            IsEnabled = true
+                        },
+                        new
+                        {
                             IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
                             CapabilityId = new Guid("ca200000-0000-4000-8000-000000000001"),
                             IsEnabled = true
@@ -2602,6 +2629,12 @@ namespace MorrusPOS.Infrastructure.Migrations
                         },
                         new
                         {
+                            IndustryProfileId = new Guid("ca100002-0000-4000-8000-000000000002"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000028"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
                             IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
                             CapabilityId = new Guid("ca200000-0000-4000-8000-000000000001"),
                             IsEnabled = true
@@ -2764,6 +2797,12 @@ namespace MorrusPOS.Infrastructure.Migrations
                         },
                         new
                         {
+                            IndustryProfileId = new Guid("ca100003-0000-4000-8000-000000000003"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000028"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
                             IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
                             CapabilityId = new Guid("ca200000-0000-4000-8000-000000000001"),
                             IsEnabled = true
@@ -2926,6 +2965,12 @@ namespace MorrusPOS.Infrastructure.Migrations
                         },
                         new
                         {
+                            IndustryProfileId = new Guid("ca100004-0000-4000-8000-000000000004"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000028"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
                             IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
                             CapabilityId = new Guid("ca200000-0000-4000-8000-000000000001"),
                             IsEnabled = true
@@ -3088,6 +3133,12 @@ namespace MorrusPOS.Infrastructure.Migrations
                         },
                         new
                         {
+                            IndustryProfileId = new Guid("ca100005-0000-4000-8000-000000000005"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000028"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
                             IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
                             CapabilityId = new Guid("ca200000-0000-4000-8000-000000000001"),
                             IsEnabled = true
@@ -3246,6 +3297,12 @@ namespace MorrusPOS.Infrastructure.Migrations
                         {
                             IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
                             CapabilityId = new Guid("ca200000-0000-4000-8000-000000000027"),
+                            IsEnabled = false
+                        },
+                        new
+                        {
+                            IndustryProfileId = new Guid("ca100006-0000-4000-8000-000000000006"),
+                            CapabilityId = new Guid("ca200000-0000-4000-8000-000000000028"),
                             IsEnabled = false
                         });
                 });
@@ -3333,7 +3390,10 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"ProductVariantId\" IS NOT NULL");
 
-                    b.ToTable("inventory_stock", (string)null);
+                    b.ToTable("inventory_stock", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_inventory_stock_NonNegative", "\"QtyOnHand\" >= 0");
+                        });
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ModifierGroup", b =>
@@ -3801,6 +3861,13 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("TrackingMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("quantity");
+
                     b.Property<string>("Unit")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -3826,7 +3893,10 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasIndex("BusinessId", "Sku")
                         .IsUnique();
 
-                    b.ToTable("products", (string)null);
+                    b.ToTable("products", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_products_TrackingMode", "\"TrackingMode\" IN ('none','quantity','batch','serial')");
+                        });
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductAttribute", b =>
@@ -3893,7 +3963,8 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.Property<string>("BatchNumber")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
@@ -3901,8 +3972,11 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTime>("ExpiryDate")
+                    b.Property<DateTime?>("ExpiryDate")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OutletId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uuid");
@@ -3911,23 +3985,34 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("QtyProduction")
-                        .HasColumnType("numeric");
+                        .HasColumnType("decimal(12,2)");
 
                     b.Property<decimal>("QtyRemaining")
-                        .HasColumnType("numeric");
+                        .HasColumnType("decimal(12,2)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BusinessId");
-
                     b.HasIndex("ProductId");
 
                     b.HasIndex("ProductVariantId");
 
-                    b.ToTable("ProductBatches");
+                    b.HasIndex("OutletId", "ProductId", "ExpiryDate");
+
+                    b.HasIndex("BusinessId", "OutletId", "ProductId", "BatchNumber")
+                        .IsUnique()
+                        .HasFilter("\"ProductVariantId\" IS NULL");
+
+                    b.HasIndex("BusinessId", "OutletId", "ProductId", "ProductVariantId", "BatchNumber")
+                        .IsUnique()
+                        .HasFilter("\"ProductVariantId\" IS NOT NULL");
+
+                    b.ToTable("ProductBatches", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProductBatches_Qty", "\"QtyProduction\" >= 0 AND \"QtyRemaining\" >= 0 AND \"QtyRemaining\" <= \"QtyProduction\"");
+                        });
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductRecipe", b =>
@@ -3962,6 +4047,75 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasIndex("RawMaterialProductId");
 
                     b.ToTable("ProductRecipes", (string)null);
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductSerial", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NormalizedSerialNumber")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid>("OutletId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ProductVariantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReceivingNoteItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SerialNumber")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime?>("SoldAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OutletId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("ProductVariantId");
+
+                    b.HasIndex("ReceivingNoteItemId");
+
+                    b.HasIndex("BusinessId", "NormalizedSerialNumber")
+                        .IsUnique();
+
+                    b.HasIndex("BusinessId", "OutletId", "ProductId", "ProductVariantId", "Status");
+
+                    b.ToTable("product_serials", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_product_serials_Status", "\"Status\" IN ('available','sold','in_transfer','returned_to_supplier','written_off')");
+                        });
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductVariant", b =>
@@ -4809,6 +4963,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<Guid>("CreatedBy")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("DocumentItemId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("MovementType")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -4820,7 +4977,13 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<Guid>("OutletId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ProductBatchId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ProductSerialId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid?>("ProductVariantId")
@@ -4845,11 +5008,18 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("OutletId");
 
+                    b.HasIndex("ProductBatchId");
+
+                    b.HasIndex("ProductSerialId");
+
                     b.HasIndex("ProductVariantId");
 
                     b.HasIndex("ProductId", "OutletId");
 
-                    b.ToTable("stock_ledger", (string)null);
+                    b.ToTable("stock_ledger", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_stock_ledger_TrackingReference", "NOT (\"ProductBatchId\" IS NOT NULL AND \"ProductSerialId\" IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.StockOpname", b =>
@@ -4898,7 +5068,13 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<decimal>("PhysicalQty")
                         .HasColumnType("decimal(12,2)");
 
+                    b.Property<Guid?>("ProductBatchId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ProductSerialId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid?>("ProductVariantId")
@@ -4917,7 +5093,11 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("BusinessId");
 
+                    b.HasIndex("ProductBatchId");
+
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("ProductSerialId");
 
                     b.HasIndex("ProductVariantId");
 
@@ -4988,7 +5168,13 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ProductBatchId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ProductSerialId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid?>("ProductVariantId")
@@ -5004,13 +5190,20 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("BusinessId");
 
+                    b.HasIndex("ProductBatchId");
+
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("ProductSerialId");
 
                     b.HasIndex("ProductVariantId");
 
                     b.HasIndex("StockTransferId");
 
-                    b.ToTable("stock_transfer_items", (string)null);
+                    b.ToTable("stock_transfer_items", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_stock_transfer_items_TrackingReference", "NOT (\"ProductBatchId\" IS NOT NULL AND \"ProductSerialId\" IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.Supplier", b =>
@@ -5472,6 +5665,11 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<string>("SelectedModifiersJson")
                         .HasColumnType("text");
 
+                    b.Property<string>("TrackingModeSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<Guid>("TransactionId")
                         .HasColumnType("uuid");
 
@@ -5491,7 +5689,10 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("TransactionId");
 
-                    b.ToTable("transaction_items", (string)null);
+                    b.ToTable("transaction_items", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_transaction_items_TrackingModeSnapshot", "\"TrackingModeSnapshot\" IN ('none','quantity','batch','serial')");
+                        });
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.User", b =>
@@ -6667,6 +6868,12 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
+                        .WithMany()
+                        .HasForeignKey("OutletId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
@@ -6678,6 +6885,8 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasForeignKey("ProductVariantId");
 
                     b.Navigation("Business");
+
+                    b.Navigation("Outlet");
 
                     b.Navigation("Product");
 
@@ -6715,6 +6924,47 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("ProductVariant");
 
                     b.Navigation("RawMaterialProduct");
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductSerial", b =>
+                {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
+                        .WithMany()
+                        .HasForeignKey("OutletId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.ProductVariant", "ProductVariant")
+                        .WithMany()
+                        .HasForeignKey("ProductVariantId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MorrusPOS.Domain.Entities.ReceivingNoteItem", "ReceivingNoteItem")
+                        .WithMany()
+                        .HasForeignKey("ReceivingNoteItemId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Business");
+
+                    b.Navigation("Outlet");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("ProductVariant");
+
+                    b.Navigation("ReceivingNoteItem");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductVariant", b =>
@@ -7028,11 +7278,21 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("MorrusPOS.Domain.Entities.ProductBatch", "ProductBatch")
+                        .WithMany()
+                        .HasForeignKey("ProductBatchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
                         .WithMany("StockLedgers")
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.ProductSerial", "ProductSerial")
+                        .WithMany()
+                        .HasForeignKey("ProductSerialId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("MorrusPOS.Domain.Entities.ProductVariant", "ProductVariant")
                         .WithMany()
@@ -7045,6 +7305,10 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("Outlet");
 
                     b.Navigation("Product");
+
+                    b.Navigation("ProductBatch");
+
+                    b.Navigation("ProductSerial");
 
                     b.Navigation("ProductVariant");
                 });
@@ -7084,11 +7348,21 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("MorrusPOS.Domain.Entities.ProductBatch", "ProductBatch")
+                        .WithMany()
+                        .HasForeignKey("ProductBatchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.ProductSerial", "ProductSerial")
+                        .WithMany()
+                        .HasForeignKey("ProductSerialId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("MorrusPOS.Domain.Entities.ProductVariant", "ProductVariant")
                         .WithMany()
@@ -7103,6 +7377,10 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("Business");
 
                     b.Navigation("Product");
+
+                    b.Navigation("ProductBatch");
+
+                    b.Navigation("ProductSerial");
 
                     b.Navigation("ProductVariant");
 
@@ -7159,11 +7437,21 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("MorrusPOS.Domain.Entities.ProductBatch", "ProductBatch")
+                        .WithMany()
+                        .HasForeignKey("ProductBatchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.ProductSerial", "ProductSerial")
+                        .WithMany()
+                        .HasForeignKey("ProductSerialId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("MorrusPOS.Domain.Entities.ProductVariant", "ProductVariant")
                         .WithMany()
@@ -7178,6 +7466,10 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("Business");
 
                     b.Navigation("Product");
+
+                    b.Navigation("ProductBatch");
+
+                    b.Navigation("ProductSerial");
 
                     b.Navigation("ProductVariant");
 

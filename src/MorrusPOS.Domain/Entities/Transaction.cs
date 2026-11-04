@@ -96,6 +96,7 @@ public class TransactionItem : BaseEntity
     public decimal DiscountAmount { get; set; }
     public decimal LineTotal { get; set; }
     public bool IsReturned { get; set; } = false;
+    public string TrackingModeSnapshot { get; set; } = ProductTrackingModes.Quantity;
 
     public string? SelectedModifiersJson { get; set; } // Extra details like toppings or specific customization
 }

@@ -95,23 +95,27 @@ public class OutletsController : ControllerBase
 
         _dbContext.Outlets.Add(outlet);
 
-        var productIds = await _dbContext.Products
+        var products = await _dbContext.Products
             .AsNoTracking()
-            .Select(p => p.Id)
+            .Where(p => p.IsActive && p.TrackingMode != ProductTrackingModes.None)
+            .Select(p => new { p.Id, Variants = p.Variants.Where(v => v.IsActive).Select(v => (Guid?)v.Id).ToList() })
             .ToListAsync(ct);
 
-        if (productIds.Count > 0)
+        if (products.Count > 0)
         {
             var now = DateTime.UtcNow;
-            var inventorySeeds = productIds.Select(productId => new InventoryStock
-            {
-                Id = Guid.NewGuid(),
-                ProductId = productId,
-                OutletId = outlet.Id,
-                QtyOnHand = 0,
-                MinStockAlert = 0,
-                UpdatedAt = now
-            });
+            var inventorySeeds = products
+                .SelectMany(p => new[] { (Guid?)null }.Concat(p.Variants)
+                    .Select(variantId => new InventoryStock
+                    {
+                        Id = Guid.NewGuid(),
+                        ProductId = p.Id,
+                        ProductVariantId = variantId,
+                        OutletId = outlet.Id,
+                        QtyOnHand = 0,
+                        MinStockAlert = 0,
+                        UpdatedAt = now
+                    }));
 
             _dbContext.InventoryStocks.AddRange(inventorySeeds);
         }

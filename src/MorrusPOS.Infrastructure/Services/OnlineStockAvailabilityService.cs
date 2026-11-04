@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Features.Stock;
+using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
 
 namespace MorrusPOS.Infrastructure.Services;
@@ -40,7 +41,7 @@ public class OnlineStockAvailabilityService : IOnlineStockAvailabilityService
     {
         var stocks = await _dbContext.InventoryStocks
             .AsNoTracking()
-            .Where(s => s.OutletId == outletId)
+            .Where(s => s.OutletId == outletId && s.Product.TrackingMode != ProductTrackingModes.None)
             .Select(s => new
             {
                 s.ProductId,

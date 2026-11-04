@@ -232,7 +232,7 @@ public class SupplierReturnService : ISupplierReturnService
     {
         var supplierReturn = await _dbContext.SupplierReturns
             .Include(sr => sr.PurchaseOrder).ThenInclude(po => po.Outlet)
-            .Include(sr => sr.Items)
+            .Include(sr => sr.Items).ThenInclude(i => i.Product)
             .FirstOrDefaultAsync(sr => sr.Id == id, ct);
 
         if (supplierReturn == null)
@@ -255,6 +255,12 @@ public class SupplierReturnService : ISupplierReturnService
             {
                 foreach (var item in supplierReturn.Items)
                 {
+                    // shortcut: supplier return of batch/serial goods needs allocation UI; block until then.
+                    if (item.Product is not null && item.Product.TrackingMode != ProductTrackingModes.Quantity)
+                    {
+                        throw new InvalidOperationException($"Retur supplier produk '{item.Product.Name}' dengan tracking {item.Product.TrackingMode} belum didukung.");
+                    }
+
                     await _stockService.AddMovementAsync(
                         item.ProductId,
                         supplierReturn.PurchaseOrder.OutletId,

@@ -40,8 +40,11 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var snapshot = await response.Content.ReadFromJsonAsync<EffectiveCapabilitySnapshot>();
         Assert.NotNull(snapshot);
-        Assert.Equal(27, snapshot.Capabilities.Count);
-        Assert.All(snapshot.Capabilities, capability => Assert.True(capability.Enabled));
+        Assert.Equal(28, snapshot.Capabilities.Count);
+        Assert.All(snapshot.Capabilities.Where(c => c.Code != "catalog.serial_tracking"),
+            capability => Assert.True(capability.Enabled));
+        Assert.Contains(snapshot.Capabilities,
+            capability => capability.Code == "catalog.serial_tracking" && !capability.Enabled);
     }
 
     [Fact]

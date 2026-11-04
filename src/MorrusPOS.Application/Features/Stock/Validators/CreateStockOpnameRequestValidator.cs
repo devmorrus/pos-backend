@@ -29,7 +29,9 @@ public class CreateStockOpnameRequestValidator : AbstractValidator<CreateStockOp
             .SetValidator(new StockOpnameItemRequestValidator());
 
         RuleFor(x => x.Items)
-            .Must(items => items == null || items.Select(i => i.ProductId).Distinct().Count() == items.Count)
-            .WithMessage("Produk opname tidak boleh duplikat.");
+            .Must(items => items == null || items
+                .Select(i => (i.ProductId, i.ProductVariantId, i.ProductBatchId))
+                .Distinct().Count() == items.Count)
+            .WithMessage("Baris produk, varian, dan batch opname tidak boleh duplikat.");
     }
 }

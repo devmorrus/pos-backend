@@ -16,7 +16,11 @@ public record InventoryListItemDto(
     decimal CostPrice,
     decimal BasePrice,
     DateTime UpdatedAt
-);
+)
+{
+    public string TrackingMode { get; set; } = "quantity";
+    public int TrackedItemCount { get; set; }
+}
 
 public interface IInventoryService
 {

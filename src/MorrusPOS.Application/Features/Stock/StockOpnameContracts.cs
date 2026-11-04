@@ -7,7 +7,14 @@ public record StockOpnameItemDto(
     decimal SystemQty,
     decimal PhysicalQty,
     decimal Variance
-);
+)
+{
+    public Guid? ProductVariantId { get; init; }
+    public Guid? ProductBatchId { get; init; }
+    public string? BatchNumber { get; init; }
+    public Guid? ProductSerialId { get; init; }
+    public string? SerialNumber { get; init; }
+}
 
 public record StockOpnameDto(
     Guid Id,
@@ -23,7 +30,13 @@ public record StockOpnameDto(
 public record StockOpnameItemRequest(
     Guid ProductId,
     decimal PhysicalQty
-);
+)
+{
+    public Guid? ProductVariantId { get; init; }
+    public Guid? ProductBatchId { get; init; }
+    // For serial tracked products: the serials physically present at opname time.
+    public IReadOnlyList<Guid>? ProductSerialIds { get; init; }
+}
 
 public record CreateStockOpnameRequest(
     Guid OutletId,

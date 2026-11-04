@@ -189,6 +189,12 @@ public class PurchaseOrderService : IPurchaseOrderService
             // === Handle Completion: Receive Goods ===
             if (request.Status == PurchaseOrderStatus.Completed)
             {
+                // shortcut: direct PO completion cannot allocate batch/serial; use the receiving page.
+                if (po.Items.Any(i => i.Product is not null && i.Product.TrackingMode != ProductTrackingModes.Quantity))
+                {
+                    throw new InvalidOperationException("PO dengan produk batch/serial harus diterima melalui halaman penerimaan barang.");
+                }
+
                 var isConsignmentPayment = po.PaymentType == PurchaseOrderPaymentType.Consignment;
 
                 Consignment? consignment = null;
@@ -346,8 +352,10 @@ public class PurchaseOrderService : IPurchaseOrderService
     public async Task<PurchaseOrderDto> ReceiveGoodsAsync(Guid userId, Guid poId, ReceiveGoodsRequest request, CancellationToken ct = default)
     {
         if (_capabilities is not null && request.Items.Any(x =>
-                !string.IsNullOrWhiteSpace(x.BatchNumber) || x.ExpiryDate.HasValue))
+                !string.IsNullOrWhiteSpace(x.BatchNumber) || x.ExpiryDate.HasValue || x.Batches?.Count > 0))
             await _capabilities.EnsureEnabledAsync(CapabilityCodes.CatalogBatchExpiry, null, ct);
+        if (_capabilities is not null && request.Items.Any(x => x.SerialNumbers?.Count > 0))
+            await _capabilities.EnsureEnabledAsync(CapabilityCodes.CatalogSerialTracking, null, ct);
         var po = await _dbContext.PurchaseOrders
             .Include(p => p.Items).ThenInclude(i => i.Product)
             .Include(p => p.Items).ThenInclude(i => i.ProductVariant)
@@ -406,34 +414,9 @@ public class PurchaseOrderService : IPurchaseOrderService
                 };
                 _dbContext.ReceivingNoteItems.Add(receivingItem);
 
-                await _stockService.AddMovementAsync(
-                    productId: itemReq.ProductId,
-                    outletId: po.OutletId,
-                    qtyChange: itemReq.QtyReceived,
-                    movementType: "purchase_in",
-                    referenceType: "receiving_note",
-                    referenceId: receivingNote.Id,
-                    note: $"Penerimaan barang dari PO {po.PoNumber} (No. RCV: {receivingNote.ReceivingNumber})",
-                    ct: ct,
-                    productVariantId: itemReq.ProductVariantId
-                );
-
-                if (!string.IsNullOrEmpty(itemReq.BatchNumber) && itemReq.ExpiryDate.HasValue)
-                {
-                    var productBatch = new ProductBatch
-                    {
-                        Id = Guid.NewGuid(),
-                        ProductId = itemReq.ProductId,
-                        ProductVariantId = itemReq.ProductVariantId,
-                        BatchNumber = itemReq.BatchNumber,
-                        ExpiryDate = itemReq.ExpiryDate.Value,
-                        QtyProduction = itemReq.QtyReceived,
-                        QtyRemaining = itemReq.QtyReceived,
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
-                    };
-                    _dbContext.ProductBatches.Add(productBatch);
-                }
+                await ReceiveTrackedStockAsync(
+                    poItem.Product, po.OutletId, itemReq, receivingNote.Id, receivingItem.Id,
+                    $"Penerimaan barang dari PO {po.PoNumber} (No. RCV: {receivingNote.ReceivingNumber})", ct);
             }
 
             foreach (var item in po.Items)
@@ -480,6 +463,91 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
     }
 
+    private async Task ReceiveTrackedStockAsync(
+        Product product,
+        Guid outletId,
+        ReceivingItemRequest request,
+        Guid receivingNoteId,
+        Guid receivingItemId,
+        string note,
+        CancellationToken ct)
+    {
+        if (product.TrackingMode == ProductTrackingModes.None) return;
+
+        if (product.TrackingMode == ProductTrackingModes.Quantity)
+        {
+            await _stockService.AddMovementAsync(product.Id, outletId, request.QtyReceived,
+                StockMovementType.PurchaseIn, "receiving_note", receivingNoteId, note, ct,
+                request.ProductVariantId, documentItemId: receivingItemId);
+            return;
+        }
+
+        if (product.TrackingMode == ProductTrackingModes.Batch)
+        {
+            var allocations = request.Batches?.ToList() ?? [];
+            if (allocations.Count == 0 && !string.IsNullOrWhiteSpace(request.BatchNumber))
+                allocations.Add(new ReceivingBatchRequest(request.BatchNumber, request.ExpiryDate, request.QtyReceived));
+            if (allocations.Count == 0 || allocations.Any(x => x.Qty <= 0 || string.IsNullOrWhiteSpace(x.BatchNumber)) ||
+                allocations.Sum(x => x.Qty) != request.QtyReceived)
+                throw new InvalidOperationException("Alokasi batch wajib diisi dan totalnya harus sama dengan qty penerimaan.");
+
+            foreach (var allocation in allocations)
+            {
+                var number = allocation.BatchNumber.Trim();
+                var batch = await _dbContext.ProductBatches.FirstOrDefaultAsync(x =>
+                    x.ProductId == product.Id && x.ProductVariantId == request.ProductVariantId &&
+                    x.OutletId == outletId && x.BatchNumber == number, ct);
+                if (batch is null)
+                {
+                    batch = new ProductBatch
+                    {
+                        Id = Guid.NewGuid(), ProductId = product.Id, ProductVariantId = request.ProductVariantId,
+                        OutletId = outletId, BatchNumber = number, ExpiryDate = allocation.ExpiryDate,
+                        QtyProduction = allocation.Qty, QtyRemaining = allocation.Qty,
+                        CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+                    };
+                    _dbContext.ProductBatches.Add(batch);
+                }
+                else
+                {
+                    if (batch.ExpiryDate?.Date != allocation.ExpiryDate?.Date)
+                        throw new InvalidOperationException($"Expiry batch {number} berbeda dari penerimaan sebelumnya.");
+                    batch.QtyProduction += allocation.Qty;
+                    batch.QtyRemaining += allocation.Qty;
+                    batch.UpdatedAt = DateTime.UtcNow;
+                }
+                await _stockService.AddMovementAsync(product.Id, outletId, allocation.Qty,
+                    StockMovementType.PurchaseIn, "receiving_note", receivingNoteId, note, ct,
+                    request.ProductVariantId, batch.Id, documentItemId: receivingItemId);
+            }
+            return;
+        }
+
+        var serialNumbers = request.SerialNumbers?.Select(x => x.Trim()).Where(x => x.Length > 0).ToList() ?? [];
+        if (request.QtyReceived != decimal.Truncate(request.QtyReceived) || serialNumbers.Count != request.QtyReceived ||
+            serialNumbers.Select(x => x.ToUpperInvariant()).Distinct().Count() != serialNumbers.Count)
+            throw new InvalidOperationException("Jumlah serial unik harus sama dengan qty penerimaan dan qty harus bilangan bulat.");
+
+        foreach (var number in serialNumbers)
+        {
+            var normalized = number.ToUpperInvariant();
+            if (await _dbContext.ProductSerials.AnyAsync(x => x.NormalizedSerialNumber == normalized, ct))
+                throw new InvalidOperationException($"Serial {number} sudah terdaftar.");
+            var serial = new ProductSerial
+            {
+                Id = Guid.NewGuid(), ProductId = product.Id, ProductVariantId = request.ProductVariantId,
+                OutletId = outletId, ReceivingNoteItemId = receivingItemId,
+                SerialNumber = number, NormalizedSerialNumber = normalized,
+                Status = ProductSerialStatuses.Available, ReceivedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+            };
+            _dbContext.ProductSerials.Add(serial);
+            await _stockService.AddMovementAsync(product.Id, outletId, 1,
+                StockMovementType.PurchaseIn, "receiving_note", receivingNoteId, note, ct,
+                request.ProductVariantId, productSerialId: serial.Id, documentItemId: receivingItemId);
+        }
+    }
+
     private static PurchaseOrderDto MapToDto(PurchaseOrder po) => new(
         po.Id,
         po.SupplierId,
@@ -503,7 +571,8 @@ public class PurchaseOrderService : IPurchaseOrderService
         )
         {
             ProductVariantId = i.ProductVariantId,
-            QtyReceived = i.QtyReceived
+            QtyReceived = i.QtyReceived,
+            TrackingMode = i.Product?.TrackingMode ?? ProductTrackingModes.Quantity
         }).ToList()
     );
 

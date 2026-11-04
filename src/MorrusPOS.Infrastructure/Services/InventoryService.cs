@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Features.Stock;
+using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
 
 namespace MorrusPOS.Infrastructure.Services;
@@ -27,7 +28,9 @@ public class InventoryService : IInventoryService
             .Include(stock => stock.Product)
                 .ThenInclude(product => product.Category)
             .Include(stock => stock.ProductVariant)
-            .Where(stock => stock.OutletId == outletId && stock.Product.IsActive);
+            // Untracked products never have a stock balance; drop legacy rows defensively.
+            .Where(stock => stock.OutletId == outletId && stock.Product.IsActive &&
+                            stock.Product.TrackingMode != ProductTrackingModes.None);
 
         if (!includeZeroStock)
         {
@@ -67,9 +70,41 @@ public class InventoryService : IInventoryService
                 stock.Product.CostPrice,
                 stock.Product.BasePrice,
                 stock.UpdatedAt
-            ))
+            )
+            {
+                TrackingMode = stock.Product.TrackingMode
+            })
             .ToListAsync(ct);
 
-        return rows;
+        if (rows.Count == 0)
+        {
+            return rows;
+        }
+
+        var batchCounts = await _dbContext.ProductBatches
+            .AsNoTracking()
+            .Where(x => x.OutletId == outletId && x.QtyRemaining > 0)
+            .GroupBy(x => new { x.ProductId, x.ProductVariantId })
+            .Select(g => new { g.Key.ProductId, g.Key.ProductVariantId, Count = g.Count() })
+            .ToListAsync(ct);
+        var serialCounts = await _dbContext.ProductSerials
+            .AsNoTracking()
+            .Where(x => x.OutletId == outletId && x.Status == ProductSerialStatuses.Available)
+            .GroupBy(x => new { x.ProductId, x.ProductVariantId })
+            .Select(g => new { g.Key.ProductId, g.Key.ProductVariantId, Count = g.Count() })
+            .ToListAsync(ct);
+
+        var batchMap = batchCounts.ToDictionary(x => (x.ProductId, x.ProductVariantId), x => x.Count);
+        var serialMap = serialCounts.ToDictionary(x => (x.ProductId, x.ProductVariantId), x => x.Count);
+
+        return rows.Select(row =>
+        {
+            row.TrackedItemCount = row.TrackingMode == ProductTrackingModes.Batch
+                ? batchMap.GetValueOrDefault((row.ProductId, row.ProductVariantId))
+                : row.TrackingMode == ProductTrackingModes.Serial
+                    ? serialMap.GetValueOrDefault((row.ProductId, row.ProductVariantId))
+                    : 0;
+            return row;
+        }).ToList();
     }
 }

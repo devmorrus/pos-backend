@@ -172,6 +172,12 @@ public class ConsignmentReturnService : IConsignmentReturnService
             {
                 foreach (var item in consignmentReturn.Items)
                 {
+                    // shortcut: consignment return of batch/serial goods needs allocation UI; block until then.
+                    if (item.Product is not null && item.Product.TrackingMode != ProductTrackingModes.Quantity)
+                    {
+                        throw new InvalidOperationException($"Retur konsinyasi produk '{item.Product.Name}' dengan tracking {item.Product.TrackingMode} belum didukung.");
+                    }
+
                     // 1. Get current stock to verify availability
                     var inventory = await _dbContext.InventoryStocks
                         .FirstOrDefaultAsync(i => i.ProductId == item.ProductId && i.OutletId == consignmentReturn.OutletId, ct);

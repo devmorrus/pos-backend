@@ -123,6 +123,68 @@ BEGIN
     THEN
         RAISE EXCEPTION 'Capability verification failed: capability audit log must be append-only';
     END IF;
+
+    IF to_regclass('public.product_serials') IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE schemaname='public' AND tablename='product_serials'
+          AND indexdef LIKE 'CREATE UNIQUE INDEX%(' || '"BusinessId", "NormalizedSerialNumber"' || ')%')
+    THEN
+        RAISE EXCEPTION 'Tracking verification failed: business-scoped serial uniqueness is missing';
+    END IF;
+
+    IF to_regclass('public.product_serials') IS NOT NULL AND EXISTS (
+        SELECT 1 FROM products
+        WHERE "TrackingMode" NOT IN ('none','quantity','batch','serial'))
+    THEN
+        RAISE EXCEPTION 'Tracking verification failed: invalid product tracking mode';
+    END IF;
+
+    IF to_regclass('public.product_serials') IS NOT NULL AND EXISTS (
+        SELECT 1
+        FROM products product
+        JOIN inventory_stock stock
+          ON stock."BusinessId"=product."BusinessId" AND stock."ProductId"=product."Id"
+        WHERE product."TrackingMode"='none' AND stock."QtyOnHand"<>0)
+    THEN
+        RAISE EXCEPTION 'Tracking verification failed: untracked product has non-zero inventory';
+    END IF;
+
+    IF to_regclass('public.product_serials') IS NOT NULL AND EXISTS (
+        SELECT 1
+        FROM inventory_stock stock
+        JOIN products product
+          ON product."BusinessId"=stock."BusinessId" AND product."Id"=stock."ProductId"
+        LEFT JOIN LATERAL (
+            SELECT count(*)::numeric AS qty
+            FROM product_serials serial
+            WHERE serial."BusinessId"=stock."BusinessId"
+              AND serial."ProductId"=stock."ProductId"
+              AND serial."OutletId"=stock."OutletId"
+              AND serial."ProductVariantId" IS NOT DISTINCT FROM stock."ProductVariantId"
+              AND serial."Status"='available'
+        ) serial_count ON true
+        WHERE product."TrackingMode"='serial' AND stock."QtyOnHand"<>serial_count.qty)
+    THEN
+        RAISE EXCEPTION 'Tracking verification failed: serial availability does not match aggregate inventory';
+    END IF;
+
+    IF to_regclass('public.product_serials') IS NOT NULL AND EXISTS (
+        SELECT 1
+        FROM inventory_stock stock
+        JOIN products product
+          ON product."BusinessId"=stock."BusinessId" AND product."Id"=stock."ProductId"
+        LEFT JOIN LATERAL (
+            SELECT coalesce(sum(batch."QtyRemaining"),0) AS qty
+            FROM "ProductBatches" batch
+            WHERE batch."BusinessId"=stock."BusinessId"
+              AND batch."ProductId"=stock."ProductId"
+              AND batch."OutletId"=stock."OutletId"
+              AND batch."ProductVariantId" IS NOT DISTINCT FROM stock."ProductVariantId"
+        ) batch_total ON true
+        WHERE product."TrackingMode"='batch' AND stock."QtyOnHand"<>batch_total.qty)
+    THEN
+        RAISE EXCEPTION 'Tracking verification failed: batch quantities do not match aggregate inventory';
+    END IF;
 END
 $verify$;
 

@@ -8,7 +8,8 @@ public class InventoryStockConfiguration : IEntityTypeConfiguration<InventorySto
 {
     public void Configure(EntityTypeBuilder<InventoryStock> builder)
     {
-        builder.ToTable("inventory_stock");
+        builder.ToTable("inventory_stock", t => t.HasCheckConstraint(
+            "CK_inventory_stock_NonNegative", "\"QtyOnHand\" >= 0"));
         builder.HasKey(x => x.Id);
         builder.Property(x => x.QtyOnHand).HasColumnType("decimal(12,2)");
         builder.Property(x => x.MinStockAlert).HasColumnType("decimal(12,2)");
@@ -87,6 +88,8 @@ public class StockLedgerConfiguration : IEntityTypeConfiguration<StockLedger>
         builder.Property(x => x.MovementType).HasMaxLength(30).IsRequired();
         builder.Property(x => x.QtyChange).HasColumnType("decimal(12,2)");
         builder.Property(x => x.ReferenceType).HasMaxLength(30).IsRequired();
+        builder.ToTable("stock_ledger", t => t.HasCheckConstraint(
+            "CK_stock_ledger_TrackingReference", "NOT (\"ProductBatchId\" IS NOT NULL AND \"ProductSerialId\" IS NOT NULL)"));
 
         // ReferenceId SENGAJA tidak dikonfigurasi sebagai FK — polimorfik,
         // bisa merujuk ke transactions/purchase_orders/stock_transfers/stock_opnames.
@@ -107,6 +110,11 @@ public class StockLedgerConfiguration : IEntityTypeConfiguration<StockLedger>
             .WithMany()
             .HasForeignKey(x => x.CreatedBy)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.ProductBatch).WithMany()
+            .HasForeignKey(x => x.ProductBatchId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.ProductSerial).WithMany()
+            .HasForeignKey(x => x.ProductSerialId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 
@@ -149,6 +157,51 @@ public class StockOpnameItemConfiguration : IEntityTypeConfiguration<StockOpname
             .WithMany()
             .HasForeignKey(x => x.ProductId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.ProductBatch).WithMany()
+            .HasForeignKey(x => x.ProductBatchId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.ProductSerial).WithMany()
+            .HasForeignKey(x => x.ProductSerialId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class ProductBatchConfiguration : IEntityTypeConfiguration<ProductBatch>
+{
+    public void Configure(EntityTypeBuilder<ProductBatch> builder)
+    {
+        builder.ToTable("ProductBatches", t =>
+        {
+            t.HasCheckConstraint("CK_ProductBatches_Qty", "\"QtyProduction\" >= 0 AND \"QtyRemaining\" >= 0 AND \"QtyRemaining\" <= \"QtyProduction\"");
+        });
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.BatchNumber).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.QtyProduction).HasColumnType("decimal(12,2)");
+        builder.Property(x => x.QtyRemaining).HasColumnType("decimal(12,2)");
+        builder.HasOne(x => x.Outlet).WithMany().HasForeignKey(x => x.OutletId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(x => new { x.BusinessId, x.OutletId, x.ProductId, x.BatchNumber })
+            .IsUnique().HasFilter("\"ProductVariantId\" IS NULL");
+        builder.HasIndex(x => new { x.BusinessId, x.OutletId, x.ProductId, x.ProductVariantId, x.BatchNumber })
+            .IsUnique().HasFilter("\"ProductVariantId\" IS NOT NULL");
+        builder.HasIndex(x => new { x.OutletId, x.ProductId, x.ExpiryDate });
+    }
+}
+
+public class ProductSerialConfiguration : IEntityTypeConfiguration<ProductSerial>
+{
+    public void Configure(EntityTypeBuilder<ProductSerial> builder)
+    {
+        builder.ToTable("product_serials", t => t.HasCheckConstraint(
+            "CK_product_serials_Status", "\"Status\" IN ('available','sold','in_transfer','returned_to_supplier','written_off')"));
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.SerialNumber).HasMaxLength(150).IsRequired();
+        builder.Property(x => x.NormalizedSerialNumber).HasMaxLength(150).IsRequired();
+        builder.Property(x => x.Status).HasMaxLength(30).IsRequired();
+        builder.HasIndex(x => new { x.BusinessId, x.NormalizedSerialNumber }).IsUnique();
+        builder.HasIndex(x => new { x.BusinessId, x.OutletId, x.ProductId, x.ProductVariantId, x.Status });
+        builder.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.ProductVariant).WithMany().HasForeignKey(x => x.ProductVariantId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Outlet).WithMany().HasForeignKey(x => x.OutletId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.ReceivingNoteItem).WithMany().HasForeignKey(x => x.ReceivingNoteItemId).OnDelete(DeleteBehavior.SetNull);
     }
 }
 
@@ -188,7 +241,9 @@ public class StockTransferItemConfiguration : IEntityTypeConfiguration<StockTran
 {
     public void Configure(EntityTypeBuilder<StockTransferItem> builder)
     {
-        builder.ToTable("stock_transfer_items");
+        builder.ToTable("stock_transfer_items", t => t.HasCheckConstraint(
+            "CK_stock_transfer_items_TrackingReference",
+            "NOT (\"ProductBatchId\" IS NOT NULL AND \"ProductSerialId\" IS NOT NULL)"));
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Qty).HasColumnType("decimal(12,2)");
 
@@ -200,6 +255,16 @@ public class StockTransferItemConfiguration : IEntityTypeConfiguration<StockTran
         builder.HasOne(x => x.Product)
             .WithMany()
             .HasForeignKey(x => x.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.ProductBatch)
+            .WithMany()
+            .HasForeignKey(x => x.ProductBatchId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.ProductSerial)
+            .WithMany()
+            .HasForeignKey(x => x.ProductSerialId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

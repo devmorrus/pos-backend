@@ -25,7 +25,10 @@ public class StockService : IStockService
         Guid referenceId,
         string? note = null,
         CancellationToken ct = default,
-        Guid? productVariantId = null)
+        Guid? productVariantId = null,
+        Guid? productBatchId = null,
+        Guid? productSerialId = null,
+        Guid? documentItemId = null)
     {
         // 1. Insert StockLedger
         var ledger = new StockLedger
@@ -34,6 +37,9 @@ public class StockService : IStockService
             ProductId = productId,
             ProductVariantId = productVariantId,
             OutletId = outletId,
+            ProductBatchId = productBatchId,
+            ProductSerialId = productSerialId,
+            DocumentItemId = documentItemId,
             MovementType = movementType,
             QtyChange = qtyChange,
             ReferenceType = referenceType,

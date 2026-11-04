@@ -36,7 +36,8 @@ public class BufferStockService : IBufferStockService
                 .ThenInclude(p => p.Category)
             .Include(s => s.ProductVariant)
                 .ThenInclude(v => v!.AttributeValues)
-            .Where(s => s.OutletId == outletId && s.Product.IsActive);
+            .Where(s => s.OutletId == outletId && s.Product.IsActive &&
+                        s.Product.TrackingMode != ProductTrackingModes.None);
 
         if (!string.IsNullOrWhiteSpace(normalizedSearch))
         {

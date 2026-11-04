@@ -11,5 +11,8 @@ public interface IStockService
         Guid referenceId,
         string? note = null,
         CancellationToken ct = default,
-        Guid? productVariantId = null);
+        Guid? productVariantId = null,
+        Guid? productBatchId = null,
+        Guid? productSerialId = null,
+        Guid? documentItemId = null);
 }

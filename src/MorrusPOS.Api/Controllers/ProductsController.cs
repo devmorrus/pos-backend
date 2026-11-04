@@ -57,6 +57,17 @@ public class ProductsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("{id:guid}/stock-tracking")]
+    public async Task<ActionResult<ProductTrackingOptionsDto>> GetTrackingOptions(
+        Guid id,
+        [FromQuery] Guid outletId,
+        [FromQuery] Guid? productVariantId,
+        [FromQuery] string? search,
+        [FromQuery] int take = 50,
+        [FromQuery] bool includeUnavailable = false,
+        CancellationToken ct = default)
+        => Ok(await _productService.GetTrackingOptionsAsync(id, outletId, productVariantId, search, take, includeUnavailable, ct));
+
     [HttpPost]
     [HasPermission("product.manage")]
     public async Task<ActionResult<ProductDto>> Create(CreateProductRequest request, CancellationToken ct)

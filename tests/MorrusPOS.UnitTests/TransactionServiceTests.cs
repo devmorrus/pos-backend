@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Common.Exceptions;
 using MorrusPOS.Application.Features.Transactions;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -90,7 +91,11 @@ public class TransactionServiceTests
             referenceType: "transaction",
             referenceId: checkoutId,
             note: Arg.Any<string>(),
-            ct: Arg.Any<CancellationToken>()
+            ct: Arg.Any<CancellationToken>(),
+            productVariantId: Arg.Is<Guid?>(value => value == null),
+            productBatchId: Arg.Is<Guid?>(value => value == null),
+            productSerialId: Arg.Is<Guid?>(value => value == null),
+            documentItemId: Arg.Is<Guid?>(value => value.HasValue)
         );
 
         // Verify SignalR broadcast
@@ -99,6 +104,137 @@ public class TransactionServiceTests
             updates: Arg.Is<List<StockUpdateItem>>(list => list != null && list.Count == 1 && list[0].ProductId == prodId && list[0].Qty == 2),
             ct: Arg.Any<CancellationToken>()
         );
+    }
+
+    [Fact]
+    public async Task CheckoutAsync_Should_SellSerial_And_ReturnAllocationInDto()
+    {
+        var outletId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+        var prodId = Guid.NewGuid();
+        var catId = Guid.NewGuid();
+        var serialId = Guid.NewGuid();
+
+        _dbContext.Outlets.Add(new Outlet { Id = outletId, Code = "OUT-1", Name = "Main Outlet", IsActive = true });
+        _dbContext.Users.Add(new User { Id = userId, Name = "Kasir 1", Email = "k1@morruspos.com", PasswordHash = "hash", RoleId = Guid.NewGuid() });
+        _dbContext.Categories.Add(new Category { Id = catId, Name = "Electronics" });
+        _dbContext.Products.Add(new Product
+        {
+            Id = prodId, CategoryId = catId, Sku = "SKU-S", Name = "Phone",
+            BasePrice = 10000000, CostPrice = 9000000, Unit = "pcs", IsActive = true,
+            TrackingMode = ProductTrackingModes.Serial
+        });
+        _dbContext.InventoryStocks.Add(new InventoryStock
+        {
+            Id = Guid.NewGuid(), OutletId = outletId, ProductId = prodId, QtyOnHand = 1, MinStockAlert = 0
+        });
+        _dbContext.ProductSerials.Add(new ProductSerial
+        {
+            Id = serialId, ProductId = prodId, OutletId = outletId,
+            SerialNumber = "IMEI-1", NormalizedSerialNumber = "IMEI-1",
+            Status = ProductSerialStatuses.Available
+        });
+        _dbContext.CashierSessions.Add(new CashierSession
+        {
+            Id = sessionId, UserId = userId, OutletId = outletId, OpeningCash = 100000, Status = "open"
+        });
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserMock.UserId.Returns(userId);
+        _currentUserMock.OutletId.Returns(outletId);
+
+        var service = new TransactionService(_dbContext, new StockService(_dbContext, _currentUserMock), _currentUserMock, _notificationServiceMock);
+        var checkoutId = Guid.NewGuid();
+        var request = new CheckoutRequest(
+            Id: checkoutId,
+            OutletId: outletId,
+            CashierSessionId: sessionId,
+            Channel: "pos",
+            Subtotal: 10000000,
+            DiscountTotal: 0,
+            TaxTotal: 0,
+            GrandTotal: 10000000,
+            Items: new List<CheckoutItemRequest>
+            {
+                new(prodId, Qty: 1, UnitPrice: 10000000, DiscountAmount: 0)
+                {
+                    SerialIds = new[] { serialId }
+                }
+            },
+            Payments: new List<PaymentRequest>
+            {
+                new("cash", Amount: 10000000, ReferenceNumber: null)
+            });
+
+        var result = await service.CheckoutAsync(request);
+
+        result.Items.Should().ContainSingle();
+        result.Items[0].TrackingMode.Should().Be(ProductTrackingModes.Serial);
+        result.Items[0].Serials.Should().ContainSingle(s => s.ProductSerialId == serialId && s.SerialNumber == "IMEI-1");
+        (await _dbContext.ProductSerials.SingleAsync(x => x.Id == serialId))
+            .Status.Should().Be(ProductSerialStatuses.Sold);
+
+        var ledger = await _dbContext.StockLedgers.SingleAsync(x =>
+            x.ProductSerialId == serialId && x.MovementType == StockMovementType.Sale);
+        ledger.QtyChange.Should().Be(-1);
+        ledger.DocumentItemId.Should().Be(result.Items[0].Id);
+
+        var refunded = await service.RefundAsync(result.Id, new RefundTransactionRequest(
+            "refund", "Customer return", [new RefundTransactionItemRequest(prodId, 1)
+            {
+                TransactionItemId = result.Items[0].Id,
+                SerialIds = [serialId]
+            }]));
+        refunded.Items[0].Serials.Should().ContainSingle(x => x.ProductSerialId == serialId && x.IsReturned);
+    }
+
+    [Fact]
+    public async Task RefundAsync_Should_RejectBatchThatWasNotSoldByTransactionItem()
+    {
+        var outletId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+        var productId = Guid.NewGuid();
+        var categoryId = Guid.NewGuid();
+        var soldBatchId = Guid.NewGuid();
+        var otherBatchId = Guid.NewGuid();
+
+        _dbContext.Outlets.Add(new Outlet { Id = outletId, Code = "OUT-1", Name = "Main Outlet", IsActive = true });
+        _dbContext.Users.Add(new User { Id = userId, Name = "Admin", Email = "admin@morruspos.com", PasswordHash = "hash", RoleId = Guid.NewGuid() });
+        _dbContext.Categories.Add(new Category { Id = categoryId, Name = "Food" });
+        _dbContext.Products.Add(new Product
+        {
+            Id = productId, CategoryId = categoryId, Sku = "SKU-B", Name = "Milk",
+            BasePrice = 10000, CostPrice = 8000, Unit = "pcs", IsActive = true,
+            TrackingMode = ProductTrackingModes.Batch
+        });
+        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), OutletId = outletId, ProductId = productId, QtyOnHand = 2 });
+        _dbContext.ProductBatches.AddRange(
+            new ProductBatch { Id = soldBatchId, ProductId = productId, OutletId = outletId, BatchNumber = "SOLD", QtyProduction = 1, QtyRemaining = 1 },
+            new ProductBatch { Id = otherBatchId, ProductId = productId, OutletId = outletId, BatchNumber = "OTHER", QtyProduction = 1, QtyRemaining = 1 });
+        _dbContext.CashierSessions.Add(new CashierSession { Id = sessionId, UserId = userId, OutletId = outletId, OpeningCash = 0, Status = "open" });
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserMock.UserId.Returns(userId);
+        _currentUserMock.OutletId.Returns(outletId);
+        var service = new TransactionService(_dbContext, new StockService(_dbContext, _currentUserMock), _currentUserMock, _notificationServiceMock);
+        var checkout = await service.CheckoutAsync(new CheckoutRequest(
+            Guid.NewGuid(), outletId, sessionId, "pos", 10000, 0, 0, 10000,
+            [new CheckoutItemRequest(productId, 1, 10000, 0)
+                { BatchAllocations = [new BatchAllocationRequest(soldBatchId, 1)] }],
+            [new PaymentRequest("cash", 10000, null)]));
+
+        var act = () => service.RefundAsync(checkout.Id, new RefundTransactionRequest(
+            "refund", "Wrong batch", [new RefundTransactionItemRequest(productId, 1)
+            {
+                TransactionItemId = checkout.Items[0].Id,
+                BatchAllocations = [new BatchAllocationRequest(otherBatchId, 1)]
+            }]));
+
+        var exception = await act.Should().ThrowAsync<TrackingValidationException>();
+        exception.Which.Code.Should().Be(TrackingErrorCodes.TrackingAllocationMismatch);
+        (await _dbContext.ProductBatches.SingleAsync(x => x.Id == otherBatchId)).QtyRemaining.Should().Be(1);
     }
 
     [Fact]

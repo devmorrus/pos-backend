@@ -1,6 +1,6 @@
 namespace MorrusPOS.Application.Common.Interfaces;
 
-public record StockUpdateItem(Guid ProductId, decimal Qty);
+public record StockUpdateItem(Guid ProductId, decimal Qty, Guid? ProductVariantId = null);
 
 public interface IPosNotificationService
 {

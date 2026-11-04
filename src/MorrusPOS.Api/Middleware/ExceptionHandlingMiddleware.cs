@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using MorrusPOS.Application.Common.Exceptions;
 using MorrusPOS.Application.Features.Capabilities;
 
 namespace MorrusPOS.Api.Middleware;
@@ -40,6 +41,10 @@ public class ExceptionHandlingMiddleware
         catch (KeyNotFoundException ex)
         {
             await WriteError(context, HttpStatusCode.NotFound, ex.Message);
+        }
+        catch (TrackingValidationException ex)
+        {
+            await WriteError(context, HttpStatusCode.BadRequest, ex.Message, ex.Code);
         }
         catch (InvalidOperationException ex) // dipakai untuk validasi bisnis, mis. stok tidak cukup
         {

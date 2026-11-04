@@ -12,6 +12,7 @@ public record PurchaseOrderItemDto(
 {
     public Guid? ProductVariantId { get; init; }
     public decimal QtyReceived { get; init; }
+    public string TrackingMode { get; init; } = "quantity";
 }
 
 public record PurchaseOrderDto(
@@ -55,8 +56,13 @@ public record ReceivingItemRequest(
     Guid? ProductVariantId,
     decimal QtyReceived,
     string? BatchNumber,
-    DateTime? ExpiryDate
-);
+    DateTime? ExpiryDate)
+{
+    public IReadOnlyList<ReceivingBatchRequest>? Batches { get; init; }
+    public IReadOnlyList<string>? SerialNumbers { get; init; }
+}
+
+public record ReceivingBatchRequest(string BatchNumber, DateTime? ExpiryDate, decimal Qty);
 
 public record ReceiveGoodsRequest(
     Guid OutletId,

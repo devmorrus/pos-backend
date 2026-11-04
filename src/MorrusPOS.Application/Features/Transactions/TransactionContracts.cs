@@ -74,7 +74,13 @@ public record TransactionItemDto(
 )
 {
     public Guid? ProductVariantId { get; init; }
+    public string TrackingMode { get; init; } = "quantity";
+    public IReadOnlyList<TransactionBatchAllocationDto> Batches { get; init; } = [];
+    public IReadOnlyList<TransactionSerialAllocationDto> Serials { get; init; } = [];
 }
+
+public record TransactionBatchAllocationDto(Guid ProductBatchId, string BatchNumber, decimal Qty, decimal RemainingQty);
+public record TransactionSerialAllocationDto(Guid ProductSerialId, string SerialNumber, bool IsReturned);
 
 public record PaymentDto(
     string Method,
@@ -107,7 +113,11 @@ public record CheckoutItemRequest(
 )
 {
     public Guid? ProductVariantId { get; init; }
+    public IReadOnlyList<BatchAllocationRequest>? BatchAllocations { get; init; }
+    public IReadOnlyList<Guid>? SerialIds { get; init; }
 }
+
+public record BatchAllocationRequest(Guid ProductBatchId, decimal Qty);
 
 public record PaymentRequest(
     string Method,
@@ -194,6 +204,9 @@ public record RefundTransactionItemRequest(
 )
 {
     public Guid? ProductVariantId { get; init; }
+    public Guid? TransactionItemId { get; init; }
+    public IReadOnlyList<BatchAllocationRequest>? BatchAllocations { get; init; }
+    public IReadOnlyList<Guid>? SerialIds { get; init; }
 }
 
 public record RefundTransactionRequest(

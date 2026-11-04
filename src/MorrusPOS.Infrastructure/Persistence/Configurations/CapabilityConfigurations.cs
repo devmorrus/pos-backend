@@ -48,6 +48,7 @@ internal static class CapabilitySeed
         Create(25, CapabilityCodes.ReportsOperational, "Laporan Operasional", "Reports", CapabilityScopes.Business, true),
         Create(26, CapabilityCodes.ReportsAccounting, "Laporan Akuntansi", "Reports", CapabilityScopes.Business, false),
         Create(27, CapabilityCodes.StorefrontPublic, "Public Storefront", "Channels", CapabilityScopes.Outlet, false),
+        Create(28, CapabilityCodes.CatalogSerialTracking, "Serial / IMEI Produk", "Catalog", CapabilityScopes.Business, false),
     ];
 
     public static Guid IdFor(string code) => All.Single(x => x.Code == code).Id;
@@ -145,7 +146,7 @@ public class IndustryProfileCapabilityConfiguration : IEntityTypeConfiguration<I
         {
             [IndustryProfileSeedIds.General] = [.. defaults],
             [IndustryProfileSeedIds.Electronics] = [.. defaults,
-                CapabilityCodes.CatalogVariants, CapabilityCodes.InventoryTransfer,
+                CapabilityCodes.CatalogVariants, CapabilityCodes.CatalogSerialTracking, CapabilityCodes.InventoryTransfer,
                 CapabilityCodes.ProcurementPurchasing, CapabilityCodes.ProcurementSupplierDebt,
                 CapabilityCodes.ProcurementSupplierReturn, CapabilityCodes.ChannelsSettlement,
                 CapabilityCodes.PricingPromotions, CapabilityCodes.PricingVouchers, CapabilityCodes.StorefrontPublic],

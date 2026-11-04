@@ -383,7 +383,8 @@ public class DashboardService : IDashboardService
         var totalProducts = await _dbContext.Products.AsNoTracking().CountAsync(ct);
 
         // 2. Low stock alert count
-        var stockQuery = _dbContext.InventoryStocks.AsNoTracking();
+        var stockQuery = _dbContext.InventoryStocks.AsNoTracking()
+            .Where(s => s.Product.TrackingMode != ProductTrackingModes.None);
         if (outletId.HasValue)
         {
             stockQuery = stockQuery.Where(s => s.OutletId == outletId.Value);

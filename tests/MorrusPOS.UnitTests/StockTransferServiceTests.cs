@@ -80,7 +80,11 @@ public class StockTransferServiceTests
             referenceType: "stock_transfer",
             referenceId: result.Id,
             note: Arg.Any<string>(),
-            ct: Arg.Any<CancellationToken>()
+            ct: Arg.Any<CancellationToken>(),
+            productVariantId: Arg.Any<Guid?>(),
+            productBatchId: Arg.Any<Guid?>(),
+            productSerialId: Arg.Any<Guid?>(),
+            documentItemId: Arg.Any<Guid?>()
         );
     }
 
@@ -161,7 +165,11 @@ public class StockTransferServiceTests
             referenceType: "stock_transfer",
             referenceId: transfer.Id,
             note: Arg.Any<string>(),
-            ct: Arg.Any<CancellationToken>()
+            ct: Arg.Any<CancellationToken>(),
+            productVariantId: Arg.Any<Guid?>(),
+            productBatchId: Arg.Any<Guid?>(),
+            productSerialId: Arg.Any<Guid?>(),
+            documentItemId: Arg.Any<Guid?>()
         );
 
         // Verify notification sent to destination outlet
@@ -216,7 +224,62 @@ public class StockTransferServiceTests
             referenceType: "stock_transfer",
             referenceId: transfer.Id,
             note: Arg.Any<string>(),
-            ct: Arg.Any<CancellationToken>()
+            ct: Arg.Any<CancellationToken>(),
+            productVariantId: Arg.Any<Guid?>(),
+            productBatchId: Arg.Any<Guid?>(),
+            productSerialId: Arg.Any<Guid?>(),
+            documentItemId: Arg.Any<Guid?>()
         );
+    }
+
+    [Fact]
+    public async Task CreateAndApproveBatchTransfer_Should_MoveQtyToDestinationBatch()
+    {
+        var userId = Guid.NewGuid();
+        var fromOutletId = Guid.NewGuid();
+        var toOutletId = Guid.NewGuid();
+        var prodId = Guid.NewGuid();
+        var catId = Guid.NewGuid();
+        var batchId = Guid.NewGuid();
+
+        _dbContext.Outlets.Add(new Outlet { Id = fromOutletId, Code = "OUT-1", Name = "Source", IsActive = true });
+        _dbContext.Outlets.Add(new Outlet { Id = toOutletId, Code = "OUT-2", Name = "Destination", IsActive = true });
+        _dbContext.Users.Add(new User { Id = userId, Name = "Admin 1", Email = "a1@morruspos.com", PasswordHash = "hash", RoleId = Guid.NewGuid() });
+        _dbContext.Categories.Add(new Category { Id = catId, Name = "Snack" });
+        _dbContext.Products.Add(new Product
+        {
+            Id = prodId, CategoryId = catId, Sku = "SKU-B", Name = "Susu",
+            BasePrice = 10000, CostPrice = 8000, Unit = "pcs", IsActive = true,
+            TrackingMode = ProductTrackingModes.Batch
+        });
+        _dbContext.ProductBatches.Add(new ProductBatch
+        {
+            Id = batchId, ProductId = prodId, OutletId = fromOutletId,
+            BatchNumber = "B-001", QtyProduction = 10, QtyRemaining = 10,
+            ExpiryDate = DateTime.UtcNow.Date.AddDays(30)
+        });
+        await _dbContext.SaveChangesAsync();
+
+        var service = new StockTransferService(_dbContext, _stockServiceMock, _notificationServiceMock, _currentUserServiceMock);
+        var transfer = await service.CreateAsync(userId, new CreateStockTransferRequest(
+            fromOutletId,
+            toOutletId,
+            new List<StockTransferItemRequest>
+            {
+                new(prodId, Qty: 3) { ProductBatchId = batchId }
+            }));
+
+        transfer.Items.Should().ContainSingle();
+        transfer.Items[0].ProductBatchId.Should().Be(batchId);
+        (await _dbContext.ProductBatches.SingleAsync(x => x.Id == batchId))
+            .QtyRemaining.Should().Be(7);
+
+        var approved = await service.ApproveAsync(userId, transfer.Id);
+
+        approved.Status.Should().Be(StockTransferStatus.Approved);
+        var destinationBatch = await _dbContext.ProductBatches.SingleAsync(x =>
+            x.OutletId == toOutletId && x.ProductId == prodId && x.BatchNumber == "B-001");
+        destinationBatch.QtyRemaining.Should().Be(3);
+        destinationBatch.QtyProduction.Should().Be(3);
     }
 }

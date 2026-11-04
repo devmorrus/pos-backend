@@ -18,6 +18,7 @@ public static class CapabilityCodes
     public const string CatalogModifiers = "catalog.modifiers";
     public const string CatalogRecipes = "catalog.recipes";
     public const string CatalogBatchExpiry = "catalog.batch_expiry";
+    public const string CatalogSerialTracking = "catalog.serial_tracking";
     public const string InventoryStock = "inventory.stock";
     public const string InventoryBufferStock = "inventory.buffer_stock";
     public const string InventoryOpname = "inventory.opname";

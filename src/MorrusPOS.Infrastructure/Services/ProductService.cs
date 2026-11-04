@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using MorrusPOS.Application.Common.Exceptions;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Products;
 using MorrusPOS.Application.Features.Capabilities;
@@ -42,9 +43,12 @@ public class ProductService : IProductService
         }
 
         var outletId = _currentUserService.OutletId ?? DefaultOutletId;
-        var stock = product.InventoryStocks.FirstOrDefault(s => s.OutletId == outletId);
+        var stock = product.InventoryStocks.FirstOrDefault(s => s.OutletId == outletId && s.ProductVariantId == null);
+        var qtyOnHand = product.HasVariants
+            ? product.InventoryStocks.Where(s => s.OutletId == outletId && s.ProductVariantId != null).Sum(s => s.QtyOnHand)
+            : stock?.QtyOnHand ?? 0;
 
-        return MapToDto(product, stock?.QtyOnHand ?? 0);
+        return MapToDto(product, qtyOnHand, outletId);
     }
 
     public async Task<IReadOnlyList<ProductDto>> GetByOutletAsync(Guid outletId, CancellationToken ct = default)
@@ -61,8 +65,11 @@ public class ProductService : IProductService
             .ToListAsync(ct);
 
         return products.Select(p => {
-            var stock = p.InventoryStocks.FirstOrDefault(s => s.OutletId == outletId);
-            return MapToDto(p, stock?.QtyOnHand ?? 0);
+            var stock = p.InventoryStocks.FirstOrDefault(s => s.OutletId == outletId && s.ProductVariantId == null);
+            var qtyOnHand = p.HasVariants
+                ? p.InventoryStocks.Where(s => s.OutletId == outletId && s.ProductVariantId != null).Sum(s => s.QtyOnHand)
+                : stock?.QtyOnHand ?? 0;
+            return MapToDto(p, qtyOnHand, outletId);
         }).ToList();
     }
 
@@ -82,6 +89,8 @@ public class ProductService : IProductService
     public async Task<ProductDto> CreateAsync(CreateProductRequest request, CancellationToken ct = default)
     {
         await EnsureOptionalCapabilitiesAsync(request.HasVariants, request.Variants, request.Recipes, request.IsConsignment, ct);
+        var trackingMode = NormalizeTrackingMode(request.TrackingMode);
+        await ValidateTrackingModeAsync(trackingMode, request.IsConsignment, request.IsRawMaterial, ct);
         // 1. SKU uniqueness check
         var skuExists = await _dbContext.Products
             .AnyAsync(p => p.Sku.ToLower() == request.Sku.ToLower(), ct);
@@ -125,6 +134,7 @@ public class ProductService : IProductService
             IsActive = true,
             HasVariants = request.HasVariants,
             IsRawMaterial = request.IsRawMaterial,
+            TrackingMode = trackingMode,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -133,7 +143,7 @@ public class ProductService : IProductService
 
         // 4. Auto-seed inventory stock (0 qty) for all outlets
         var outlets = await _dbContext.Outlets.ToListAsync(ct);
-        foreach (var outlet in outlets)
+        foreach (var outlet in outlets.Where(_ => trackingMode != ProductTrackingModes.None))
         {
             _dbContext.InventoryStocks.Add(new InventoryStock
             {
@@ -199,7 +209,7 @@ public class ProductService : IProductService
                 _dbContext.ProductVariants.Add(variant);
 
                 // Seed stock for this variant
-                foreach (var outlet in outlets)
+                foreach (var outlet in outlets.Where(_ => trackingMode != ProductTrackingModes.None))
                 {
                     _dbContext.InventoryStocks.Add(new InventoryStock
                     {
@@ -282,6 +292,14 @@ public class ProductService : IProductService
             throw new InvalidOperationException("Produk tidak ditemukan.");
         }
 
+        var trackingMode = request.TrackingMode is null
+            ? product.TrackingMode
+            : NormalizeTrackingMode(request.TrackingMode);
+        await ValidateTrackingModeAsync(trackingMode, request.IsConsignment, request.IsRawMaterial, ct);
+        var trackingModeChanged = trackingMode != product.TrackingMode;
+        if (trackingModeChanged)
+            await EnsureTrackingModeCanChangeAsync(product, trackingMode, ct);
+
         // 1. SKU uniqueness excluding current product
         if (product.Sku.ToLower() != request.Sku.ToLower())
         {
@@ -344,6 +362,22 @@ public class ProductService : IProductService
             _dbContext.AuditLogs.Add(auditLog);
         }
 
+        if (trackingModeChanged)
+        {
+            _dbContext.AuditLogs.Add(new AuditLog
+            {
+                Id = Guid.NewGuid(),
+                UserId = _currentUserService.UserId ?? Guid.Empty,
+                OutletId = _currentUserService.OutletId ?? DefaultOutletId,
+                EntityType = "product",
+                EntityId = product.Id,
+                Action = "tracking_mode_change",
+                OldValueJson = JsonSerializer.Serialize(new { TrackingMode = product.TrackingMode }),
+                NewValueJson = JsonSerializer.Serialize(new { TrackingMode = trackingMode }),
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
         product.CategoryId = request.CategoryId;
         product.Sku = request.Sku;
         product.Name = request.Name;
@@ -358,6 +392,7 @@ public class ProductService : IProductService
         product.IsActive = request.IsActive;
         product.HasVariants = request.HasVariants;
         product.IsRawMaterial = request.IsRawMaterial;
+        product.TrackingMode = trackingMode;
         product.UpdatedAt = DateTime.UtcNow;
 
         // Sync product variants
@@ -375,7 +410,13 @@ public class ProductService : IProductService
                 if (reqVariant == null)
                 {
                     var hasSales = await _dbContext.TransactionItems.AnyAsync(ti => ti.ProductVariantId == existing.Id, ct);
-                    if (hasSales)
+                    var hasStockHistory =
+                        await _dbContext.StockLedgers.AnyAsync(x => x.ProductVariantId == existing.Id, ct) ||
+                        await _dbContext.ProductBatches.AnyAsync(x => x.ProductVariantId == existing.Id, ct) ||
+                        await _dbContext.ProductSerials.AnyAsync(x => x.ProductVariantId == existing.Id, ct) ||
+                        await _dbContext.StockTransferItems.AnyAsync(x => x.ProductVariantId == existing.Id, ct) ||
+                        await _dbContext.StockOpnameItems.AnyAsync(x => x.ProductVariantId == existing.Id, ct);
+                    if (hasSales || hasStockHistory)
                     {
                         existing.IsActive = false;
                     }
@@ -451,7 +492,7 @@ public class ProductService : IProductService
 
                     // Seed variant inventory stocks
                     var outletsList = await _dbContext.Outlets.ToListAsync(ct);
-                    foreach (var outlet in outletsList)
+                    foreach (var outlet in outletsList.Where(_ => product.TrackingMode != ProductTrackingModes.None))
                     {
                         _dbContext.InventoryStocks.Add(new InventoryStock
                         {
@@ -541,9 +582,16 @@ public class ProductService : IProductService
             throw new InvalidOperationException("Produk tidak ditemukan.");
         }
 
-        // Safe delete: check relation to transaction_items
+        // Safe delete: keep history when the product has sales or any stock/tracking trail.
         var hasSales = await _dbContext.TransactionItems.AnyAsync(ti => ti.ProductId == id, ct);
-        if (hasSales)
+        var hasStockHistory =
+            product.InventoryStocks.Any(s => s.QtyOnHand != 0) ||
+            await _dbContext.StockLedgers.AnyAsync(x => x.ProductId == id, ct) ||
+            await _dbContext.ProductBatches.AnyAsync(x => x.ProductId == id, ct) ||
+            await _dbContext.ProductSerials.AnyAsync(x => x.ProductId == id, ct) ||
+            await _dbContext.StockTransferItems.AnyAsync(x => x.ProductId == id, ct) ||
+            await _dbContext.StockOpnameItems.AnyAsync(x => x.ProductId == id, ct);
+        if (hasSales || hasStockHistory)
         {
             // Soft delete/deactivate to preserve historical sales reporting
             product.IsActive = false;
@@ -559,7 +607,7 @@ public class ProductService : IProductService
         await _dbContext.SaveChangesAsync(ct);
     }
 
-    private static ProductDto MapToDto(Product p, decimal qtyOnHand)
+    private static ProductDto MapToDto(Product p, decimal qtyOnHand, Guid? outletId = null)
     {
         return new ProductDto(
             p.Id,
@@ -575,12 +623,131 @@ public class ProductService : IProductService
             p.ImageUrl,
             p.IsTaxable,
             p.IsServiceChargeable,
-            false,
-            false,
-            new List<ProductVariantDto>()
+            p.HasVariants,
+            p.IsRawMaterial,
+            p.Variants.Select(v => new ProductVariantDto(
+                v.Id, v.ProductId, v.Sku, v.Barcode, v.BasePrice, v.CostPrice,
+                v.ImageUrl, v.IsActive,
+                v.AttributeValues.Select(x => new ProductAttributeValueDto(x.Attribute?.Name ?? string.Empty, x.Value)).ToList()
+            )
+            {
+                QtyOnHand = outletId.HasValue
+                    ? p.InventoryStocks.FirstOrDefault(s => s.OutletId == outletId && s.ProductVariantId == v.Id)?.QtyOnHand ?? 0
+                    : 0
+            }).ToList(),
+            p.TrackingMode
         )
         {
             Recipes = new List<ProductRecipeDto>()
         };
+    }
+
+    public async Task<ProductTrackingOptionsDto> GetTrackingOptionsAsync(
+        Guid productId, Guid outletId, Guid? productVariantId, string? search, int take, bool includeUnavailable = false,
+        CancellationToken ct = default)
+    {
+        var product = await _dbContext.Products.AsNoTracking().SingleOrDefaultAsync(x => x.Id == productId, ct)
+            ?? throw new KeyNotFoundException("Produk tidak ditemukan.");
+        var stock = await _dbContext.InventoryStocks.AsNoTracking()
+            .Where(x => x.ProductId == productId && x.ProductVariantId == productVariantId && x.OutletId == outletId)
+            .Select(x => (decimal?)x.QtyOnHand).FirstOrDefaultAsync(ct) ?? 0;
+        var safeTake = Math.Clamp(take, 1, 100);
+        var term = search?.Trim();
+
+        var batches = product.TrackingMode == ProductTrackingModes.Batch
+            ? await _dbContext.ProductBatches.AsNoTracking()
+                .Where(x => x.ProductId == productId && x.ProductVariantId == productVariantId &&
+                            x.OutletId == outletId && (includeUnavailable || (x.QtyRemaining > 0 &&
+                            (!x.ExpiryDate.HasValue || x.ExpiryDate.Value.Date >= DateTime.UtcNow.Date))) &&
+                            (string.IsNullOrEmpty(term) || x.BatchNumber.Contains(term)))
+                .OrderBy(x => x.ExpiryDate == null).ThenBy(x => x.ExpiryDate).ThenBy(x => x.CreatedAt)
+                .Take(safeTake)
+                .Select(x => new ProductBatchOptionDto(x.Id, x.BatchNumber, x.ExpiryDate, x.QtyRemaining))
+                .ToListAsync(ct)
+            : [];
+        var serials = product.TrackingMode == ProductTrackingModes.Serial
+            ? await _dbContext.ProductSerials.AsNoTracking()
+                .Where(x => x.ProductId == productId && x.ProductVariantId == productVariantId &&
+                            x.OutletId == outletId && x.Status == ProductSerialStatuses.Available &&
+                            (string.IsNullOrEmpty(term) || x.NormalizedSerialNumber.Contains(term!.ToUpper())))
+                .OrderBy(x => x.SerialNumber).Take(safeTake)
+                .Select(x => new ProductSerialOptionDto(x.Id, x.SerialNumber)).ToListAsync(ct)
+            : [];
+        return new ProductTrackingOptionsDto(product.TrackingMode, stock, batches, serials);
+    }
+
+    private static string NormalizeTrackingMode(string? mode)
+    {
+        var normalized = string.IsNullOrWhiteSpace(mode)
+            ? ProductTrackingModes.Quantity
+            : mode.Trim().ToLowerInvariant();
+        if (!ProductTrackingModes.All.Contains(normalized))
+            throw new TrackingValidationException(TrackingErrorCodes.TrackingModeInvalid, "Tracking mode tidak valid.");
+        return normalized;
+    }
+
+    private async Task ValidateTrackingModeAsync(string mode, bool isConsignment, bool isRawMaterial, CancellationToken ct)
+    {
+        if (mode == ProductTrackingModes.None && (isConsignment || isRawMaterial))
+            throw new TrackingValidationException(TrackingErrorCodes.TrackingModeInvalid,
+                "Produk tanpa tracking tidak dapat menjadi konsinyasi atau bahan baku.");
+        if (_capabilities is null) return;
+        if (mode == ProductTrackingModes.Batch)
+            await _capabilities.EnsureEnabledAsync(CapabilityCodes.CatalogBatchExpiry, null, ct);
+        if (mode == ProductTrackingModes.Serial)
+            await _capabilities.EnsureEnabledAsync(CapabilityCodes.CatalogSerialTracking, null, ct);
+    }
+
+    private async Task EnsureTrackingModeCanChangeAsync(Product product, string nextMode, CancellationToken ct)
+    {
+        if (product.InventoryStocks.Any(x => x.QtyOnHand != 0) ||
+            await _dbContext.ProductBatches.AnyAsync(x => x.ProductId == product.Id && x.QtyRemaining != 0, ct) ||
+            await _dbContext.ProductSerials.AnyAsync(x => x.ProductId == product.Id &&
+                (x.Status == ProductSerialStatuses.Available || x.Status == ProductSerialStatuses.InTransfer), ct))
+            throw new InvalidOperationException("Tracking mode tidak dapat diubah karena masih ada stok aktif.");
+
+        if (await _dbContext.StockTransfers.AnyAsync(t =>
+                t.Status == StockTransferStatus.Pending && t.Items.Any(i => i.ProductId == product.Id), ct))
+            throw new InvalidOperationException("Tracking mode tidak dapat diubah karena masih ada transfer stok yang menunggu.");
+
+        if (await _dbContext.StockOpnames.AnyAsync(o =>
+                o.Status == "draft" && o.Items.Any(i => i.ProductId == product.Id), ct))
+            throw new InvalidOperationException("Tracking mode tidak dapat diubah karena masih ada stok opname berstatus draft.");
+
+        if (await _dbContext.PurchaseOrders.AnyAsync(po =>
+                (po.Status == PurchaseOrderStatus.Draft || po.Status == PurchaseOrderStatus.Pending ||
+                 po.Status == PurchaseOrderStatus.PartiallyReceived) &&
+                po.Items.Any(i => i.ProductId == product.Id), ct))
+            throw new InvalidOperationException("Tracking mode tidak dapat diubah karena masih ada purchase order aktif.");
+
+        if (nextMode == ProductTrackingModes.None)
+        {
+            // none products must not keep a stock balance row.
+            _dbContext.InventoryStocks.RemoveRange(product.InventoryStocks);
+            return;
+        }
+
+        if (product.TrackingMode == ProductTrackingModes.None)
+        {
+            var outlets = await _dbContext.Outlets.AsNoTracking().ToListAsync(ct);
+            var variantIds = await _dbContext.ProductVariants
+                .Where(v => v.ProductId == product.Id && v.IsActive)
+                .Select(v => (Guid?)v.Id)
+                .ToListAsync(ct);
+            variantIds.Insert(0, null);
+
+            foreach (var variantId in variantIds)
+            foreach (var outlet in outlets)
+                _dbContext.InventoryStocks.Add(new InventoryStock
+                {
+                    Id = Guid.NewGuid(),
+                    ProductId = product.Id,
+                    ProductVariantId = variantId,
+                    OutletId = outlet.Id,
+                    QtyOnHand = 0,
+                    MinStockAlert = 0,
+                    UpdatedAt = DateTime.UtcNow
+                });
+        }
     }
 }

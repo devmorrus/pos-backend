@@ -1,3 +1,5 @@
+using MorrusPOS.Domain.Entities;
+
 namespace MorrusPOS.Application.Features.Products;
 
 public record ProductAttributeValueDto(
@@ -15,7 +17,10 @@ public record ProductVariantDto(
     string? ImageUrl,
     bool IsActive,
     IReadOnlyList<ProductAttributeValueDto> AttributeValues
-);
+)
+{
+    public decimal QtyOnHand { get; init; }
+}
 
 public record ProductDto(
     Guid Id,
@@ -33,7 +38,8 @@ public record ProductDto(
     bool? IsServiceChargeable = null,
     bool HasVariants = false,
     bool IsRawMaterial = false,
-    IReadOnlyList<ProductVariantDto>? Variants = null
+    IReadOnlyList<ProductVariantDto>? Variants = null,
+    string TrackingMode = ProductTrackingModes.Quantity
 )
 {
     public IReadOnlyList<ProductRecipeDto>? Recipes { get; init; }
@@ -76,7 +82,8 @@ public record CreateProductRequest(
     bool? IsServiceChargeable = null,
     bool HasVariants = false,
     bool IsRawMaterial = false,
-    IReadOnlyList<CreateProductVariantRequest>? Variants = null
+    IReadOnlyList<CreateProductVariantRequest>? Variants = null,
+    string? TrackingMode = null
 )
 {
     public IReadOnlyList<ProductRecipeRequest>? Recipes { get; init; }
@@ -103,7 +110,8 @@ public record UpdateProductRequest(
     bool? IsServiceChargeable = null,
     bool HasVariants = false,
     bool IsRawMaterial = false,
-    IReadOnlyList<CreateProductVariantRequest>? Variants = null
+    IReadOnlyList<CreateProductVariantRequest>? Variants = null,
+    string? TrackingMode = null
 )
 {
     public IReadOnlyList<ProductRecipeRequest>? Recipes { get; init; }
@@ -117,4 +125,13 @@ public interface IProductService
     Task<ProductDto> CreateAsync(CreateProductRequest request, CancellationToken ct = default);
     Task<ProductDto> UpdateAsync(Guid id, UpdateProductRequest request, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
+    Task<ProductTrackingOptionsDto> GetTrackingOptionsAsync(Guid productId, Guid outletId, Guid? productVariantId, string? search, int take, bool includeUnavailable = false, CancellationToken ct = default);
 }
+
+public record ProductBatchOptionDto(Guid Id, string BatchNumber, DateTime? ExpiryDate, decimal QtyRemaining);
+public record ProductSerialOptionDto(Guid Id, string SerialNumber);
+public record ProductTrackingOptionsDto(
+    string TrackingMode,
+    decimal QtyOnHand,
+    IReadOnlyList<ProductBatchOptionDto> Batches,
+    IReadOnlyList<ProductSerialOptionDto> Serials);

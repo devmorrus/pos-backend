@@ -111,6 +111,7 @@ public class AppDbContext : DbContext
     public DbSet<ModifierGroupProduct> ModifierGroupProducts => Set<ModifierGroupProduct>();
     public DbSet<ProductRecipe> ProductRecipes => Set<ProductRecipe>();
     public DbSet<ProductBatch> ProductBatches => Set<ProductBatch>();
+    public DbSet<ProductSerial> ProductSerials => Set<ProductSerial>();
     public DbSet<ReceivingNote> ReceivingNotes => Set<ReceivingNote>();
     public DbSet<ReceivingNoteItem> ReceivingNoteItems => Set<ReceivingNoteItem>();
 

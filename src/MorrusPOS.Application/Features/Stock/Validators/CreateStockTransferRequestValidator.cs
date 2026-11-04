@@ -36,7 +36,9 @@ public class CreateStockTransferRequestValidator : AbstractValidator<CreateStock
             .SetValidator(new StockTransferItemRequestValidator());
 
         RuleFor(x => x.Items)
-            .Must(items => items == null || items.Select(i => i.ProductId).Distinct().Count() == items.Count)
-            .WithMessage("Produk transfer tidak boleh duplikat.");
+            .Must(items => items == null || items
+                .Select(i => (i.ProductId, i.ProductVariantId, i.ProductBatchId))
+                .Distinct().Count() == items.Count)
+            .WithMessage("Baris produk, varian, dan batch transfer tidak boleh duplikat.");
     }
 }

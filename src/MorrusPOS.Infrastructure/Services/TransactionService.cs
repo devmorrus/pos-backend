@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using MorrusPOS.Application.Common.Exceptions;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Accounting;
 using MorrusPOS.Application.Features.Customers;
@@ -91,7 +92,7 @@ public class TransactionService : ITransactionService
         if (_capabilityEvaluator is not null)
             await _capabilityEvaluator.EnsureEnabledAsync(CapabilityCodes.SalesTransactions, trx.OutletId, ct);
 
-        return MapToDto(trx);
+        return MapToDto(trx, await GetItemAllocationsAsync(trx.Id, trx.Items.Select(i => i.Id), ct));
     }
 
     public async Task<PricingBreakdownDto> PreviewPricingAsync(PricingPreviewRequest request, CancellationToken ct = default)
@@ -119,7 +120,7 @@ public class TransactionService : ITransactionService
 
         if (transaction.Status == TransactionStatus.Voided)
         {
-            return MapToDto(transaction);
+            return await GetByIdAsync(transaction.Id, ct);
         }
 
         if (transaction.Status != TransactionStatus.Completed)
@@ -150,16 +151,9 @@ public class TransactionService : ITransactionService
         {
             foreach (var item in transaction.Items)
             {
-                await _stockService.AddMovementAsync(
-                    productId: item.ProductId,
-                    outletId: transaction.OutletId,
-                    qtyChange: item.Qty,
-                    movementType: StockMovementType.Return,
-                    referenceType: "transaction_void",
-                    referenceId: transaction.Id,
-                    note: $"Void transaksi {transaction.TransactionNumber}",
-                    ct: ct
-                );
+                await RestoreTrackedStockAsync(item, transaction.OutletId, item.Qty,
+                    transaction.Id, item.Id, "transaction_void",
+                    $"Void transaksi {transaction.TransactionNumber}", null, null, ct);
 
                 item.IsReturned = true;
 
@@ -272,11 +266,12 @@ public class TransactionService : ITransactionService
         }
 
         var requestedProductIds = request.Items.Select(item => item.ProductId).ToHashSet();
+        var requestedTransactionItemIds = transaction.Items
+            .Where(item => requestedProductIds.Contains(item.ProductId))
+            .Select(item => item.Id)
+            .ToHashSet();
         var consignmentSales = await _dbContext.ConsignmentSales
-            .Where(s => transaction.Items
-                .Where(item => requestedProductIds.Contains(item.ProductId))
-                .Select(item => item.Id)
-                .Contains(s.TransactionItemId))
+            .Where(s => requestedTransactionItemIds.Contains(s.TransactionItemId))
             .ToListAsync(ct);
 
         if (consignmentSales.Any(sale => sale.Status == ConsignmentSaleStatus.Paid || sale.ConsignmentSettlementId != null))
@@ -293,10 +288,19 @@ public class TransactionService : ITransactionService
         {
             foreach (var refundItem in request.Items)
             {
-                var transactionItem = transaction.Items.FirstOrDefault(item => item.ProductId == refundItem.ProductId);
+                var transactionItem = refundItem.TransactionItemId.HasValue
+                    ? transaction.Items.FirstOrDefault(item => item.Id == refundItem.TransactionItemId)
+                    : transaction.Items.FirstOrDefault(item => item.ProductId == refundItem.ProductId &&
+                        item.ProductVariantId == refundItem.ProductVariantId);
                 if (transactionItem == null)
                 {
                     throw new InvalidOperationException("Produk refund tidak ditemukan di transaksi.");
+                }
+                if (transactionItem.ProductId != refundItem.ProductId ||
+                    transactionItem.ProductVariantId != refundItem.ProductVariantId)
+                {
+                    throw new TrackingValidationException(TrackingErrorCodes.TrackingAllocationMismatch,
+                        "Item refund tidak cocok dengan produk atau varian transaksi.");
                 }
 
                 if (refundItem.Qty <= 0)
@@ -325,16 +329,10 @@ public class TransactionService : ITransactionService
 
                 _dbContext.Returns.Add(newReturn);
 
-                await _stockService.AddMovementAsync(
-                    productId: transactionItem.ProductId,
-                    outletId: transaction.OutletId,
-                    qtyChange: refundItem.Qty,
-                    movementType: StockMovementType.Return,
-                    referenceType: "transaction_refund",
-                    referenceId: transaction.Id,
-                    note: $"Refund transaksi {transaction.TransactionNumber}",
-                    ct: ct
-                );
+                await RestoreTrackedStockAsync(transactionItem, transaction.OutletId, refundItem.Qty,
+                    transaction.Id, transactionItem.Id, "transaction_refund",
+                    $"Refund transaksi {transaction.TransactionNumber}",
+                    refundItem.BatchAllocations, refundItem.SerialIds, ct);
 
                 // Reverse Consignment/Tempo PO SoldQty allocation (LIFO)
                 if (transactionItem.Product != null)
@@ -463,7 +461,7 @@ public class TransactionService : ITransactionService
         if (existing != null)
         {
             await EnsureOutletAccessibleAsync(existing.OutletId, ct);
-            return MapToDto(existing);
+            return await GetByIdAsync(existing.Id, ct);
         }
 
         var session = await _dbContext.CashierSessions
@@ -519,11 +517,12 @@ public class TransactionService : ITransactionService
                     throw new InvalidOperationException($"Harga produk {product.Name} sudah berubah. Silakan muat ulang data produk.");
                 }
 
-                // Cek stok produk
-                var stock = await _dbContext.InventoryStocks
-                    .FirstOrDefaultAsync(s => s.ProductId == itemReq.ProductId && s.OutletId == request.OutletId, ct);
+                // Aggregate stock remains the fast availability check for every tracked mode.
+                var stock = product.TrackingMode == ProductTrackingModes.None ? null : await _dbContext.InventoryStocks
+                    .FirstOrDefaultAsync(s => s.ProductId == itemReq.ProductId &&
+                        s.ProductVariantId == itemReq.ProductVariantId && s.OutletId == request.OutletId, ct);
 
-                if (stock == null || stock.QtyOnHand < itemReq.Qty)
+                if (product.TrackingMode != ProductTrackingModes.None && (stock == null || stock.QtyOnHand < itemReq.Qty))
                 {
                     throw new InvalidOperationException($"Stok tidak mencukupi untuk produk {product.Name}. Stok tersedia: {(stock != null ? stock.QtyOnHand : 0)}");
                 }
@@ -631,6 +630,7 @@ public class TransactionService : ITransactionService
                 var isConsignment = product.IsConsignment;
                 decimal itemUnitCost = product.CostPrice;
                 Guid? consignmentSupplierId = null;
+                Guid transactionItemId;
 
                 if (isConsignment)
                 {
@@ -684,8 +684,10 @@ public class TransactionService : ITransactionService
                         UnitCost = itemUnitCost,
                         DiscountAmount = itemReq.DiscountAmount,
                         LineTotal = (product.BasePrice * itemReq.Qty) - itemReq.DiscountAmount,
-                        IsReturned = false
+                        IsReturned = false,
+                        TrackingModeSnapshot = product.TrackingMode
                     };
+                    transactionItemId = item.Id;
 
                     _dbContext.TransactionItems.Add(item);
 
@@ -729,8 +731,10 @@ public class TransactionService : ITransactionService
                         UnitCost = itemUnitCost,
                         DiscountAmount = itemReq.DiscountAmount,
                         LineTotal = (product.BasePrice * itemReq.Qty) - itemReq.DiscountAmount,
-                        IsReturned = false
+                        IsReturned = false,
+                        TrackingModeSnapshot = product.TrackingMode
                     };
+                    transactionItemId = item.Id;
 
                     _dbContext.TransactionItems.Add(item);
 
@@ -756,17 +760,8 @@ public class TransactionService : ITransactionService
                     }
                 }
 
-                await _stockService.AddMovementAsync(
-                    productId: product.Id,
-                    outletId: request.OutletId,
-                    qtyChange: -itemReq.Qty,
-                    movementType: StockMovementType.Sale,
-                    referenceType: "transaction",
-                    referenceId: newTrx.Id,
-                    note: $"Penjualan kasir {trxNumber}",
-                    ct: ct,
-                    productVariantId: itemReq.ProductVariantId
-                );
+                await DeductTrackedStockAsync(product, itemReq, request.OutletId,
+                    newTrx.Id, transactionItemId, $"Penjualan kasir {trxNumber}", ct);
             }
 
             if (request.Payments != null)
@@ -821,13 +816,239 @@ public class TransactionService : ITransactionService
 
             var result = await GetTransactionAggregateAsync(newTrx.Id, ct)
                 ?? throw new InvalidOperationException("Transaksi tidak ditemukan setelah checkout.");
-            return MapToDto(result);
+            return MapToDto(result, await GetItemAllocationsAsync(result.Id, result.Items.Select(i => i.Id), ct));
         }
         catch
         {
             await dbTx.RollbackAsync(ct);
             throw;
         }
+    }
+
+    private async Task DeductTrackedStockAsync(
+        Product product,
+        CheckoutItemRequest request,
+        Guid outletId,
+        Guid transactionId,
+        Guid transactionItemId,
+        string note,
+        CancellationToken ct)
+    {
+        if (product.TrackingMode == ProductTrackingModes.None) return;
+        if (product.TrackingMode == ProductTrackingModes.Quantity)
+        {
+            await _stockService.AddMovementAsync(product.Id, outletId, -request.Qty,
+                StockMovementType.Sale, "transaction", transactionId, note, ct,
+                request.ProductVariantId, documentItemId: transactionItemId);
+            return;
+        }
+
+        if (product.TrackingMode == ProductTrackingModes.Batch)
+        {
+            var requested = request.BatchAllocations?.Where(x => x.Qty > 0).ToList() ?? [];
+            var batches = requested.Count > 0
+                ? await _dbContext.ProductBatches.Where(x => requested.Select(r => r.ProductBatchId).Contains(x.Id)).ToListAsync(ct)
+                : await _dbContext.ProductBatches
+                    .Where(x => x.ProductId == product.Id && x.ProductVariantId == request.ProductVariantId &&
+                                x.OutletId == outletId && x.QtyRemaining > 0 &&
+                                (!x.ExpiryDate.HasValue || x.ExpiryDate.Value.Date >= DateTime.UtcNow.Date))
+                    .OrderBy(x => x.ExpiryDate == null).ThenBy(x => x.ExpiryDate).ThenBy(x => x.CreatedAt)
+                    .ToListAsync(ct);
+            decimal remaining = request.Qty;
+            foreach (var batch in batches)
+            {
+                var wanted = requested.Count > 0
+                    ? requested.FirstOrDefault(x => x.ProductBatchId == batch.Id)?.Qty ?? 0
+                    : Math.Min(remaining, batch.QtyRemaining);
+                if (wanted <= 0) continue;
+                if (batch.ProductId != product.Id || batch.ProductVariantId != request.ProductVariantId ||
+                    batch.OutletId != outletId || batch.QtyRemaining < wanted ||
+                    batch.ExpiryDate?.Date < DateTime.UtcNow.Date)
+                    throw new TrackingValidationException(TrackingErrorCodes.BatchStockInsufficient,
+                        $"Batch {batch.BatchNumber} tidak tersedia atau stoknya tidak cukup.");
+                batch.QtyRemaining -= wanted;
+                batch.UpdatedAt = DateTime.UtcNow;
+                remaining -= wanted;
+                await _stockService.AddMovementAsync(product.Id, outletId, -wanted,
+                    StockMovementType.Sale, "transaction", transactionId, note, ct,
+                    request.ProductVariantId, batch.Id, documentItemId: transactionItemId);
+            }
+            if (remaining != 0 || (requested.Count > 0 && requested.Sum(x => x.Qty) != request.Qty))
+                throw new TrackingValidationException(TrackingErrorCodes.TrackingAllocationMismatch,
+                    "Alokasi batch tidak lengkap atau stok batch tidak mencukupi.");
+            return;
+        }
+
+        var ids = request.SerialIds?.Distinct().ToList() ?? [];
+        if (ids.Count == 0)
+            throw new TrackingValidationException(TrackingErrorCodes.SerialRequired,
+                $"Serial wajib dipilih untuk produk {product.Name}.");
+        if (request.Qty != decimal.Truncate(request.Qty) || ids.Count != request.Qty)
+            throw new TrackingValidationException(TrackingErrorCodes.TrackingAllocationMismatch,
+                "Jumlah serial harus sama dengan qty dan qty serial harus bilangan bulat.");
+        var serials = await _dbContext.ProductSerials.Where(x => ids.Contains(x.Id)).ToListAsync(ct);
+        if (serials.Count != ids.Count || serials.Any(x => x.ProductId != product.Id ||
+            x.ProductVariantId != request.ProductVariantId || x.OutletId != outletId ||
+            x.Status != ProductSerialStatuses.Available))
+            throw new TrackingValidationException(TrackingErrorCodes.SerialNotAvailable,
+                "Satu atau lebih serial tidak tersedia untuk produk dan outlet ini.");
+        foreach (var serial in serials)
+        {
+            serial.Status = ProductSerialStatuses.Sold;
+            serial.SoldAt = DateTime.UtcNow;
+            serial.UpdatedAt = DateTime.UtcNow;
+            await _stockService.AddMovementAsync(product.Id, outletId, -1,
+                StockMovementType.Sale, "transaction", transactionId, note, ct,
+                request.ProductVariantId, productSerialId: serial.Id, documentItemId: transactionItemId);
+        }
+    }
+
+    private async Task RestoreTrackedStockAsync(
+        TransactionItem item,
+        Guid outletId,
+        decimal qty,
+        Guid transactionId,
+        Guid documentItemId,
+        string referenceType,
+        string note,
+        IReadOnlyList<BatchAllocationRequest>? requestedBatches,
+        IReadOnlyList<Guid>? requestedSerials,
+        CancellationToken ct)
+    {
+        if (item.TrackingModeSnapshot == ProductTrackingModes.None) return;
+        if (item.TrackingModeSnapshot == ProductTrackingModes.Quantity)
+        {
+            await _stockService.AddMovementAsync(item.ProductId, outletId, qty,
+                StockMovementType.Return, referenceType, transactionId, note, ct,
+                item.ProductVariantId, documentItemId: documentItemId);
+            return;
+        }
+
+        var netMovements = await GetNetTrackedMovementsAsync(item, transactionId, ct);
+
+        if (item.TrackingModeSnapshot == ProductTrackingModes.Batch)
+        {
+            var netByBatch = netMovements
+                .Where(x => x.ProductBatchId.HasValue)
+                .GroupBy(x => x.ProductBatchId!.Value)
+                .Select(g => new { BatchId = g.Key, Qty = -g.Sum(x => x.QtyChange), FirstAt = g.Min(x => x.CreatedAt) })
+                .Where(x => x.Qty > 0)
+                .OrderBy(x => x.FirstAt)
+                .ToList();
+
+            var requested = requestedBatches?.Where(x => x.Qty > 0).ToList() ?? [];
+            var remainingByBatch = netByBatch.ToDictionary(x => x.BatchId, x => x.Qty);
+            if (requested.Count > 0 &&
+                (requested.Sum(x => x.Qty) != qty ||
+                 requested.Select(x => x.ProductBatchId).Distinct().Count() != requested.Count ||
+                 requested.Any(x => !remainingByBatch.TryGetValue(x.ProductBatchId, out var remainingQty) || x.Qty > remainingQty)))
+            {
+                throw new TrackingValidationException(TrackingErrorCodes.TrackingAllocationMismatch,
+                    "Alokasi batch return tidak cocok dengan sisa batch transaksi.");
+            }
+
+            var allocations = requested.Count > 0
+                ? requested.Select(x => (x.ProductBatchId, x.Qty)).ToList()
+                : AllocateRemaining(netByBatch.Select(x => (Id: x.BatchId, x.Qty)), qty);
+
+            foreach (var (batchId, wanted) in allocations)
+            {
+                var batch = await _dbContext.ProductBatches.SingleOrDefaultAsync(x => x.Id == batchId &&
+                    x.ProductId == item.ProductId && x.ProductVariantId == item.ProductVariantId &&
+                    x.OutletId == outletId, ct);
+                if (batch == null)
+                    throw new TrackingValidationException(TrackingErrorCodes.BatchNotFound,
+                        "Batch return tidak ditemukan untuk produk dan outlet transaksi.");
+                batch.QtyRemaining += wanted;
+                batch.UpdatedAt = DateTime.UtcNow;
+                await _stockService.AddMovementAsync(item.ProductId, outletId, wanted,
+                    StockMovementType.Return, referenceType, transactionId, note, ct,
+                    item.ProductVariantId, batch.Id, documentItemId: documentItemId);
+            }
+
+            return;
+        }
+
+        var netBySerial = netMovements
+            .Where(x => x.ProductSerialId.HasValue)
+            .GroupBy(x => x.ProductSerialId!.Value)
+            .Select(g => new { SerialId = g.Key, Qty = -g.Sum(x => x.QtyChange), FirstAt = g.Min(x => x.CreatedAt) })
+            .Where(x => x.Qty > 0)
+            .OrderBy(x => x.FirstAt)
+            .ToList();
+
+        var serialIds = requestedSerials?.Distinct().ToList();
+        if (qty != decimal.Truncate(qty))
+        {
+            throw new TrackingValidationException(TrackingErrorCodes.TrackingAllocationMismatch,
+                "Qty serial harus bilangan bulat.");
+        }
+        if (serialIds == null)
+        {
+            serialIds = AllocateRemaining(netBySerial.Select(x => (Id: x.SerialId, x.Qty)), qty)
+                .Select(x => x.Id).ToList();
+        }
+
+        var soldSerialIds = netBySerial.Select(x => x.SerialId).ToHashSet();
+        if (serialIds.Count != qty || serialIds.Any(x => !soldSerialIds.Contains(x)))
+        {
+            throw new TrackingValidationException(TrackingErrorCodes.TrackingAllocationMismatch,
+                "Serial return tidak cocok dengan serial transaksi.");
+        }
+        var serials = await _dbContext.ProductSerials.Where(x => serialIds.Contains(x.Id)).ToListAsync(ct);
+        if (serials.Any(x => x.Status != ProductSerialStatuses.Sold))
+        {
+            throw new TrackingValidationException(TrackingErrorCodes.SerialNotAvailable,
+                "Satu atau lebih serial sudah dikembalikan atau tidak valid.");
+        }
+        foreach (var serial in serials)
+        {
+            serial.Status = ProductSerialStatuses.Available;
+            serial.SoldAt = null;
+            serial.UpdatedAt = DateTime.UtcNow;
+            await _stockService.AddMovementAsync(item.ProductId, outletId, 1,
+                StockMovementType.Return, referenceType, transactionId, note, ct,
+                item.ProductVariantId, productSerialId: serial.Id, documentItemId: documentItemId);
+        }
+    }
+
+    private async Task<List<StockLedger>> GetNetTrackedMovementsAsync(
+        TransactionItem item, Guid transactionId, CancellationToken ct)
+    {
+        // Old refunds linked restore rows to the Return id; new ones use the transaction item id.
+        var returnIds = await _dbContext.Returns.AsNoTracking()
+            .Where(x => x.TransactionItemId == item.Id)
+            .Select(x => x.Id)
+            .ToListAsync(ct);
+        var documentItemIds = returnIds.Append(item.Id).ToHashSet();
+
+        return await _dbContext.StockLedgers.AsNoTracking()
+            .Where(x => x.ReferenceId == transactionId &&
+                        x.DocumentItemId.HasValue && documentItemIds.Contains(x.DocumentItemId.Value) &&
+                        (x.ReferenceType == "transaction" || x.ReferenceType == "transaction_refund" ||
+                         x.ReferenceType == "transaction_void"))
+            .OrderBy(x => x.CreatedAt)
+            .ToListAsync(ct);
+    }
+
+    private static List<(Guid Id, decimal Qty)> AllocateRemaining(
+        IEnumerable<(Guid Id, decimal Qty)> available, decimal qty)
+    {
+        var allocations = new List<(Guid Id, decimal Qty)>();
+        var remaining = qty;
+        foreach (var (id, availableQty) in available)
+        {
+            if (remaining <= 0) break;
+            var wanted = Math.Min(remaining, availableQty);
+            if (wanted <= 0) continue;
+            allocations.Add((id, wanted));
+            remaining -= wanted;
+        }
+        if (remaining != 0)
+        {
+            throw new InvalidOperationException("Alokasi tracking tidak mencukupi untuk qty return.");
+        }
+        return allocations;
     }
 
     private static TransactionListItemDto MapToListItemDto(Transaction transaction)
@@ -860,7 +1081,104 @@ public class TransactionService : ITransactionService
         );
     }
 
-    private static TransactionDto MapToDto(Transaction t)
+    private sealed record TransactionItemAllocations(
+        Dictionary<Guid, List<TransactionBatchAllocationDto>> Batches,
+        Dictionary<Guid, List<TransactionSerialAllocationDto>> Serials);
+
+    private async Task<TransactionItemAllocations> GetItemAllocationsAsync(
+        Guid transactionId, IEnumerable<Guid> itemIds, CancellationToken ct)
+    {
+        var ids = itemIds.ToHashSet();
+        var returnItems = await _dbContext.Returns.AsNoTracking()
+            .Where(x => x.TransactionId == transactionId && ids.Contains(x.TransactionItemId))
+            .Select(x => new { x.Id, x.TransactionItemId })
+            .ToListAsync(ct);
+        var itemIdByDocumentId = returnItems.ToDictionary(x => x.Id, x => x.TransactionItemId);
+        foreach (var id in ids) itemIdByDocumentId[id] = id;
+        var documentIds = itemIdByDocumentId.Keys.ToHashSet();
+        var movements = await _dbContext.StockLedgers.AsNoTracking()
+            .Where(x => x.ReferenceId == transactionId &&
+                        (x.ReferenceType == "transaction" || x.ReferenceType == "transaction_refund" ||
+                         x.ReferenceType == "transaction_void") &&
+                        x.DocumentItemId.HasValue && documentIds.Contains(x.DocumentItemId.Value) &&
+                        (x.ProductBatchId != null || x.ProductSerialId != null))
+            .OrderBy(x => x.CreatedAt)
+            .ToListAsync(ct);
+
+        var batchIds = movements.Where(x => x.ProductBatchId.HasValue)
+            .Select(x => x.ProductBatchId!.Value).Distinct().ToList();
+        var serialIds = movements.Where(x => x.ProductSerialId.HasValue)
+            .Select(x => x.ProductSerialId!.Value).Distinct().ToList();
+
+        var batchNumbers = await _dbContext.ProductBatches.AsNoTracking()
+            .Where(x => batchIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.BatchNumber })
+            .ToDictionaryAsync(x => x.Id, x => x.BatchNumber, ct);
+        var serialNumbers = await _dbContext.ProductSerials.AsNoTracking()
+            .Where(x => serialIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.SerialNumber })
+            .ToDictionaryAsync(x => x.Id, x => x.SerialNumber, ct);
+
+        var batches = new Dictionary<Guid, List<TransactionBatchAllocationDto>>();
+        var serials = new Dictionary<Guid, List<TransactionSerialAllocationDto>>();
+
+        foreach (var movement in movements)
+        {
+            if (!movement.DocumentItemId.HasValue ||
+                !itemIdByDocumentId.TryGetValue(movement.DocumentItemId.Value, out var itemId)) continue;
+
+            if (movement.ReferenceType == "transaction" && movement.QtyChange < 0 &&
+                movement.ProductBatchId is { } batchId && batchNumbers.TryGetValue(batchId, out var batchNumber))
+            {
+                if (!batches.TryGetValue(itemId, out var list))
+                    batches[itemId] = list = [];
+                var existing = list.Find(x => x.ProductBatchId == batchId);
+                if (existing is null)
+                    list.Add(new TransactionBatchAllocationDto(batchId, batchNumber, -movement.QtyChange, -movement.QtyChange));
+                else
+                    list[list.IndexOf(existing)] = existing with
+                    {
+                        Qty = existing.Qty - movement.QtyChange,
+                        RemainingQty = existing.RemainingQty - movement.QtyChange
+                    };
+            }
+
+            if (movement.ReferenceType == "transaction" && movement.QtyChange < 0 &&
+                movement.ProductSerialId is { } serialId && serialNumbers.TryGetValue(serialId, out var serialNumber))
+            {
+                if (!serials.TryGetValue(itemId, out var list))
+                    serials[itemId] = list = [];
+                list.Add(new TransactionSerialAllocationDto(serialId, serialNumber, false));
+            }
+        }
+
+        foreach (var movement in movements.Where(x => x.QtyChange > 0))
+        {
+            if (!movement.DocumentItemId.HasValue ||
+                !itemIdByDocumentId.TryGetValue(movement.DocumentItemId.Value, out var itemId)) continue;
+
+            if (movement.ProductBatchId is { } batchId && batches.TryGetValue(itemId, out var batchList))
+            {
+                var allocation = batchList.Find(x => x.ProductBatchId == batchId);
+                if (allocation is not null)
+                    batchList[batchList.IndexOf(allocation)] = allocation with
+                    {
+                        RemainingQty = Math.Max(0, allocation.RemainingQty - movement.QtyChange)
+                    };
+            }
+
+            if (movement.ProductSerialId is { } serialId && serials.TryGetValue(itemId, out var serialList))
+            {
+                var allocation = serialList.Find(x => x.ProductSerialId == serialId);
+                if (allocation is not null)
+                    serialList[serialList.IndexOf(allocation)] = allocation with { IsReturned = true };
+            }
+        }
+
+        return new TransactionItemAllocations(batches, serials);
+    }
+
+    private static TransactionDto MapToDto(Transaction t, TransactionItemAllocations? allocations = null)
     {
         var returnedQtyByItemId = t.Returns
             .GroupBy(itemReturn => itemReturn.TransactionItemId)
@@ -944,7 +1262,10 @@ public class TransactionService : ITransactionService
                 i.LineTotal
             )
             {
-                ProductVariantId = i.ProductVariantId
+                ProductVariantId = i.ProductVariantId,
+                TrackingMode = i.TrackingModeSnapshot,
+                Batches = allocations?.Batches.GetValueOrDefault(i.Id) ?? [],
+                Serials = allocations?.Serials.GetValueOrDefault(i.Id) ?? []
             }).ToList(),
             t.Payments.Select(p => new PaymentDto(
                 p.Method,
@@ -981,6 +1302,7 @@ public class TransactionService : ITransactionService
             .Include(t => t.Customer)
             .Include(t => t.VoidedByUser)
             .Include(t => t.Items).ThenInclude(i => i.Product)
+            .Include(t => t.Items).ThenInclude(i => i.ProductVariant)
             .Include(t => t.Payments)
             .Include(t => t.Returns).ThenInclude(r => r.TransactionItem).ThenInclude(ti => ti.Product)
             .Include(t => t.Returns).ThenInclude(r => r.ProcessedByUser)

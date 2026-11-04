@@ -2,6 +2,16 @@ using MorrusPOS.Domain.Common;
 
 namespace MorrusPOS.Domain.Entities;
 
+public static class ProductTrackingModes
+{
+    public const string None = "none";
+    public const string Quantity = "quantity";
+    public const string Batch = "batch";
+    public const string Serial = "serial";
+
+    public static readonly string[] All = [None, Quantity, Batch, Serial];
+}
+
 public class Product : AuditableEntity
 {
     public Guid BusinessId { get; set; }
@@ -23,6 +33,7 @@ public class Product : AuditableEntity
     public bool? IsTaxable { get; set; }
     public bool? IsServiceChargeable { get; set; }
     public bool IsActive { get; set; } = true;
+    public string TrackingMode { get; set; } = ProductTrackingModes.Quantity;
     public uint Version { get; set; }
 
     public ICollection<ProductVariant> Variants { get; set; } = new List<ProductVariant>();

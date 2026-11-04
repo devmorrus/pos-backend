@@ -16,5 +16,10 @@ public class StockTransferItem : BaseEntity
     public Guid? ProductVariantId { get; set; }
     public ProductVariant? ProductVariant { get; set; }
 
+    public Guid? ProductBatchId { get; set; }
+    public ProductBatch? ProductBatch { get; set; }
+    public Guid? ProductSerialId { get; set; }
+    public ProductSerial? ProductSerial { get; set; }
+
     public decimal Qty { get; set; }
 }

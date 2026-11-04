@@ -189,6 +189,12 @@ public class ConsignmentService : IConsignmentService
             {
                 foreach (var item in consignment.Items)
                 {
+                    // shortcut: consignment receipt of batch/serial goods needs allocation UI; block until then.
+                    if (item.Product is not null && item.Product.TrackingMode != ProductTrackingModes.Quantity)
+                    {
+                        throw new InvalidOperationException($"Penerimaan konsinyasi produk '{item.Product.Name}' dengan tracking {item.Product.TrackingMode} belum didukung.");
+                    }
+
                     // 1. Ensure product is flagged as consignment product
                     if (item.Product != null)
                     {

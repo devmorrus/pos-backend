@@ -165,7 +165,8 @@ public class PublicController : ControllerBase
 
         var products = await _db.InventoryStocks
             .AsNoTracking()
-            .Where(s => s.OutletId == outletId.Value && s.Product.IsActive)
+            .Where(s => s.OutletId == outletId.Value && s.Product.IsActive &&
+                        s.Product.TrackingMode != ProductTrackingModes.None)
             .OrderBy(s => s.Product.Category.Name)
             .ThenBy(s => s.Product.Name)
             .Select(s => new PublicProductDto(
