@@ -37,7 +37,18 @@ public class TrackingSchemaPostgresTests
                 WHERE conname='FKT_stock_transfer_items_batch' AND contype='f')
               AND EXISTS (
                 SELECT 1 FROM pg_constraint
-                WHERE conname='FKT_stock_transfer_items_serial' AND contype='f');
+                WHERE conname='FKT_stock_transfer_items_serial' AND contype='f')
+              AND to_regclass('public.stock_reconciliation_runs') IS NOT NULL
+              AND EXISTS (
+                SELECT 1 FROM pg_trigger
+                WHERE tgname='trg_prevent_stock_ledger_mutation' AND NOT tgisinternal)
+              AND EXISTS (
+                SELECT 1 FROM pg_trigger
+                WHERE tgname='trg_guard_inventory_stock_projection' AND NOT tgisinternal)
+              AND EXISTS (
+                SELECT 1 FROM pg_indexes
+                WHERE schemaname='public' AND tablename='stock_ledger'
+                  AND indexdef LIKE 'CREATE UNIQUE INDEX%"BusinessId", "PostingKey"%');
             """;
 
         Assert.True((bool)(await command.ExecuteScalarAsync())!);

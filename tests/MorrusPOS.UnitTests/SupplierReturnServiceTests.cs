@@ -163,14 +163,19 @@ public class SupplierReturnServiceTests
 
         result.Status.Should().Be("sent");
         await _stockServiceMock.Received(1).AddMovementAsync(
-            _productId,
-            _outletId,
-            -2,
-            StockMovementType.ConsignmentReturn,
-            "supplier_return",
-            supplierReturn.Id,
-            Arg.Any<string>(),
-            Arg.Any<CancellationToken>());
+            productId: _productId,
+            outletId: _outletId,
+            qtyChange: -2,
+            movementType: StockMovementType.ConsignmentReturn,
+            referenceType: "supplier_return",
+            referenceId: supplierReturn.Id,
+            note: Arg.Any<string>(),
+            ct: Arg.Any<CancellationToken>(),
+            productVariantId: Arg.Is<Guid?>(x => x == null),
+            productBatchId: Arg.Is<Guid?>(x => x == null),
+            productSerialId: Arg.Is<Guid?>(x => x == null),
+            documentItemId: Arg.Any<Guid?>(),
+            operationId: Arg.Any<Guid?>());
 
         var debt = await _dbContext.SupplierDebts.FirstAsync(d => d.PurchaseOrderId == _purchaseOrderId);
         debt.RemainingAmount.Should().Be(30000);

@@ -1,5 +1,7 @@
 using System.Net;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using MorrusPOS.Application.Common.Exceptions;
 using MorrusPOS.Application.Features.Capabilities;
 
@@ -46,6 +48,23 @@ public class ExceptionHandlingMiddleware
         {
             await WriteError(context, HttpStatusCode.BadRequest, ex.Message, ex.Code);
         }
+        catch (StockIntegrityException ex)
+        {
+            var status = ex.Code is StockIntegrityErrorCodes.PostingConflict or
+                StockIntegrityErrorCodes.ReconciliationBlocked or StockIntegrityErrorCodes.LedgerImmutable
+                ? HttpStatusCode.Conflict
+                : HttpStatusCode.BadRequest;
+            await WriteError(context, status, ex.Message, ex.Code);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException postgres && IsStockIntegrityError(postgres))
+        {
+            var pg = (PostgresException)ex.InnerException!;
+            var postingConflict = pg.ConstraintName == "IX_stock_ledger_BusinessId_PostingKey";
+            await WriteError(context,
+                postingConflict ? HttpStatusCode.Conflict : HttpStatusCode.BadRequest,
+                postingConflict ? "Pergerakan stok ini sudah pernah diposting." : "Pergerakan stok ditolak karena akan membuat saldo atau ledger tidak valid.",
+                postingConflict ? StockIntegrityErrorCodes.PostingConflict : StockIntegrityErrorCodes.MovementInvalid);
+        }
         catch (InvalidOperationException ex) // dipakai untuk validasi bisnis, mis. stok tidak cukup
         {
             await WriteError(context, HttpStatusCode.BadRequest, ex.Message);
@@ -56,6 +75,11 @@ public class ExceptionHandlingMiddleware
             await WriteError(context, HttpStatusCode.InternalServerError, "Terjadi kesalahan pada server.");
         }
     }
+
+    private static bool IsStockIntegrityError(PostgresException ex)
+        => ex.ConstraintName?.StartsWith("CK_stock_", StringComparison.Ordinal) == true ||
+           ex.ConstraintName == "IX_stock_ledger_BusinessId_PostingKey" ||
+           ex.MessageText.StartsWith("STOCK_", StringComparison.Ordinal);
 
     private static async Task WriteError(
         HttpContext context,

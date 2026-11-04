@@ -224,7 +224,9 @@ public class ConsignmentReturnService : IConsignmentReturnService
                         referenceType: "consignment_return",
                         referenceId: consignmentReturn.Id,
                         note: $"Retur barang konsinyasi {consignmentReturn.ReturnNumber}",
-                        ct: ct
+                        ct: ct,
+                        documentItemId: item.Id,
+                        operationId: item.Id
                     );
 
                     stockUpdates.Add(new StockUpdateItem(item.ProductId, -item.Qty));

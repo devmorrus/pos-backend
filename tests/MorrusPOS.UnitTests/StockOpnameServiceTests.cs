@@ -71,7 +71,12 @@ public class StockOpnameServiceTests
             referenceType: "stock_opname",
             referenceId: result.Id,
             note: Arg.Any<string>(),
-            ct: Arg.Any<CancellationToken>()
+            ct: Arg.Any<CancellationToken>(),
+            productVariantId: Arg.Is<Guid?>(x => x == null),
+            productBatchId: Arg.Is<Guid?>(x => x == null),
+            productSerialId: Arg.Is<Guid?>(x => x == null),
+            documentItemId: Arg.Any<Guid?>(),
+            operationId: Arg.Any<Guid?>()
         );
 
         // Verify SignalR notification call
@@ -187,7 +192,8 @@ public class StockOpnameServiceTests
             productVariantId: Arg.Is<Guid?>(x => x == null),
             productBatchId: batchId,
             productSerialId: Arg.Is<Guid?>(x => x == null),
-            documentItemId: Arg.Any<Guid?>()
+            documentItemId: Arg.Any<Guid?>(),
+            operationId: Arg.Any<Guid?>()
         );
     }
 
@@ -252,7 +258,8 @@ public class StockOpnameServiceTests
             productVariantId: Arg.Is<Guid?>(x => x == null),
             productBatchId: Arg.Is<Guid?>(x => x == null),
             productSerialId: missingSerialId,
-            documentItemId: Arg.Any<Guid?>()
+            documentItemId: Arg.Any<Guid?>(),
+            operationId: Arg.Any<Guid?>()
         );
     }
 }

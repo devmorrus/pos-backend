@@ -170,7 +170,12 @@ public class ConsignmentReturnServiceTests
             referenceType: "consignment_return",
             referenceId: draft.Id,
             note: Arg.Any<string>(),
-            ct: Arg.Any<CancellationToken>()
+            ct: Arg.Any<CancellationToken>(),
+            productVariantId: Arg.Is<Guid?>(x => x == null),
+            productBatchId: Arg.Is<Guid?>(x => x == null),
+            productSerialId: Arg.Is<Guid?>(x => x == null),
+            documentItemId: Arg.Any<Guid?>(),
+            operationId: Arg.Any<Guid?>()
         );
     }
 

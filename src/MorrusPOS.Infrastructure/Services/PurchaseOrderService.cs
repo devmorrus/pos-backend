@@ -242,7 +242,9 @@ public class PurchaseOrderService : IPurchaseOrderService
                             referenceType: "consignment",
                             referenceId: consignment!.Id,
                             note: $"Penerimaan barang konsinyasi via PO {po.PoNumber}",
-                            ct: ct
+                            ct: ct,
+                            documentItemId: item.Id,
+                            operationId: item.Id
                         );
                     }
                     else
@@ -256,7 +258,9 @@ public class PurchaseOrderService : IPurchaseOrderService
                             referenceType: "purchase_order",
                             referenceId: po.Id,
                             note: $"Penerimaan barang dari PO {po.PoNumber}",
-                            ct: ct
+                            ct: ct,
+                            documentItemId: item.Id,
+                            operationId: item.Id
                         );
                     }
 

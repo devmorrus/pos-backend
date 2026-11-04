@@ -63,7 +63,10 @@ BEGIN
         SELECT p.oid::regprocedure AS signature
         FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
         WHERE n.nspname='public' AND p.prokind='f'
-          AND p.proname IN ('fn_update_inventory_stock','app_current_business_id','app_prevent_business_change')
+          AND p.proname IN (
+              'fn_update_inventory_stock','fn_reconcile_inventory_stock',
+              'fn_guard_inventory_stock_projection','fn_prevent_stock_ledger_mutation',
+              'app_current_business_id','app_prevent_business_change')
     LOOP
         EXECUTE format('ALTER FUNCTION %s OWNER TO morrus_migration',r.signature);
     END LOOP;
@@ -89,6 +92,16 @@ BEGIN
             GRANT SELECT ON capabilities, industry_profiles, industry_profile_capabilities TO morrus_app;
             REVOKE ALL ON capability_change_logs FROM morrus_app;
             GRANT SELECT, INSERT ON capability_change_logs TO morrus_app;
+        END IF;
+        IF to_regclass('public.stock_ledger') IS NOT NULL THEN
+            REVOKE UPDATE, DELETE ON stock_ledger FROM morrus_app;
+            GRANT SELECT, INSERT ON stock_ledger TO morrus_app;
+        END IF;
+        IF to_regclass('public.stock_reconciliation_runs') IS NOT NULL THEN
+            REVOKE ALL ON stock_reconciliation_runs, stock_reconciliation_items FROM morrus_app;
+            GRANT SELECT, INSERT ON stock_reconciliation_runs, stock_reconciliation_items TO morrus_app;
+            REVOKE ALL ON FUNCTION fn_reconcile_inventory_stock(uuid,boolean) FROM PUBLIC;
+            GRANT EXECUTE ON FUNCTION fn_reconcile_inventory_stock(uuid,boolean) TO morrus_app;
         END IF;
 
         -- Cross-tenant system role is deliberately narrow: auth/provisioning,

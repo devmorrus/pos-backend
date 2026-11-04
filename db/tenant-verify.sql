@@ -185,6 +185,44 @@ BEGIN
     THEN
         RAISE EXCEPTION 'Tracking verification failed: batch quantities do not match aggregate inventory';
     END IF;
+
+    IF to_regclass('public.stock_reconciliation_runs') IS NOT NULL AND (
+        NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='trg_prevent_stock_ledger_mutation' AND NOT tgisinternal) OR
+        NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='trg_guard_inventory_stock_projection' AND NOT tgisinternal))
+    THEN
+        RAISE EXCEPTION 'Stock integrity verification failed: immutable ledger or projection guard trigger is missing';
+    END IF;
+
+    IF to_regclass('public.stock_reconciliation_runs') IS NOT NULL AND (
+        has_table_privilege('morrus_app','public.stock_ledger','UPDATE') OR
+        has_table_privilege('morrus_app','public.stock_ledger','DELETE'))
+    THEN
+        RAISE EXCEPTION 'Stock integrity verification failed: runtime role can mutate stock ledger';
+    END IF;
+
+    IF to_regclass('public.stock_reconciliation_runs') IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+        WHERE n.nspname='public' AND p.proname='fn_reconcile_inventory_stock'
+          AND p.prosecdef
+          AND EXISTS (SELECT 1 FROM unnest(coalesce(p.proconfig,ARRAY[]::text[])) c
+                      WHERE c='search_path=pg_catalog, public'))
+    THEN
+        RAISE EXCEPTION 'Stock integrity verification failed: reconciliation function is not secured';
+    END IF;
+
+    IF to_regclass('public.stock_reconciliation_runs') IS NOT NULL AND EXISTS (
+        WITH ledger AS (
+            SELECT "BusinessId","OutletId","ProductId","ProductVariantId",sum("QtyChange") qty
+            FROM stock_ledger GROUP BY "BusinessId","OutletId","ProductId","ProductVariantId")
+        SELECT 1 FROM inventory_stock s
+        JOIN products p ON p."BusinessId"=s."BusinessId" AND p."Id"=s."ProductId"
+        LEFT JOIN ledger l ON l."BusinessId"=s."BusinessId" AND l."OutletId"=s."OutletId"
+          AND l."ProductId"=s."ProductId"
+          AND l."ProductVariantId" IS NOT DISTINCT FROM s."ProductVariantId"
+        WHERE p."TrackingMode"<>'none' AND s."QtyOnHand"<>coalesce(l.qty,0))
+    THEN
+        RAISE EXCEPTION 'Stock integrity verification failed: inventory projection differs from ledger';
+    END IF;
 END
 $verify$;
 

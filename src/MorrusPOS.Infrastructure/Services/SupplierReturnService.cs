@@ -269,7 +269,9 @@ public class SupplierReturnService : ISupplierReturnService
                         "supplier_return",
                         supplierReturn.Id,
                         $"Retur supplier {supplierReturn.ReturnNumber}",
-                        ct);
+                        ct,
+                        documentItemId: item.Id,
+                        operationId: item.Id);
                 }
 
                 var supplierDebt = await _dbContext.SupplierDebts

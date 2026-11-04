@@ -59,6 +59,8 @@ public class AppDbContext : DbContext
     // Fase 2 — Stok
     public DbSet<InventoryStock> InventoryStocks => Set<InventoryStock>();
     public DbSet<StockLedger> StockLedgers => Set<StockLedger>();
+    public DbSet<StockReconciliationRun> StockReconciliationRuns => Set<StockReconciliationRun>();
+    public DbSet<StockReconciliationItem> StockReconciliationItems => Set<StockReconciliationItem>();
     public DbSet<StockOpname> StockOpnames => Set<StockOpname>();
     public DbSet<StockOpnameItem> StockOpnameItems => Set<StockOpnameItem>();
     public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
@@ -167,6 +169,8 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<InventoryStock>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<StockLedger>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<StockReconciliationRun>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<StockReconciliationItem>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<StockOpname>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<StockOpnameItem>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<StockTransfer>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));

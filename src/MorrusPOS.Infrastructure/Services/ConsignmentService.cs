@@ -255,7 +255,9 @@ public class ConsignmentService : IConsignmentService
                         referenceType: "consignment",
                         referenceId: consignment.Id,
                         note: $"Penerimaan barang konsinyasi {consignment.ConsignmentNumber}",
-                        ct: ct
+                        ct: ct,
+                        documentItemId: item.Id,
+                        operationId: item.Id
                     );
 
                     stockUpdates.Add(new StockUpdateItem(item.ProductId, item.Qty));

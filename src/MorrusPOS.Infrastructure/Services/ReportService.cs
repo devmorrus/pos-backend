@@ -1490,6 +1490,7 @@ public class ReportService : IReportService
     {
         return movementType switch
         {
+            StockMovementType.OpeningBalance => "Saldo Awal Cutover",
             StockMovementType.Sale => "Penjualan",
             StockMovementType.Return => "Retur Penjualan",
             StockMovementType.PurchaseIn => "Pembelian",

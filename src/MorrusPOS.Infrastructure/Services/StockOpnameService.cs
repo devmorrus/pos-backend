@@ -176,7 +176,9 @@ public class StockOpnameService : IStockOpnameService
                 referenceId: opname.Id,
                 note: $"Penyesuaian stok opname fisik {itemReq.PhysicalQty} vs sistem {systemQty}",
                 ct: ct,
-                productVariantId: itemReq.ProductVariantId
+                productVariantId: itemReq.ProductVariantId,
+                documentItemId: opnameItem.Id,
+                operationId: opnameItem.Id
             );
 
             stockUpdates.Add(new StockUpdateItem(itemReq.ProductId, variance, itemReq.ProductVariantId));
@@ -244,7 +246,9 @@ public class StockOpnameService : IStockOpnameService
             note: $"Penyesuaian opname batch {batch.BatchNumber}: fisik {itemReq.PhysicalQty} vs sistem {systemQty}",
             ct: ct,
             productVariantId: itemReq.ProductVariantId,
-            productBatchId: batch.Id
+            productBatchId: batch.Id,
+            documentItemId: opnameItem.Id,
+            operationId: opnameItem.Id
         );
 
         stockUpdates.Add(new StockUpdateItem(itemReq.ProductId, variance, itemReq.ProductVariantId));
@@ -326,7 +330,9 @@ public class StockOpnameService : IStockOpnameService
                 note: $"Serial {serial.SerialNumber} tidak ditemukan saat opname",
                 ct: ct,
                 productVariantId: itemReq.ProductVariantId,
-                productSerialId: serial.Id
+                productSerialId: serial.Id,
+                documentItemId: opnameItem.Id,
+                operationId: opnameItem.Id
             );
 
             stockUpdates.Add(new StockUpdateItem(itemReq.ProductId, -1, itemReq.ProductVariantId));

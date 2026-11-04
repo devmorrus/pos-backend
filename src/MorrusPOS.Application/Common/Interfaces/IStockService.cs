@@ -14,5 +14,6 @@ public interface IStockService
         Guid? productVariantId = null,
         Guid? productBatchId = null,
         Guid? productSerialId = null,
-        Guid? documentItemId = null);
+        Guid? documentItemId = null,
+        Guid? operationId = null);
 }

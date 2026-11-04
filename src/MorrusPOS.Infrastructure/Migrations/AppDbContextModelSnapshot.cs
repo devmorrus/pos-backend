@@ -4960,11 +4960,14 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("CreatedBy")
+                    b.Property<Guid?>("CreatedBy")
                         .HasColumnType("uuid");
 
                     b.Property<Guid?>("DocumentItemId")
                         .HasColumnType("uuid");
+
+                    b.Property<bool>("IsSystemGenerated")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("MovementType")
                         .IsRequired()
@@ -4976,6 +4979,11 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.Property<Guid>("OutletId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("PostingKey")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
 
                     b.Property<Guid?>("ProductBatchId")
                         .HasColumnType("uuid");
@@ -5002,8 +5010,6 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BusinessId");
-
                     b.HasIndex("CreatedBy");
 
                     b.HasIndex("OutletId");
@@ -5014,10 +5020,23 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("ProductVariantId");
 
+                    b.HasIndex("BusinessId", "PostingKey")
+                        .IsUnique();
+
                     b.HasIndex("ProductId", "OutletId");
+
+                    b.HasIndex("BusinessId", "OutletId", "ProductId", "ProductVariantId", "CreatedAt", "Id");
 
                     b.ToTable("stock_ledger", null, t =>
                         {
+                            t.HasCheckConstraint("CK_stock_ledger_MovementDirection", "(\"MovementType\" IN ('sale','transfer_out','consignment_return') AND \"QtyChange\" < 0) OR (\"MovementType\" IN ('return','purchase_in','transfer_in','consignment_in') AND \"QtyChange\" > 0) OR \"MovementType\" IN ('opening_balance','opname_adjustment')");
+
+                            t.HasCheckConstraint("CK_stock_ledger_MovementType", "\"MovementType\" IN ('opening_balance','sale','return','purchase_in','transfer_in','transfer_out','opname_adjustment','consignment_in','consignment_return')");
+
+                            t.HasCheckConstraint("CK_stock_ledger_QtyNonZero", "\"QtyChange\" <> 0");
+
+                            t.HasCheckConstraint("CK_stock_ledger_SerialQty", "\"ProductSerialId\" IS NULL OR abs(\"QtyChange\") = 1");
+
                             t.HasCheckConstraint("CK_stock_ledger_TrackingReference", "NOT (\"ProductBatchId\" IS NOT NULL AND \"ProductSerialId\" IS NOT NULL)");
                         });
                 });
@@ -5104,6 +5123,151 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasIndex("StockOpnameId");
 
                     b.ToTable("stock_opname_items", (string)null);
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.StockReconciliationItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("AvailableSerialCount")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("BatchQty")
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Difference")
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("IssueType")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<decimal>("LedgerQty")
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<Guid>("OutletId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ProductVariantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RunId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("StoredQty")
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("TrackingMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OutletId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("ProductVariantId");
+
+                    b.HasIndex("RunId");
+
+                    b.HasIndex("BusinessId", "RunId", "IssueType");
+
+                    b.HasIndex("BusinessId", "OutletId", "ProductId", "ProductVariantId");
+
+                    b.ToTable("stock_reconciliation_items", (string)null);
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.StockReconciliationRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BlockedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("MismatchCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("OutletId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("RepairableCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RepairedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RequestedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ScannedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OutletId");
+
+                    b.HasIndex("RequestedBy");
+
+                    b.HasIndex("BusinessId", "OutletId", "StartedAt");
+
+                    b.ToTable("stock_reconciliation_runs", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_stock_reconciliation_runs_Mode", "\"Mode\" IN ('preview','repair')");
+
+                            t.HasCheckConstraint("CK_stock_reconciliation_runs_Status", "\"Status\" IN ('running','completed','failed','blocked')");
+                        });
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.StockTransfer", b =>
@@ -7269,8 +7433,7 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasOne("MorrusPOS.Domain.Entities.User", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedBy")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
                         .WithMany()
@@ -7385,6 +7548,75 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("ProductVariant");
 
                     b.Navigation("StockOpname");
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.StockReconciliationItem", b =>
+                {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
+                        .WithMany()
+                        .HasForeignKey("OutletId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.ProductVariant", "ProductVariant")
+                        .WithMany()
+                        .HasForeignKey("ProductVariantId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MorrusPOS.Domain.Entities.StockReconciliationRun", "Run")
+                        .WithMany("Items")
+                        .HasForeignKey("RunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Business");
+
+                    b.Navigation("Outlet");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("ProductVariant");
+
+                    b.Navigation("Run");
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.StockReconciliationRun", b =>
+                {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
+                        .WithMany()
+                        .HasForeignKey("OutletId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.User", "RequestedByUser")
+                        .WithMany()
+                        .HasForeignKey("RequestedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Business");
+
+                    b.Navigation("Outlet");
+
+                    b.Navigation("RequestedByUser");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.StockTransfer", b =>
@@ -7944,6 +8176,11 @@ namespace MorrusPOS.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.StockOpname", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.StockReconciliationRun", b =>
                 {
                     b.Navigation("Items");
                 });

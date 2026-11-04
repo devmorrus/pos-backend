@@ -88,13 +88,24 @@ public class StockLedgerConfiguration : IEntityTypeConfiguration<StockLedger>
         builder.Property(x => x.MovementType).HasMaxLength(30).IsRequired();
         builder.Property(x => x.QtyChange).HasColumnType("decimal(12,2)");
         builder.Property(x => x.ReferenceType).HasMaxLength(30).IsRequired();
+        builder.Property(x => x.PostingKey).HasMaxLength(300).IsRequired();
         builder.ToTable("stock_ledger", t => t.HasCheckConstraint(
             "CK_stock_ledger_TrackingReference", "NOT (\"ProductBatchId\" IS NOT NULL AND \"ProductSerialId\" IS NOT NULL)"));
+        builder.ToTable("stock_ledger", t => t.HasCheckConstraint(
+            "CK_stock_ledger_QtyNonZero", "\"QtyChange\" <> 0"));
+        builder.ToTable("stock_ledger", t => t.HasCheckConstraint(
+            "CK_stock_ledger_MovementType", "\"MovementType\" IN ('opening_balance','sale','return','purchase_in','transfer_in','transfer_out','opname_adjustment','consignment_in','consignment_return')"));
+        builder.ToTable("stock_ledger", t => t.HasCheckConstraint(
+            "CK_stock_ledger_MovementDirection", "(\"MovementType\" IN ('sale','transfer_out','consignment_return') AND \"QtyChange\" < 0) OR (\"MovementType\" IN ('return','purchase_in','transfer_in','consignment_in') AND \"QtyChange\" > 0) OR \"MovementType\" IN ('opening_balance','opname_adjustment')"));
+        builder.ToTable("stock_ledger", t => t.HasCheckConstraint(
+            "CK_stock_ledger_SerialQty", "\"ProductSerialId\" IS NULL OR abs(\"QtyChange\") = 1"));
 
         // ReferenceId SENGAJA tidak dikonfigurasi sebagai FK — polimorfik,
         // bisa merujuk ke transactions/purchase_orders/stock_transfers/stock_opnames.
 
         builder.HasIndex(x => new { x.ProductId, x.OutletId }); // dipakai untuk rekalkulasi & laporan
+        builder.HasIndex(x => new { x.BusinessId, x.PostingKey }).IsUnique();
+        builder.HasIndex(x => new { x.BusinessId, x.OutletId, x.ProductId, x.ProductVariantId, x.CreatedAt, x.Id });
 
         builder.HasOne(x => x.Product)
             .WithMany(p => p.StockLedgers)
@@ -115,6 +126,49 @@ public class StockLedgerConfiguration : IEntityTypeConfiguration<StockLedger>
             .HasForeignKey(x => x.ProductBatchId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.ProductSerial).WithMany()
             .HasForeignKey(x => x.ProductSerialId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class StockReconciliationRunConfiguration : IEntityTypeConfiguration<StockReconciliationRun>
+{
+    public void Configure(EntityTypeBuilder<StockReconciliationRun> builder)
+    {
+        builder.ToTable("stock_reconciliation_runs", t =>
+        {
+            t.HasCheckConstraint("CK_stock_reconciliation_runs_Mode", "\"Mode\" IN ('preview','repair')");
+            t.HasCheckConstraint("CK_stock_reconciliation_runs_Status", "\"Status\" IN ('running','completed','failed','blocked')");
+        });
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Mode).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.Reason).HasMaxLength(500);
+        builder.Property(x => x.ErrorCode).HasMaxLength(80);
+        builder.Property(x => x.ErrorMessage).HasMaxLength(1000);
+        builder.HasIndex(x => new { x.BusinessId, x.OutletId, x.StartedAt });
+        builder.HasOne(x => x.Outlet).WithMany().HasForeignKey(x => x.OutletId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.RequestedByUser).WithMany().HasForeignKey(x => x.RequestedBy).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class StockReconciliationItemConfiguration : IEntityTypeConfiguration<StockReconciliationItem>
+{
+    public void Configure(EntityTypeBuilder<StockReconciliationItem> builder)
+    {
+        builder.ToTable("stock_reconciliation_items");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.TrackingMode).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.LedgerQty).HasColumnType("decimal(12,2)");
+        builder.Property(x => x.StoredQty).HasColumnType("decimal(12,2)");
+        builder.Property(x => x.Difference).HasColumnType("decimal(12,2)");
+        builder.Property(x => x.BatchQty).HasColumnType("decimal(12,2)");
+        builder.Property(x => x.IssueType).HasMaxLength(60).IsRequired();
+        builder.Property(x => x.Action).HasMaxLength(30).IsRequired();
+        builder.HasIndex(x => new { x.BusinessId, x.RunId, x.IssueType });
+        builder.HasIndex(x => new { x.BusinessId, x.OutletId, x.ProductId, x.ProductVariantId });
+        builder.HasOne(x => x.Run).WithMany(x => x.Items).HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(x => x.Outlet).WithMany().HasForeignKey(x => x.OutletId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.ProductVariant).WithMany().HasForeignKey(x => x.ProductVariantId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 

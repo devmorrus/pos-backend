@@ -153,7 +153,7 @@ public class TransactionService : ITransactionService
             {
                 await RestoreTrackedStockAsync(item, transaction.OutletId, item.Qty,
                     transaction.Id, item.Id, "transaction_void",
-                    $"Void transaksi {transaction.TransactionNumber}", null, null, ct);
+                    $"Void transaksi {transaction.TransactionNumber}", null, null, item.Id, ct);
 
                 item.IsReturned = true;
 
@@ -332,7 +332,7 @@ public class TransactionService : ITransactionService
                 await RestoreTrackedStockAsync(transactionItem, transaction.OutletId, refundItem.Qty,
                     transaction.Id, transactionItem.Id, "transaction_refund",
                     $"Refund transaksi {transaction.TransactionNumber}",
-                    refundItem.BatchAllocations, refundItem.SerialIds, ct);
+                    refundItem.BatchAllocations, refundItem.SerialIds, newReturn.Id, ct);
 
                 // Reverse Consignment/Tempo PO SoldQty allocation (LIFO)
                 if (transactionItem.Product != null)
@@ -913,6 +913,7 @@ public class TransactionService : ITransactionService
         string note,
         IReadOnlyList<BatchAllocationRequest>? requestedBatches,
         IReadOnlyList<Guid>? requestedSerials,
+        Guid operationId,
         CancellationToken ct)
     {
         if (item.TrackingModeSnapshot == ProductTrackingModes.None) return;
@@ -920,7 +921,7 @@ public class TransactionService : ITransactionService
         {
             await _stockService.AddMovementAsync(item.ProductId, outletId, qty,
                 StockMovementType.Return, referenceType, transactionId, note, ct,
-                item.ProductVariantId, documentItemId: documentItemId);
+                item.ProductVariantId, documentItemId: documentItemId, operationId: operationId);
             return;
         }
 
@@ -963,7 +964,7 @@ public class TransactionService : ITransactionService
                 batch.UpdatedAt = DateTime.UtcNow;
                 await _stockService.AddMovementAsync(item.ProductId, outletId, wanted,
                     StockMovementType.Return, referenceType, transactionId, note, ct,
-                    item.ProductVariantId, batch.Id, documentItemId: documentItemId);
+                    item.ProductVariantId, batch.Id, documentItemId: documentItemId, operationId: operationId);
             }
 
             return;
@@ -1008,7 +1009,8 @@ public class TransactionService : ITransactionService
             serial.UpdatedAt = DateTime.UtcNow;
             await _stockService.AddMovementAsync(item.ProductId, outletId, 1,
                 StockMovementType.Return, referenceType, transactionId, note, ct,
-                item.ProductVariantId, productSerialId: serial.Id, documentItemId: documentItemId);
+                item.ProductVariantId, productSerialId: serial.Id, documentItemId: documentItemId,
+                operationId: operationId);
         }
     }
 
