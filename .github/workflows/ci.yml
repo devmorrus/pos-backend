@@ -55,7 +55,12 @@ jobs:
           psql -h localhost -U morrus -d morrusposs -v ON_ERROR_STOP=1 -f db/tenant-verify.sql
 
       - name: Run unit tests
-        run: dotnet test tests/MorrusPOS.UnitTests/MorrusPOS.UnitTests.csproj --configuration Release --no-build --verbosity normal
+        run: >-
+          dotnet test tests/MorrusPOS.UnitTests/MorrusPOS.UnitTests.csproj
+          --configuration Release --no-build --verbosity normal
+          --collect:"XPlat Code Coverage"
+          --logger "trx;LogFileName=unit-tests.trx"
+          --results-directory artifacts/unit
 
       - name: Run integration and RLS tests
         env:
@@ -65,4 +70,18 @@ jobs:
           MORRUS_TENANCY_TEST_ADMIN: Host=localhost;Port=5432;Database=morrusposs;Username=morrus;Password=password123
           MORRUS_TENANCY_TEST_APP: Host=localhost;Port=5432;Database=morrusposs;Username=morrus_app;Password=password123
           MORRUS_TENANCY_TEST_SYSTEM: Host=localhost;Port=5432;Database=morrusposs;Username=morrus_system;Password=password123
-        run: dotnet test tests/MorrusPOS.IntegrationTests/MorrusPOS.IntegrationTests.csproj --configuration Release --no-build --verbosity normal
+        run: >-
+          dotnet test tests/MorrusPOS.IntegrationTests/MorrusPOS.IntegrationTests.csproj
+          --configuration Release --no-build --verbosity normal
+          --collect:"XPlat Code Coverage"
+          --logger "trx;LogFileName=integration-tests.trx"
+          --results-directory artifacts/integration
+
+      - name: Upload test results and coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: artifacts
+          if-no-files-found: error
+          retention-days: 14

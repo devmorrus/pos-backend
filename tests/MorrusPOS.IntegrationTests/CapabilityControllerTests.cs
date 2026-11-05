@@ -50,8 +50,7 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
     [Fact]
     public async Task DisabledOutletCapability_Should_ReturnStructuredForbidden()
     {
-        var adminConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_ADMIN");
-        if (string.IsNullOrWhiteSpace(adminConnection)) return;
+        var adminConnection = IntegrationTestDatabase.RequireConnectionString("MORRUS_TENANCY_TEST_ADMIN");
 
         var businessId = Guid.NewGuid();
         var outletId = Guid.NewGuid();
@@ -116,8 +115,7 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
     [Fact]
     public async Task Owner_Should_UpdateBusinessOverride_WithRevisionAndAudit()
     {
-        var adminConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_ADMIN");
-        if (string.IsNullOrWhiteSpace(adminConnection)) return;
+        var adminConnection = IntegrationTestDatabase.RequireConnectionString("MORRUS_TENANCY_TEST_ADMIN");
         var businessId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var suffix = Guid.NewGuid().ToString("N")[..8];
@@ -197,8 +195,7 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
         string enabledCapability,
         string disabledCapability)
     {
-        var adminConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_ADMIN");
-        if (string.IsNullOrWhiteSpace(adminConnection)) return;
+        var adminConnection = IntegrationTestDatabase.RequireConnectionString("MORRUS_TENANCY_TEST_ADMIN");
         var suffix = Guid.NewGuid().ToString("N")[..8];
         var client = _factory.CreateClient();
         var response = await client.PostAsJsonAsync("/api/auth/register-owner", new RegisterOwnerRequest(
@@ -252,8 +249,7 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
     [Fact]
     public async Task ActiveIndustryProfiles_Should_MapEveryActiveCapability()
     {
-        var adminConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_ADMIN");
-        if (string.IsNullOrWhiteSpace(adminConnection)) return;
+        var adminConnection = IntegrationTestDatabase.RequireConnectionString("MORRUS_TENANCY_TEST_ADMIN");
 
         await using var admin = new NpgsqlConnection(adminConnection);
         await admin.OpenAsync();
@@ -275,8 +271,7 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
     [Fact]
     public async Task MixedControllers_Should_EvaluateEachActionCapabilityIndependently()
     {
-        var adminConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_ADMIN");
-        if (string.IsNullOrWhiteSpace(adminConnection)) return;
+        var adminConnection = IntegrationTestDatabase.RequireConnectionString("MORRUS_TENANCY_TEST_ADMIN");
 
         var businessId = Guid.NewGuid();
         var outletId = Guid.NewGuid();
@@ -384,8 +379,7 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
     [Fact]
     public async Task Admin_Should_ReadCapabilityConfiguration_ButNotChangeIt()
     {
-        var adminConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_ADMIN");
-        if (string.IsNullOrWhiteSpace(adminConnection)) return;
+        var adminConnection = IntegrationTestDatabase.RequireConnectionString("MORRUS_TENANCY_TEST_ADMIN");
 
         var businessId = Guid.NewGuid();
         var userId = Guid.NewGuid();
@@ -451,8 +445,7 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
     [Fact]
     public async Task Tenant_Should_NotReadAnotherTenantConfiguration()
     {
-        var adminConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_ADMIN");
-        if (string.IsNullOrWhiteSpace(adminConnection)) return;
+        var adminConnection = IntegrationTestDatabase.RequireConnectionString("MORRUS_TENANCY_TEST_ADMIN");
 
         var businessA = Guid.NewGuid();
         var businessB = Guid.NewGuid();
@@ -524,8 +517,7 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
     [Fact]
     public async Task Owner_Should_ChangeIndustryProfile_WithRevisionAndAudit()
     {
-        var adminConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_ADMIN");
-        if (string.IsNullOrWhiteSpace(adminConnection)) return;
+        var adminConnection = IntegrationTestDatabase.RequireConnectionString("MORRUS_TENANCY_TEST_ADMIN");
 
         var suffix = Guid.NewGuid().ToString("N")[..8];
         var client = _factory.CreateClient();

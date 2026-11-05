@@ -14,7 +14,6 @@ public class ProductService : IProductService
     private readonly AppDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
     private readonly ICapabilityEvaluator? _capabilities;
-    private static readonly Guid DefaultOutletId = Guid.Parse("8bba5427-017e-40fb-886f-5e4c6c9a3809"); // Outlet Utama fallback
 
     public ProductService(
         AppDbContext dbContext,
@@ -42,7 +41,8 @@ public class ProductService : IProductService
             throw new InvalidOperationException("Produk tidak ditemukan.");
         }
 
-        var outletId = _currentUserService.OutletId ?? DefaultOutletId;
+        Guid? outletId = _currentUserService.OutletId
+            ?? product.InventoryStocks.Select(stock => (Guid?)stock.OutletId).FirstOrDefault();
         var stock = product.InventoryStocks.FirstOrDefault(s => s.OutletId == outletId && s.ProductVariantId == null);
         var qtyOnHand = product.HasVariants
             ? product.InventoryStocks.Where(s => s.OutletId == outletId && s.ProductVariantId != null).Sum(s => s.QtyOnHand)
@@ -257,7 +257,8 @@ public class ProductService : IProductService
         {
             Id = Guid.NewGuid(),
             UserId = _currentUserService.UserId ?? Guid.Empty,
-            OutletId = _currentUserService.OutletId ?? DefaultOutletId,
+            OutletId = _currentUserService.OutletId ?? outlets.FirstOrDefault()?.Id
+                ?? throw new InvalidOperationException("Business belum memiliki outlet untuk mencatat audit produk."),
             EntityType = "product",
             EntityId = newProduct.Id,
             Action = "create",
@@ -347,11 +348,12 @@ public class ProductService : IProductService
 
         if (changes.Any())
         {
+            var auditOutletId = await ResolveAuditOutletIdAsync(ct);
             var auditLog = new AuditLog
             {
                 Id = Guid.NewGuid(),
                 UserId = _currentUserService.UserId ?? Guid.Empty,
-                OutletId = _currentUserService.OutletId ?? DefaultOutletId,
+                OutletId = auditOutletId,
                 EntityType = "product",
                 EntityId = product.Id,
                 Action = "price_change",
@@ -364,11 +366,12 @@ public class ProductService : IProductService
 
         if (trackingModeChanged)
         {
+            var auditOutletId = await ResolveAuditOutletIdAsync(ct);
             _dbContext.AuditLogs.Add(new AuditLog
             {
                 Id = Guid.NewGuid(),
                 UserId = _currentUserService.UserId ?? Guid.Empty,
-                OutletId = _currentUserService.OutletId ?? DefaultOutletId,
+                OutletId = auditOutletId,
                 EntityType = "product",
                 EntityId = product.Id,
                 Action = "tracking_mode_change",
@@ -549,9 +552,6 @@ public class ProductService : IProductService
 
         await _dbContext.SaveChangesAsync(ct);
 
-        var outletId = _currentUserService.OutletId ?? DefaultOutletId;
-        var stock = product.InventoryStocks.FirstOrDefault(s => s.OutletId == outletId);
-
         return await GetByIdAsync(product.Id, ct);
     }
 
@@ -605,6 +605,20 @@ public class ProductService : IProductService
         }
 
         await _dbContext.SaveChangesAsync(ct);
+    }
+
+    private async Task<Guid> ResolveAuditOutletIdAsync(CancellationToken ct)
+    {
+        if (_currentUserService.OutletId.HasValue)
+            return _currentUserService.OutletId.Value;
+
+        var outletId = await _dbContext.Outlets
+            .Where(outlet => outlet.IsActive)
+            .OrderBy(outlet => outlet.CreatedAt)
+            .Select(outlet => (Guid?)outlet.Id)
+            .FirstOrDefaultAsync(ct);
+        return outletId ?? throw new InvalidOperationException(
+            "Business belum memiliki outlet untuk mencatat audit produk.");
     }
 
     private static ProductDto MapToDto(Product p, decimal qtyOnHand, Guid? outletId = null)

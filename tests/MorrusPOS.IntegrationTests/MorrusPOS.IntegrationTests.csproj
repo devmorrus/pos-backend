@@ -25,4 +25,8 @@
     <ProjectReference Include="..\..\src\MorrusPOS.Api\MorrusPOS.Api.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

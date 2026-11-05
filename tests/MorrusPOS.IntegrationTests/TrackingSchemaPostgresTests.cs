@@ -7,8 +7,7 @@ public class TrackingSchemaPostgresTests
     [Fact]
     public async Task TrackingSchema_HasPostgresConstraintsAndTenantSafeTransferReferences()
     {
-        var connectionString = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_ADMIN");
-        if (string.IsNullOrWhiteSpace(connectionString)) return;
+        var connectionString = IntegrationTestDatabase.RequireConnectionString("MORRUS_TENANCY_TEST_ADMIN");
 
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync();

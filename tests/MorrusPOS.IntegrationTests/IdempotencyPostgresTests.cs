@@ -7,9 +7,8 @@ public class IdempotencyPostgresTests
     [Fact]
     public async Task Receipt_IsTenantScopedUniqueImmutable_AndAdvisoryLockSerializes()
     {
-        var adminConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_ADMIN");
-        var appConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_APP");
-        if (string.IsNullOrWhiteSpace(adminConnection) || string.IsNullOrWhiteSpace(appConnection)) return;
+        var adminConnection = IntegrationTestDatabase.RequireConnectionString("MORRUS_TENANCY_TEST_ADMIN");
+        var appConnection = IntegrationTestDatabase.RequireConnectionString("MORRUS_TENANCY_TEST_APP");
 
         var businessId = Guid.NewGuid();
         var outletId = Guid.NewGuid();

@@ -7,9 +7,8 @@ public class BalancedJournalPostgresTests
     [Fact]
     public async Task Database_RejectsUnbalancedJournal_AndProtectsPostedJournal()
     {
-        var adminCs = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_ADMIN");
-        var appCs = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_APP");
-        if (string.IsNullOrWhiteSpace(adminCs) || string.IsNullOrWhiteSpace(appCs)) return;
+        var adminCs = IntegrationTestDatabase.RequireConnectionString("MORRUS_TENANCY_TEST_ADMIN");
+        var appCs = IntegrationTestDatabase.RequireConnectionString("MORRUS_TENANCY_TEST_APP");
         var business = Guid.NewGuid();
         var outlet = Guid.NewGuid();
         var debitAccount = Guid.NewGuid();

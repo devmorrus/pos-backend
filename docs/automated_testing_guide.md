@@ -2,6 +2,23 @@
 
 Dokumen ini menjelaskan rancangan arsitektur dan langkah-langkah implementasi **Automation Testing** (Unit Testing & Integration/API Testing) yang dapat kita pasang pada proyek MorrusPOS untuk menjamin keandalan sistem berskala besar.
 
+> **Status aktual:** kedua test project sudah tersedia di `tests/`. Unit test memakai EF Core InMemory untuk logika service. Integration/API test wajib memakai PostgreSQL nyata karena MorrusPOS bergantung pada RLS, trigger stok, advisory lock, constraint idempotency, dan jurnal seimbang. Contoh setup lama di bawah dipertahankan sebagai referensi historis, bukan langkah bootstrap project baru.
+
+## Menjalankan suite saat ini
+
+```bash
+# Cepat dan tidak membutuhkan PostgreSQL
+dotnet test tests/MorrusPOS.UnitTests/MorrusPOS.UnitTests.csproj
+
+# Siapkan PostgreSQL/role/migration seperti workflow .github/workflows/ci.yml,
+# lalu isi seluruh MORRUS_TENANCY_TEST_* dan ConnectionStrings__*.
+dotnet test tests/MorrusPOS.IntegrationTests/MorrusPOS.IntegrationTests.csproj
+```
+
+Integration test sengaja gagal dengan pesan konfigurasi jika connection string test tidak tersedia. Test database tidak boleh menunjuk database production. Data API flow dibuat dengan ID unik dan dibersihkan berdasarkan `BusinessId`.
+
+Coverage dan hasil TRX di CI diunggah sebagai artifact `backend-test-results`. Alur API utama yang dilindungi mencakup rotasi/revoke token serta onboarding → produk → stock opname → buka sesi → checkout idempotent → pengurangan stok → tutup sesi.
+
 ---
 
 ## 🧪 1. Jenis Testing yang Direkomendasikan

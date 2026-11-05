@@ -7,15 +7,9 @@ public class TenantRlsDatabaseTests
     [Fact]
     public async Task Rls_IsolatesTwoBusinesses_AndSystemRoleCanResolveBoth()
     {
-        var adminConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_ADMIN");
-        var appConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_APP");
-        var systemConnection = Environment.GetEnvironmentVariable("MORRUS_TENANCY_TEST_SYSTEM");
-
-        // PostgreSQL is optional for local unit-only runs; CI always supplies it.
-        if (string.IsNullOrWhiteSpace(adminConnection) ||
-            string.IsNullOrWhiteSpace(appConnection) ||
-            string.IsNullOrWhiteSpace(systemConnection))
-            return;
+        var adminConnection = IntegrationTestDatabase.RequireConnectionString("MORRUS_TENANCY_TEST_ADMIN");
+        var appConnection = IntegrationTestDatabase.RequireConnectionString("MORRUS_TENANCY_TEST_APP");
+        var systemConnection = IntegrationTestDatabase.RequireConnectionString("MORRUS_TENANCY_TEST_SYSTEM");
 
         var businessA = Guid.NewGuid();
         var businessB = Guid.NewGuid();
