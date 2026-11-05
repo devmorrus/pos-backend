@@ -13,10 +13,14 @@ namespace MorrusPOS.Api.Controllers;
 public class ChartOfAccountsController : ControllerBase
 {
     private readonly IChartOfAccountService _chartOfAccountService;
+    private readonly IAccountingAccountMappingService _mappingService;
 
-    public ChartOfAccountsController(IChartOfAccountService chartOfAccountService)
+    public ChartOfAccountsController(
+        IChartOfAccountService chartOfAccountService,
+        IAccountingAccountMappingService mappingService)
     {
         _chartOfAccountService = chartOfAccountService;
+        _mappingService = mappingService;
     }
 
     [HttpGet]
@@ -58,4 +62,16 @@ public class ChartOfAccountsController : ControllerBase
         var result = await _chartOfAccountService.UpdateStatusAsync(id, request, ct);
         return Ok(result);
     }
+
+    [HttpGet("mappings")]
+    [HasPermission("account.manage")]
+    public async Task<ActionResult<IReadOnlyList<AccountingAccountMappingDto>>> GetMappings(
+        [FromQuery] Guid? outletId, CancellationToken ct)
+        => Ok(await _mappingService.GetAsync(outletId, ct));
+
+    [HttpPut("mappings/{role}")]
+    [HasPermission("account.manage")]
+    public async Task<ActionResult<AccountingAccountMappingDto>> UpsertMapping(
+        string role, UpsertAccountingAccountMappingRequest request, CancellationToken ct)
+        => Ok(await _mappingService.UpsertAsync(role, request, ct));
 }

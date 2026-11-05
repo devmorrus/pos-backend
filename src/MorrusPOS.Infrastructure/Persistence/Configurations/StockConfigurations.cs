@@ -201,6 +201,7 @@ public class StockOpnameItemConfiguration : IEntityTypeConfiguration<StockOpname
         builder.Property(x => x.SystemQty).HasColumnType("decimal(12,2)");
         builder.Property(x => x.PhysicalQty).HasColumnType("decimal(12,2)");
         builder.Property(x => x.Variance).HasColumnType("decimal(12,2)");
+        builder.Property(x => x.UnitCostSnapshot).HasColumnType("decimal(14,2)");
 
         builder.HasOne(x => x.StockOpname)
             .WithMany(o => o.Items)

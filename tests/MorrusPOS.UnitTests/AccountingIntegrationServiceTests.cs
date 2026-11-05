@@ -148,6 +148,12 @@ public class AccountingIntegrationServiceTests
         firstRun.Should().BeTrue();
         secondRun.Should().BeFalse();
 
+        var backfill = await service.BackfillAsync(new AccountingBackfillRequest(null, null));
+        backfill.Scanned.Should().Be(1);
+        backfill.Posted.Should().Be(0);
+        backfill.AlreadyPosted.Should().Be(1);
+        backfill.Failed.Should().Be(0);
+
         var entries = await _dbContext.AccountTransactions
             .Where(entry => entry.ReferenceType == "transaction_sale" && entry.ReferenceId == transactionId)
             .OrderBy(entry => entry.ChartOfAccount.AccountCode)
@@ -391,6 +397,101 @@ public class AccountingIntegrationServiceTests
         entries.Should().HaveCount(2);
         entries.Should().ContainSingle(entry => entry.ChartOfAccountId == consignmentPayable.Id && entry.DebitAmount == 120);
         entries.Should().ContainSingle(entry => entry.ChartOfAccountId == bank.Id && entry.CreditAmount == 120);
+    }
+
+    [Fact]
+    public async Task EnsureRefundPostedAsync_Should_SplitTaxService_AndSnapshotAmounts()
+    {
+        var cash = AddAccount("1010", "Kas Utama", ChartOfAccountType.Asset, true);
+        var inventory = AddAccount("1200", "Persediaan Barang", ChartOfAccountType.Asset, false);
+        var salesReturn = AddAccount("4190", "Retur Penjualan", ChartOfAccountType.Revenue, false);
+        var serviceRevenue = AddAccount("4110", "Pendapatan Service Charge", ChartOfAccountType.Revenue, false);
+        var taxPayable = AddAccount("2200", "Utang Pajak", ChartOfAccountType.Liability, false);
+        var cogs = AddAccount("5100", "Harga Pokok Penjualan", ChartOfAccountType.Cogs, false);
+        await _dbContext.SaveChangesAsync();
+
+        var categoryId = _dbContext.Categories.Select(c => c.Id).First();
+        var product = new Product
+        {
+            Id = Guid.NewGuid(),
+            BusinessId = _businessId,
+            CategoryId = categoryId,
+            Sku = "SKU-RET",
+            Name = "Produk Retur",
+            BasePrice = 100,
+            CostPrice = 40,
+            Unit = "pcs",
+            IsActive = true,
+        };
+        _dbContext.Products.Add(product);
+
+        var item = new TransactionItem
+        {
+            Id = Guid.NewGuid(),
+            BusinessId = _businessId,
+            ProductId = product.Id,
+            Qty = 2,
+            UnitPrice = 100,
+            UnitCost = 40,
+            DiscountAmount = 0,
+            LineTotal = 200,
+        };
+        var transactionId = Guid.NewGuid();
+        var refundRequestId = Guid.NewGuid();
+        _dbContext.Transactions.Add(new Transaction
+        {
+            Id = transactionId,
+            BusinessId = _businessId,
+            OutletId = _outletId,
+            UserId = _currentUser.UserId!.Value,
+            TransactionNumber = "TRX-RET",
+            Channel = TransactionChannel.Pos,
+            Status = TransactionStatus.Completed,
+            CustomerType = TransactionCustomerType.Guest,
+            Subtotal = 200,
+            GrandTotal = 220,
+            TaxTotal = 20,
+            ServiceChargeTotal = 0,
+            CreatedAt = new DateTime(2026, 8, 13, 9, 0, 0, DateTimeKind.Utc),
+            Items = [item],
+            Payments =
+            [
+                new Payment { Id = Guid.NewGuid(), BusinessId = _businessId, Method = PaymentMethod.Cash, Amount = 220 },
+            ],
+            Returns =
+            [
+                new Return
+                {
+                    Id = Guid.NewGuid(),
+                    BusinessId = _businessId,
+                    TransactionItemId = item.Id,
+                    RefundRequestId = refundRequestId,
+                    Qty = 1,
+                    RefundMethod = "refund",
+                    ProcessedBy = _currentUser.UserId!.Value,
+                },
+            ],
+        });
+        await _dbContext.SaveChangesAsync();
+
+        var service = new AccountingIntegrationService(_dbContext, _currentUser);
+        var posted = await service.EnsureRefundPostedAsync(transactionId, refundRequestId);
+
+        posted.Should().BeTrue();
+        var itemReturn = await _dbContext.Returns.SingleAsync(x => x.RefundRequestId == refundRequestId);
+        itemReturn.RevenueAmount.Should().Be(100);
+        itemReturn.TaxAmount.Should().Be(10);
+        itemReturn.RefundAmount.Should().Be(110);
+        itemReturn.CogsAmount.Should().Be(40);
+
+        var entries = await GetEntriesAsync("transaction_refund", refundRequestId);
+        entries.Sum(x => x.DebitAmount).Should().Be(entries.Sum(x => x.CreditAmount));
+        entries.Should().ContainSingle(x => x.ChartOfAccountId == salesReturn.Id && x.DebitAmount == 100);
+        entries.Should().ContainSingle(x => x.ChartOfAccountId == taxPayable.Id && x.DebitAmount == 10);
+        entries.Should().ContainSingle(x => x.ChartOfAccountId == cash.Id && x.CreditAmount == 110);
+        entries.Should().ContainSingle(x => x.ChartOfAccountId == inventory.Id && x.DebitAmount == 40);
+        entries.Should().ContainSingle(x => x.ChartOfAccountId == cogs.Id && x.CreditAmount == 40);
+        entries.Should().NotContain(x => x.ChartOfAccountId == serviceRevenue.Id);
     }
 
     private ChartOfAccount AddAccount(string code, string name, string type, bool isCashBank)

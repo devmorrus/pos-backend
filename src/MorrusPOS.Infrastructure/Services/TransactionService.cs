@@ -223,6 +223,8 @@ public class TransactionService : ITransactionService
             transaction.VoidedReason = reason;
 
             await _dbContext.SaveChangesAsync(ct);
+            if (_accountingIntegrationService != null)
+                await _accountingIntegrationService.EnsureVoidPostedAsync(transaction.Id, ct);
             await dbTx.CommitAsync(ct);
 
             var stockUpdates = transaction.Items
@@ -447,6 +449,8 @@ public class TransactionService : ITransactionService
             if (idempotencyClaim is { Replayed: false } && _idempotencyService is not null)
                 _idempotencyService.Complete(idempotencyClaim, "transaction", transaction.Id);
             await _dbContext.SaveChangesAsync(ct);
+            if (_accountingIntegrationService != null)
+                await _accountingIntegrationService.EnsureRefundPostedAsync(transaction.Id, request.Id, ct);
             await dbTx.CommitAsync(ct);
 
             var stockUpdates = request.Items

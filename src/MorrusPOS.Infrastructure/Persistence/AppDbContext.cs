@@ -35,6 +35,8 @@ public class AppDbContext : DbContext
     public DbSet<ChartOfAccount> ChartOfAccounts => Set<ChartOfAccount>();
     public DbSet<CashFlow> CashFlows => Set<CashFlow>();
     public DbSet<AccountTransaction> AccountTransactions => Set<AccountTransaction>();
+    public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
+    public DbSet<AccountingAccountMapping> AccountingAccountMappings => Set<AccountingAccountMapping>();
 
     // Fase 0 — Fondasi
     public DbSet<Outlet> Outlets => Set<Outlet>();
@@ -157,6 +159,8 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<ChartOfAccount>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<CashFlow>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<AccountTransaction>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<JournalEntry>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<AccountingAccountMapping>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<ProductAttribute>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<ModifierGroup>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
 

@@ -182,6 +182,9 @@ public class SupplierReturnService : ISupplierReturnService
             ReturnNumber = $"SR-{DateTime.UtcNow:yyyyMMddHHmmss}-{Random.Shared.Next(1000, 9999)}",
             ReturnDate = DateTime.SpecifyKind(request.ReturnDate, DateTimeKind.Utc),
             Status = SupplierReturnStatus.Draft,
+            SettlementTreatment = purchaseOrder.PaymentType == PurchaseOrderPaymentType.Cash
+                ? SupplierReturnSettlement.Receivable
+                : SupplierReturnSettlement.Payable,
             Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim(),
             CreatedBy = userId,
             CreatedAt = DateTime.UtcNow,

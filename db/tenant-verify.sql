@@ -238,6 +238,40 @@ BEGIN
     THEN
         RAISE EXCEPTION 'Idempotency verification failed: business operation key uniqueness is missing';
     END IF;
+
+    IF to_regclass('public.journal_entries') IS NOT NULL AND EXISTS (
+        SELECT 1 FROM journal_entries j
+        LEFT JOIN LATERAL (
+            SELECT count(*) line_count,coalesce(sum(a."DebitAmount"),0) debit,coalesce(sum(a."CreditAmount"),0) credit
+            FROM account_transactions a WHERE a."JournalEntryId"=j."Id") lines ON true
+        WHERE lines.line_count<2 OR lines.debit<>lines.credit
+           OR lines.debit<>j."TotalDebit" OR lines.credit<>j."TotalCredit")
+    THEN
+        RAISE EXCEPTION 'Journal verification failed: unbalanced journal exists';
+    END IF;
+
+    IF to_regclass('public.journal_entries') IS NOT NULL AND (
+        has_table_privilege('morrus_app','public.journal_entries','UPDATE') OR
+        has_table_privilege('morrus_app','public.journal_entries','DELETE') OR
+        has_table_privilege('morrus_app','public.account_transactions','UPDATE') OR
+        has_table_privilege('morrus_app','public.account_transactions','DELETE'))
+    THEN
+        RAISE EXCEPTION 'Journal verification failed: runtime role can mutate posted journal';
+    END IF;
+
+    IF to_regclass('public.journal_entries') IS NOT NULL AND NOT (
+        has_function_privilege('morrus_app','public.fn_mark_journal_reversed(uuid)','EXECUTE'))
+    THEN
+        RAISE EXCEPTION 'Journal verification failed: runtime role cannot reverse journal';
+    END IF;
+
+    IF to_regclass('public.accounting_account_mappings') IS NOT NULL AND EXISTS (
+        SELECT 1 FROM pg_class c
+        WHERE c.oid='public.accounting_account_mappings'::regclass
+          AND NOT (c.relrowsecurity AND c.relforcerowsecurity))
+    THEN
+        RAISE EXCEPTION 'Accounting verification failed: account mapping table is not RLS protected';
+    END IF;
 END
 $verify$;
 

@@ -44,6 +44,14 @@ public class Return : BaseEntity
     public string? Reason { get; set; }
     public string RefundMethod { get; set; } = default!; // "refund", "exchange"
 
+    // Snapshot nilai refund agar jurnal stay reproducible saat pricing berubah.
+    public decimal RefundAmount { get; set; }
+    public decimal RevenueAmount { get; set; }
+    public decimal TaxAmount { get; set; }
+    public decimal ServiceChargeAmount { get; set; }
+    public decimal CogsAmount { get; set; }
+    public decimal ConsignmentCogsAmount { get; set; }
+
     public Guid ProcessedBy { get; set; }
     public User ProcessedByUser { get; set; } = default!;
 

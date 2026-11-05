@@ -239,6 +239,8 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
             cleanup.CommandText = """
                 delete from refresh_tokens where "BusinessId"=@business;
                 delete from users where "BusinessId"=@business;
+                delete from accounting_account_mappings where "BusinessId"=@business;
+                delete from chart_of_accounts where "BusinessId"=@business;
                 delete from outlets where "BusinessId"=@business;
                 delete from businesses where "Id"=@business;
                 """;
@@ -560,6 +562,8 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
             delete from capability_change_logs where "BusinessId"=@business;
             delete from refresh_tokens where "BusinessId"=@business;
             delete from users where "BusinessId"=@business;
+            delete from accounting_account_mappings where "BusinessId"=@business;
+            delete from chart_of_accounts where "BusinessId"=@business;
             delete from outlets where "BusinessId"=@business;
             delete from businesses where "Id"=@business;
             """;

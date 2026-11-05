@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Capabilities;
 using MorrusPOS.Application.Features.Transactions;
+using MorrusPOS.Application.Features.Accounting;
+using Microsoft.EntityFrameworkCore.Storage;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
 
@@ -12,15 +14,18 @@ public class CashierSessionService : ICashierSessionService
     private readonly AppDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
     private readonly ICapabilityEvaluator? _capabilities;
+    private readonly IAccountingIntegrationService? _accountingIntegrationService;
 
     public CashierSessionService(
         AppDbContext dbContext,
         ICurrentUserService currentUserService,
-        ICapabilityEvaluator? capabilities = null)
+        ICapabilityEvaluator? capabilities = null,
+        IAccountingIntegrationService? accountingIntegrationService = null)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
         _capabilities = capabilities;
+        _accountingIntegrationService = accountingIntegrationService;
     }
 
     public async Task<CashierSessionDto> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -190,8 +195,25 @@ public class CashierSessionService : ICashierSessionService
             UpdatedAt = DateTime.UtcNow
         };
 
-        _dbContext.PettyCashExpenses.Add(expense);
-        await _dbContext.SaveChangesAsync(ct);
+        IDbContextTransaction? dbTx = null;
+        if (_dbContext.Database.IsRelational()) dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
+        try
+        {
+            _dbContext.PettyCashExpenses.Add(expense);
+            await _dbContext.SaveChangesAsync(ct);
+            if (_accountingIntegrationService != null)
+                await _accountingIntegrationService.EnsurePettyCashPostedAsync(expense.Id, ct);
+            if (dbTx is not null) await dbTx.CommitAsync(ct);
+        }
+        catch
+        {
+            if (dbTx is not null) await dbTx.RollbackAsync(ct);
+            throw;
+        }
+        finally
+        {
+            if (dbTx is not null) await dbTx.DisposeAsync();
+        }
 
         var saved = await _dbContext.PettyCashExpenses
             .Include(pe => pe.Outlet)

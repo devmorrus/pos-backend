@@ -66,6 +66,28 @@ public class ExceptionHandlingMiddleware
                 context.Response.Headers.RetryAfter = "1";
             await WriteError(context, status, ex.Message, ex.Code);
         }
+        catch (AccountingIntegrityException ex)
+        {
+            var status = ex.Code is AccountingIntegrityErrorCodes.JournalPostingConflict or
+                AccountingIntegrityErrorCodes.JournalImmutable or
+                AccountingIntegrityErrorCodes.JournalReferenceDuplicate or
+                AccountingIntegrityErrorCodes.JournalReversalInvalid or
+                AccountingIntegrityErrorCodes.AccountMappingMissing or
+                AccountingIntegrityErrorCodes.AccountingNotReady or
+                AccountingIntegrityErrorCodes.AccountingReconciliationBlocked
+                ? HttpStatusCode.Conflict
+                : HttpStatusCode.BadRequest;
+            await WriteError(context, status, ex.Message, ex.Code);
+        }
+        catch (PostgresException ex) when (ex.MessageText.StartsWith("JOURNAL_", StringComparison.Ordinal))
+        {
+            await WriteJournalError(context, ex);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException journalPg &&
+            journalPg.MessageText.StartsWith("JOURNAL_", StringComparison.Ordinal))
+        {
+            await WriteJournalError(context, journalPg);
+        }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException paymentPg &&
             paymentPg.ConstraintName is "UX_payments_Business_Method_Reference" or
                 "UX_supplier_payments_Business_Method_Reference")
@@ -92,6 +114,18 @@ public class ExceptionHandlingMiddleware
             _logger.LogError(ex, "Unhandled exception");
             await WriteError(context, HttpStatusCode.InternalServerError, "Terjadi kesalahan pada server.");
         }
+    }
+
+    private static Task WriteJournalError(HttpContext context, PostgresException ex)
+    {
+        var code = ex.MessageText.Split(':', 2)[0];
+        var status = code is AccountingIntegrityErrorCodes.JournalPostingConflict or
+            AccountingIntegrityErrorCodes.JournalImmutable or
+            AccountingIntegrityErrorCodes.JournalReferenceDuplicate or
+            AccountingIntegrityErrorCodes.JournalReversalInvalid
+            ? HttpStatusCode.Conflict
+            : HttpStatusCode.BadRequest;
+        return WriteError(context, status, ex.MessageText, code);
     }
 
     private static bool IsStockIntegrityError(PostgresException ex)

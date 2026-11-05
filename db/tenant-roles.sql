@@ -67,6 +67,9 @@ BEGIN
               'fn_update_inventory_stock','fn_reconcile_inventory_stock',
               'fn_guard_inventory_stock_projection','fn_prevent_stock_ledger_mutation',
               'fn_prevent_idempotency_mutation',
+              'fn_validate_journal_balance','fn_validate_journal_line_trigger',
+              'fn_validate_journal_header_trigger','fn_prevent_posted_journal_mutation',
+              'fn_mark_journal_reversed',
               'app_current_business_id','app_prevent_business_change')
     LOOP
         EXECUTE format('ALTER FUNCTION %s OWNER TO morrus_migration',r.signature);
@@ -108,6 +111,14 @@ BEGIN
             REVOKE ALL ON idempotency_records FROM morrus_app;
             GRANT SELECT, INSERT ON idempotency_records TO morrus_app;
         END IF;
+        IF to_regclass('public.journal_entries') IS NOT NULL THEN
+            REVOKE UPDATE, DELETE ON journal_entries, account_transactions FROM morrus_app;
+            GRANT SELECT, INSERT ON journal_entries, account_transactions TO morrus_app;
+        END IF;
+        IF to_regclass('public.accounting_account_mappings') IS NOT NULL THEN
+            REVOKE ALL ON accounting_account_mappings FROM morrus_app;
+            GRANT SELECT, INSERT, UPDATE, DELETE ON accounting_account_mappings TO morrus_app;
+        END IF;
 
         -- Cross-tenant system role is deliberately narrow: auth/provisioning,
         -- public directory and GoBiz webhook resolution only.
@@ -120,6 +131,12 @@ BEGIN
         END IF;
         GRANT INSERT, UPDATE ON businesses, outlets, users, refresh_tokens TO morrus_system;
         GRANT UPDATE ON gobiz_direct_integrations, gobiz_order_inboxes TO morrus_system;
+        IF to_regclass('public.chart_of_accounts') IS NOT NULL THEN
+            GRANT SELECT, INSERT ON chart_of_accounts TO morrus_system;
+        END IF;
+        IF to_regclass('public.accounting_account_mappings') IS NOT NULL THEN
+            GRANT SELECT, INSERT ON accounting_account_mappings TO morrus_system;
+        END IF;
     END IF;
 END
 $grants$;

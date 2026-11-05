@@ -85,7 +85,12 @@ public class AccountTransactionConfiguration : IEntityTypeConfiguration<AccountT
 {
     public void Configure(EntityTypeBuilder<AccountTransaction> builder)
     {
-        builder.ToTable("account_transactions");
+        builder.ToTable("account_transactions", t =>
+        {
+            t.HasCheckConstraint("CK_account_transactions_DebitCredit",
+                "(\"DebitAmount\" > 0 AND \"CreditAmount\" = 0) OR (\"CreditAmount\" > 0 AND \"DebitAmount\" = 0)");
+            t.HasCheckConstraint("CK_account_transactions_LineNumber", "\"LineNumber\" > 0");
+        });
         builder.HasKey(x => x.Id);
         builder.Property(x => x.TrxNumber).HasMaxLength(40).IsRequired();
         builder.Property(x => x.ReferenceType).HasMaxLength(50).IsRequired();
@@ -97,6 +102,8 @@ public class AccountTransactionConfiguration : IEntityTypeConfiguration<AccountT
         builder.HasIndex(x => new { x.BusinessId, x.TrxDate });
         builder.HasIndex(x => new { x.BusinessId, x.TrxEntity });
         builder.HasIndex(x => new { x.BusinessId, x.ReferenceType, x.ReferenceId });
+        builder.HasIndex(x => new { x.JournalEntryId, x.LineNumber }).IsUnique();
+        builder.HasIndex(x => new { x.BusinessId, x.ChartOfAccountId, x.TrxDate });
 
         builder.HasOne(x => x.Business)
             .WithMany(b => b.AccountTransactions)
@@ -112,5 +119,61 @@ public class AccountTransactionConfiguration : IEntityTypeConfiguration<AccountT
             .WithMany(a => a.AccountTransactions)
             .HasForeignKey(x => x.ChartOfAccountId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.JournalEntry)
+            .WithMany(x => x.Lines)
+            .HasForeignKey(x => x.JournalEntryId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class AccountingAccountMappingConfiguration : IEntityTypeConfiguration<AccountingAccountMapping>
+{
+    public void Configure(EntityTypeBuilder<AccountingAccountMapping> builder)
+    {
+        builder.ToTable("accounting_account_mappings");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Role).HasMaxLength(40).IsRequired();
+        builder.HasIndex(x => new { x.BusinessId, x.Role }).IsUnique()
+            .HasFilter("\"OutletId\" IS NULL");
+        builder.HasIndex(x => new { x.BusinessId, x.OutletId, x.Role }).IsUnique()
+            .HasFilter("\"OutletId\" IS NOT NULL");
+        builder.HasIndex(x => x.ChartOfAccountId);
+
+        builder.HasOne(x => x.Business).WithMany()
+            .HasForeignKey(x => x.BusinessId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(x => x.Outlet).WithMany()
+            .HasForeignKey(x => x.OutletId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.ChartOfAccount).WithMany()
+            .HasForeignKey(x => x.ChartOfAccountId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class JournalEntryConfiguration : IEntityTypeConfiguration<JournalEntry>
+{
+    public void Configure(EntityTypeBuilder<JournalEntry> builder)
+    {
+        builder.ToTable("journal_entries", t =>
+        {
+            t.HasCheckConstraint("CK_journal_entries_Status", "\"Status\" IN ('posted','reversed')");
+            t.HasCheckConstraint("CK_journal_entries_Balanced",
+                "\"TotalDebit\" > 0 AND \"TotalCredit\" > 0 AND \"TotalDebit\" = \"TotalCredit\"");
+            t.HasCheckConstraint("CK_journal_entries_PostingHash", "length(\"PostingHash\") = 64");
+        });
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.JournalNumber).HasMaxLength(60).IsRequired();
+        builder.Property(x => x.ReferenceType).HasMaxLength(50).IsRequired();
+        builder.Property(x => x.Description).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.PostingHash).HasMaxLength(64).IsFixedLength().IsRequired();
+        builder.Property(x => x.TotalDebit).HasColumnType("decimal(14,2)");
+        builder.Property(x => x.TotalCredit).HasColumnType("decimal(14,2)");
+        builder.HasIndex(x => new { x.BusinessId, x.ReferenceType, x.ReferenceId }).IsUnique();
+        builder.HasIndex(x => new { x.BusinessId, x.JournalDate });
+        builder.HasIndex(x => new { x.BusinessId, x.OutletId, x.JournalDate });
+        builder.HasOne(x => x.Outlet).WithMany().HasForeignKey(x => x.OutletId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.CreatedByUser).WithMany().HasForeignKey(x => x.CreatedBy).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.ReversalOfJournal).WithMany(x => x.Reversals)
+            .HasForeignKey(x => x.ReversalOfJournalId).OnDelete(DeleteBehavior.Restrict);
     }
 }

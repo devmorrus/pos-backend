@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Exceptions;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Capabilities;
+using MorrusPOS.Application.Features.Accounting;
 using MorrusPOS.Application.Features.Stock;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -14,17 +15,20 @@ public class StockOpnameService : IStockOpnameService
     private readonly IStockService _stockService;
     private readonly IPosNotificationService _notificationService;
     private readonly ICapabilityEvaluator? _capabilities;
+    private readonly IAccountingIntegrationService? _accountingIntegrationService;
 
     public StockOpnameService(
         AppDbContext dbContext,
         IStockService stockService,
         IPosNotificationService notificationService,
-        ICapabilityEvaluator? capabilities = null)
+        ICapabilityEvaluator? capabilities = null,
+        IAccountingIntegrationService? accountingIntegrationService = null)
     {
         _dbContext = dbContext;
         _stockService = stockService;
         _notificationService = notificationService;
         _capabilities = capabilities;
+        _accountingIntegrationService = accountingIntegrationService;
     }
 
     public async Task<StockOpnameDto> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -123,6 +127,8 @@ public class StockOpnameService : IStockOpnameService
             }
 
             await _dbContext.SaveChangesAsync(ct);
+            if (_accountingIntegrationService != null)
+                await _accountingIntegrationService.EnsureStockOpnamePostedAsync(opname.Id, ct);
             await dbTx.CommitAsync(ct);
 
             // Broadcast changes via SignalR
@@ -162,7 +168,7 @@ public class StockOpnameService : IStockOpnameService
         var systemQty = stock?.QtyOnHand ?? 0;
         var variance = itemReq.PhysicalQty - systemQty;
 
-        var opnameItem = NewOpnameItem(opname, itemReq, systemQty, itemReq.PhysicalQty, variance);
+        var opnameItem = NewOpnameItem(opname, itemReq, systemQty, itemReq.PhysicalQty, variance, product.CostPrice);
         _dbContext.StockOpnameItems.Add(opnameItem);
 
         if (variance != 0)
@@ -219,7 +225,7 @@ public class StockOpnameService : IStockOpnameService
         var systemQty = batch.QtyRemaining;
         var variance = itemReq.PhysicalQty - systemQty;
 
-        var opnameItem = NewOpnameItem(opname, itemReq, systemQty, itemReq.PhysicalQty, variance);
+        var opnameItem = NewOpnameItem(opname, itemReq, systemQty, itemReq.PhysicalQty, variance, product.CostPrice);
         opnameItem.ProductBatchId = batch.Id;
         _dbContext.StockOpnameItems.Add(opnameItem);
 
@@ -308,7 +314,8 @@ public class StockOpnameService : IStockOpnameService
                 ProductSerialId = serial.Id,
                 SystemQty = 1,
                 PhysicalQty = present ? 1 : 0,
-                Variance = present ? 0 : -1
+                Variance = present ? 0 : -1,
+                UnitCostSnapshot = product.CostPrice
             };
             _dbContext.StockOpnameItems.Add(opnameItem);
 
@@ -344,7 +351,8 @@ public class StockOpnameService : IStockOpnameService
         StockOpnameItemRequest itemReq,
         decimal systemQty,
         decimal physicalQty,
-        decimal variance)
+        decimal variance,
+        decimal unitCost)
     {
         return new StockOpnameItem
         {
@@ -354,7 +362,8 @@ public class StockOpnameService : IStockOpnameService
             ProductVariantId = itemReq.ProductVariantId,
             SystemQty = systemQty,
             PhysicalQty = physicalQty,
-            Variance = variance
+            Variance = variance,
+            UnitCostSnapshot = unitCost
         };
     }
 

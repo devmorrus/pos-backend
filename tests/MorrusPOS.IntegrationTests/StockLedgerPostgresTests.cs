@@ -96,7 +96,12 @@ public class StockLedgerPostgresTests
 
             await using (var corrupt = admin.CreateCommand())
             {
-                corrupt.CommandText = "UPDATE inventory_stock SET \"QtyOnHand\"=2 WHERE \"BusinessId\"=@business AND \"ProductId\"=@product AND \"OutletId\"=@outlet;";
+                corrupt.CommandText = """
+                    BEGIN;
+                    SET LOCAL session_replication_role = replica;
+                    UPDATE inventory_stock SET "QtyOnHand"=2 WHERE "BusinessId"=@business AND "ProductId"=@product AND "OutletId"=@outlet;
+                    COMMIT;
+                    """;
                 corrupt.Parameters.AddWithValue("business", businessId);
                 corrupt.Parameters.AddWithValue("product", productId);
                 corrupt.Parameters.AddWithValue("outlet", outletId);
@@ -131,10 +136,8 @@ public class StockLedgerPostgresTests
             await using var cleanup = admin.CreateCommand();
             cleanup.CommandText = """
                 BEGIN;
-                LOCK TABLE stock_ledger IN ACCESS EXCLUSIVE MODE;
-                ALTER TABLE stock_ledger DISABLE TRIGGER trg_prevent_stock_ledger_mutation;
+                SET LOCAL session_replication_role = replica;
                 DELETE FROM stock_ledger WHERE "BusinessId"=@business;
-                ALTER TABLE stock_ledger ENABLE TRIGGER trg_prevent_stock_ledger_mutation;
                 DELETE FROM inventory_stock WHERE "BusinessId"=@business;
                 DELETE FROM products WHERE "BusinessId"=@business;
                 DELETE FROM categories WHERE "BusinessId"=@business;

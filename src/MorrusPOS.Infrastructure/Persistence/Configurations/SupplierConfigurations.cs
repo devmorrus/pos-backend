@@ -125,11 +125,17 @@ public class SupplierReturnConfiguration : IEntityTypeConfiguration<SupplierRetu
 {
     public void Configure(EntityTypeBuilder<SupplierReturn> builder)
     {
-        builder.ToTable("supplier_returns");
+        builder.ToTable("supplier_returns", t =>
+        {
+            t.HasCheckConstraint("CK_supplier_returns_SettlementTreatment",
+                "\"SettlementTreatment\" IN ('payable','receivable','cash_refund')");
+        });
         builder.HasKey(x => x.Id);
         builder.Property(x => x.ReturnNumber).HasMaxLength(30).IsRequired();
         builder.HasIndex(x => x.ReturnNumber).IsUnique();
         builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.SettlementTreatment).HasMaxLength(20).IsRequired()
+            .HasDefaultValue(SupplierReturnSettlement.Payable);
         builder.Property(x => x.TotalAmount).HasColumnType("decimal(14,2)");
         builder.Property(x => x.Notes).HasMaxLength(500);
 

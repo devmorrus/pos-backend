@@ -73,6 +73,7 @@ public static class DependencyInjection
         services.AddScoped<IChannelSettlementService, ChannelSettlementService>();
         services.AddMemoryCache();
         services.AddDataProtection();
+        services.Configure<AccountingOptions>(config.GetSection(AccountingOptions.SectionName));
         services.AddOptions<GoBizOptions>()
             .Bind(config.GetSection(GoBizOptions.SectionName))
             .ValidateOnStart();
@@ -94,6 +95,9 @@ public static class DependencyInjection
         services.AddScoped<ICashFlowService, CashFlowService>();
         services.AddScoped<ICashFlowPostingService, CashFlowPostingService>();
         services.AddScoped<IAccountingIntegrationService, AccountingIntegrationService>();
+        services.AddScoped<IJournalPostingService, JournalPostingService>();
+        services.AddScoped<IAccountingAccountMappingService, AccountingAccountMappingService>();
+        services.AddScoped<IAccountingReconciliationService, AccountingReconciliationService>();
         services.AddScoped<ICapabilityEvaluator, CapabilityEvaluator>();
         services.AddScoped<ICapabilityAdminService, CapabilityAdminService>();
 

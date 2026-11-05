@@ -43,6 +43,12 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<decimal>("DebitAmount")
                         .HasColumnType("decimal(14,2)");
 
+                    b.Property<Guid>("JournalEntryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("LineNumber")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Note")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
@@ -84,9 +90,62 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("BusinessId", "TrxEntity");
 
+                    b.HasIndex("JournalEntryId", "LineNumber")
+                        .IsUnique();
+
+                    b.HasIndex("BusinessId", "ChartOfAccountId", "TrxDate");
+
                     b.HasIndex("BusinessId", "ReferenceType", "ReferenceId");
 
-                    b.ToTable("account_transactions", (string)null);
+                    b.ToTable("account_transactions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_account_transactions_DebitCredit", "(\"DebitAmount\" > 0 AND \"CreditAmount\" = 0) OR (\"CreditAmount\" > 0 AND \"DebitAmount\" = 0)");
+
+                            t.HasCheckConstraint("CK_account_transactions_LineNumber", "\"LineNumber\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.AccountingAccountMapping", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChartOfAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("OutletId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChartOfAccountId");
+
+                    b.HasIndex("OutletId");
+
+                    b.HasIndex("BusinessId", "Role")
+                        .IsUnique()
+                        .HasFilter("\"OutletId\" IS NULL");
+
+                    b.HasIndex("BusinessId", "OutletId", "Role")
+                        .IsUnique()
+                        .HasFilter("\"OutletId\" IS NOT NULL");
+
+                    b.ToTable("accounting_account_mappings", (string)null);
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.AuditLog", b =>
@@ -3457,6 +3516,90 @@ namespace MorrusPOS.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.JournalEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("JournalDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("JournalNumber")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<Guid?>("OutletId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PostingHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("ReferenceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReferenceType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid?>("ReversalOfJournalId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<decimal>("TotalCredit")
+                        .HasColumnType("decimal(14,2)");
+
+                    b.Property<decimal>("TotalDebit")
+                        .HasColumnType("decimal(14,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.HasIndex("OutletId");
+
+                    b.HasIndex("ReversalOfJournalId");
+
+                    b.HasIndex("BusinessId", "JournalDate");
+
+                    b.HasIndex("BusinessId", "OutletId", "JournalDate");
+
+                    b.HasIndex("BusinessId", "ReferenceType", "ReferenceId")
+                        .IsUnique();
+
+                    b.ToTable("journal_entries", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_journal_entries_Balanced", "\"TotalDebit\" > 0 AND \"TotalCredit\" > 0 AND \"TotalDebit\" = \"TotalCredit\"");
+
+                            t.HasCheckConstraint("CK_journal_entries_PostingHash", "length(\"PostingHash\") = 64");
+
+                            t.HasCheckConstraint("CK_journal_entries_Status", "\"Status\" IN ('posted','reversed')");
+                        });
+                });
+
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ModifierGroup", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4566,6 +4709,12 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("CogsAmount")
+                        .HasColumnType("decimal(14,2)");
+
+                    b.Property<decimal>("ConsignmentCogsAmount")
+                        .HasColumnType("decimal(14,2)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -4578,6 +4727,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<string>("Reason")
                         .HasColumnType("text");
 
+                    b.Property<decimal>("RefundAmount")
+                        .HasColumnType("decimal(14,2)");
+
                     b.Property<string>("RefundMethod")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -4585,6 +4737,15 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.Property<Guid>("RefundRequestId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal>("RevenueAmount")
+                        .HasColumnType("decimal(14,2)");
+
+                    b.Property<decimal>("ServiceChargeAmount")
+                        .HasColumnType("decimal(14,2)");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasColumnType("decimal(14,2)");
 
                     b.Property<Guid>("TransactionId")
                         .HasColumnType("uuid");
@@ -5171,6 +5332,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<decimal>("SystemQty")
                         .HasColumnType("decimal(12,2)");
 
+                    b.Property<decimal>("UnitCostSnapshot")
+                        .HasColumnType("decimal(14,2)");
+
                     b.Property<decimal>("Variance")
                         .HasColumnType("decimal(12,2)");
 
@@ -5619,6 +5783,13 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<string>("SettlementTreatment")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("payable");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -5646,7 +5817,10 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("SupplierId");
 
-                    b.ToTable("supplier_returns", (string)null);
+                    b.ToTable("supplier_returns", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_supplier_returns_SettlementTreatment", "\"SettlementTreatment\" IN ('payable','receivable','cash_refund')");
+                        });
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.SupplierReturnItem", b =>
@@ -6124,10 +6298,44 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("MorrusPOS.Domain.Entities.JournalEntry", "JournalEntry")
+                        .WithMany("Lines")
+                        .HasForeignKey("JournalEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
                         .WithMany("AccountTransactions")
                         .HasForeignKey("OutletId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Business");
+
+                    b.Navigation("ChartOfAccount");
+
+                    b.Navigation("JournalEntry");
+
+                    b.Navigation("Outlet");
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.AccountingAccountMapping", b =>
+                {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.ChartOfAccount", "ChartOfAccount")
+                        .WithMany()
+                        .HasForeignKey("ChartOfAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
+                        .WithMany()
+                        .HasForeignKey("OutletId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Business");
 
@@ -6907,6 +7115,38 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("Product");
 
                     b.Navigation("ProductVariant");
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.JournalEntry", b =>
+                {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
+                        .WithMany()
+                        .HasForeignKey("OutletId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MorrusPOS.Domain.Entities.JournalEntry", "ReversalOfJournal")
+                        .WithMany("Reversals")
+                        .HasForeignKey("ReversalOfJournalId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Business");
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Outlet");
+
+                    b.Navigation("ReversalOfJournal");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ModifierGroup", b =>
@@ -8193,6 +8433,13 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("Businesses");
 
                     b.Navigation("Capabilities");
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.JournalEntry", b =>
+                {
+                    b.Navigation("Lines");
+
+                    b.Navigation("Reversals");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ModifierGroup", b =>

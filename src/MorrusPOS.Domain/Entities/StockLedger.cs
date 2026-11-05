@@ -163,4 +163,5 @@ public class StockOpnameItem : BaseEntity
     public decimal SystemQty { get; set; }
     public decimal PhysicalQty { get; set; }
     public decimal Variance { get; set; } // PhysicalQty - SystemQty
+    public decimal UnitCostSnapshot { get; set; }
 }

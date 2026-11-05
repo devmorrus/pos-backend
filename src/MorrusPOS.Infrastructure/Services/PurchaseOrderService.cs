@@ -437,9 +437,9 @@ public class PurchaseOrderService : IPurchaseOrderService
 
             await _dbContext.SaveChangesAsync(ct);
 
-            if (po.Status == PurchaseOrderStatus.Completed && _accountingIntegrationService != null)
+            if (_accountingIntegrationService != null)
             {
-                await _accountingIntegrationService.EnsurePurchaseOrderPostedAsync(po.Id, ct);
+                await _accountingIntegrationService.EnsureReceivingNotePostedAsync(receivingNote.Id, ct);
             }
 
             var productIds = request.Items.Select(i => i.ProductId).ToList();

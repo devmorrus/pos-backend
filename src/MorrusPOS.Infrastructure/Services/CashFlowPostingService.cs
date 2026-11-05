@@ -7,10 +7,12 @@ namespace MorrusPOS.Infrastructure.Services;
 public class CashFlowPostingService : ICashFlowPostingService
 {
     private readonly AppDbContext _dbContext;
+    private readonly IJournalPostingService _journalPostingService;
 
-    public CashFlowPostingService(AppDbContext dbContext)
+    public CashFlowPostingService(AppDbContext dbContext, IJournalPostingService? journalPostingService = null)
     {
         _dbContext = dbContext;
+        _journalPostingService = journalPostingService ?? new JournalPostingService(dbContext);
     }
 
     public async Task<IReadOnlyList<CashFlowJournalEntryDto>> PostAsync(
@@ -26,15 +28,18 @@ public class CashFlowPostingService : ICashFlowPostingService
             : cashFlow.Note!.Trim();
 
         var entries = BuildTransactions(cashFlow, fromAccount, toAccount, note);
-        _dbContext.AccountTransactions.AddRange(entries);
-        await _dbContext.SaveChangesAsync(ct);
-
-        return entries
+        var posting = await _journalPostingService.PostAsync(new JournalDraft(
+            cashFlow.BusinessId, cashFlow.OutletId, cashFlow.TrxDate, cashFlow.TrxNumber,
+            "cash_flow", cashFlow.Id, note,
+            entries.Select(x => new JournalDraftLine(x.ChartOfAccountId, x.DebitAmount, x.CreditAmount, note)).ToList(),
+            CreatedBy: cashFlow.CreatedBy), ct);
+        var journal = await _journalPostingService.GetByIdAsync(posting.JournalId, ct);
+        return journal.Lines
             .Select(entry => new CashFlowJournalEntryDto(
                 entry.Id,
                 entry.ChartOfAccountId,
-                entry.ChartOfAccount.AccountCode,
-                entry.ChartOfAccount.AccountName,
+                entry.AccountCode,
+                entry.AccountName,
                 entry.DebitAmount,
                 entry.CreditAmount))
             .ToList();

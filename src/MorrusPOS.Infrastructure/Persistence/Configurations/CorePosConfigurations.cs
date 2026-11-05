@@ -203,6 +203,12 @@ public class ReturnConfiguration : IEntityTypeConfiguration<Return>
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Qty).HasColumnType("decimal(10,2)");
         builder.Property(x => x.RefundMethod).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.RefundAmount).HasColumnType("decimal(14,2)");
+        builder.Property(x => x.RevenueAmount).HasColumnType("decimal(14,2)");
+        builder.Property(x => x.TaxAmount).HasColumnType("decimal(14,2)");
+        builder.Property(x => x.ServiceChargeAmount).HasColumnType("decimal(14,2)");
+        builder.Property(x => x.CogsAmount).HasColumnType("decimal(14,2)");
+        builder.Property(x => x.ConsignmentCogsAmount).HasColumnType("decimal(14,2)");
         builder.HasIndex(x => new { x.BusinessId, x.RefundRequestId });
         builder.HasIndex(x => new { x.BusinessId, x.TransactionId, x.RefundRequestId });
 

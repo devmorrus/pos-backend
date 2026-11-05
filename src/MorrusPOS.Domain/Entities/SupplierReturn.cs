@@ -9,6 +9,16 @@ public static class SupplierReturnStatus
     public const string Completed = "completed";
 }
 
+public static class SupplierReturnSettlement
+{
+    // Tempo return reduces accounts payable.
+    public const string Payable = "payable";
+    // Cash purchase return where the supplier has not refunded yet.
+    public const string Receivable = "receivable";
+    // Cash purchase return where the refund has been received.
+    public const string CashRefund = "cash_refund";
+}
+
 public class SupplierReturn : AuditableEntity
 {
     // Tenant scope: row milik business ini; FK businesses via konvensi EF
@@ -24,6 +34,7 @@ public class SupplierReturn : AuditableEntity
     public DateTime ReturnDate { get; set; } = DateTime.UtcNow;
     public string Status { get; set; } = SupplierReturnStatus.Draft;
     public decimal TotalAmount { get; set; }
+    public string SettlementTreatment { get; set; } = SupplierReturnSettlement.Payable;
     public string? Notes { get; set; }
 
     public Guid CreatedBy { get; set; }

@@ -209,6 +209,9 @@ public class AuthService : IAuthService
             };
             _context.Users.Add(user);
 
+            // Setiap business baru mendapat COA dan explicit account mapping default.
+            DefaultAccountingSetup.AddDefaults(_context, business.Id);
+
             // Update Business OwnerId
             business.OwnerId = user.Id;
 
