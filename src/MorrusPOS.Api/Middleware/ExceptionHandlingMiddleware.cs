@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using MorrusPOS.Application.Common.Exceptions;
 using MorrusPOS.Application.Features.Capabilities;
+using MorrusPOS.Application.Common.Observability;
 
 namespace MorrusPOS.Api.Middleware;
 
@@ -143,6 +144,7 @@ public class ExceptionHandlingMiddleware
     {
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = (int)statusCode;
+        MorrusTelemetry.RecordException(code ?? $"HTTP_{(int)statusCode}", (int)statusCode);
         var payload = JsonSerializer.Serialize(new { error = message, code, capability, outletId });
         await context.Response.WriteAsync(payload);
     }

@@ -1,0 +1,9 @@
+apiVersion: 1
+
+providers:
+  - name: MorrusPOS
+    folder: MorrusPOS
+    type: file
+    disableDeletion: true
+    options:
+      path: /var/lib/grafana/dashboards

@@ -37,8 +37,13 @@ using MorrusPOS.Application.Features.Reports;
 using MorrusPOS.Infrastructure;
 using MorrusPOS.Infrastructure.Options;
 using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using MorrusPOS.Api.Health;
+using MorrusPOS.Api.Observability;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddMorrusObservability();
 
 // ---- Layer registration ----
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -103,6 +108,17 @@ builder.Services.AddScoped<CurrentUserService>();
 builder.Services.AddScoped<ICurrentUserService>(sp => sp.GetRequiredService<CurrentUserService>());
 builder.Services.AddScoped<ITenantContextSetter>(sp => sp.GetRequiredService<CurrentUserService>());
 builder.Services.AddScoped<IPosNotificationService, PosNotificationService>();
+builder.Services.AddHealthChecks()
+    .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(), tags: ["live"])
+    .AddCheck<DatabaseReadinessHealthCheck>("postgresql", tags: ["ready"]);
+builder.Services.AddSingleton<IHealthCheckPublisher, ReadinessHealthCheckPublisher>();
+builder.Services.Configure<HealthCheckPublisherOptions>(options =>
+{
+    options.Predicate = registration => registration.Tags.Contains("ready");
+    options.Delay = TimeSpan.FromSeconds(5);
+    options.Period = TimeSpan.FromSeconds(30);
+    options.Timeout = TimeSpan.FromSeconds(10);
+});
 
 // ---- JWT Auth ----
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -207,11 +223,12 @@ using (var scope = app.Services.CreateScope())
         goBizOptions.RedirectUri);
 }
 
-Console.WriteLine($"[DIAGNOSTIC] Current Directory: {Directory.GetCurrentDirectory()}");
-Console.WriteLine($"[DIAGNOSTIC] WebRootPath: {app.Environment.WebRootPath}");
-Console.WriteLine($"[DIAGNOSTIC] ContentRootPath: {app.Environment.ContentRootPath}");
-Console.WriteLine($"[DIAGNOSTIC] Uploads Directory Path: {Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads")}");
-Console.WriteLine($"[DIAGNOSTIC] Uploads Folder Exists: {Directory.Exists(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads"))}");
+app.Logger.LogInformation(
+    "ApplicationStarting Environment={Environment} ContentRootPath={ContentRootPath} UploadsPath={UploadsPath} UploadsDirectoryExists={UploadsDirectoryExists}",
+    app.Environment.EnvironmentName,
+    app.Environment.ContentRootPath,
+    Path.Combine(app.Environment.ContentRootPath, "wwwroot", "uploads"),
+    Directory.Exists(Path.Combine(app.Environment.ContentRootPath, "wwwroot", "uploads")));
 
 // Auto-migrate database on startup
 using (var scope = app.Services.CreateScope())
@@ -278,6 +295,7 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.UseCors("FrontendPolicy");
 
+app.UseMiddleware<RequestObservabilityMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseAuthentication();
@@ -291,7 +309,21 @@ app.UseMiddleware<OutletTenantMiddleware>();
 
 app.MapControllers();
 app.MapHub<NotificationHub>("/hub/notifications");
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("live"),
+    ResponseWriter = HealthResponseWriter.WriteAsync,
+});
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("ready"),
+    ResponseWriter = HealthResponseWriter.WriteAsync,
+});
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("ready"),
+    ResponseWriter = HealthResponseWriter.WriteAsync,
+});
 
 app.Run();
 

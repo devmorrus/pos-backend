@@ -72,8 +72,17 @@ public sealed class GoBizApiClient : IGoBizApiClient
         var body = await response.Content.ReadAsStringAsync(ct);
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogWarning("GoBiz API request failed. Path={Path}. Status={StatusCode}. Body={Body}", path, (int)response.StatusCode, body);
-            throw new InvalidOperationException($"Request GoBiz gagal dengan status {(int)response.StatusCode}. Response={body}");
+            var partnerRequestId = response.Headers.TryGetValues("X-Request-ID", out var values)
+                ? values.FirstOrDefault()
+                : null;
+            _logger.LogWarning(
+                "GoBizRequestFailed Path={Path} StatusCode={StatusCode} ContentType={ContentType} ContentLength={ContentLength} PartnerRequestId={PartnerRequestId}",
+                path,
+                (int)response.StatusCode,
+                response.Content.Headers.ContentType?.MediaType,
+                body.Length,
+                partnerRequestId);
+            throw new InvalidOperationException($"Request GoBiz gagal dengan status {(int)response.StatusCode}.");
         }
 
         if (string.IsNullOrWhiteSpace(body))

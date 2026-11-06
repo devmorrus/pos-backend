@@ -14,7 +14,7 @@ case "${TARGET_ENVIRONMENT}" in
   production)
     APP_PATH="/home/morrusdigital/pos-backend"
     TARGET_BRANCH="main"
-    HEALTHCHECK_URL="http://127.0.0.1:8085/health"
+    HEALTHCHECK_URL="http://127.0.0.1:8085/health/ready"
     ;;
   *)
     echo "Unknown environment: ${TARGET_ENVIRONMENT}"
@@ -55,7 +55,8 @@ finish_deploy() {
     echo "Deployment completed for ${TARGET_ENVIRONMENT}"
   else
     echo "Deployment failed for ${TARGET_ENVIRONMENT}." >&2
-    docker compose logs --tail=120 backend || true
+    docker compose -f docker-compose.yml -f ops/observability/docker-compose.observability.yml \
+      logs --tail=120 backend otel-collector || true
   fi
 
   exit "${exit_code}"
@@ -65,6 +66,15 @@ trap finish_deploy EXIT
 
 echo "Deploying ${TARGET_ENVIRONMENT} using ref ${DEPLOY_REF}"
 cd "${APP_PATH}"
+
+: "${ALERT_WEBHOOK_FILE:=./ops/observability/secrets/alert_webhook_url}"
+if [[ ! -s "${ALERT_WEBHOOK_FILE}" ]]; then
+  echo "Alert webhook secret file tidak ditemukan atau kosong: ${ALERT_WEBHOOK_FILE}" >&2
+  exit 1
+fi
+export OBSERVABILITY_ENABLED="${OBSERVABILITY_ENABLED:-true}"
+
+COMPOSE=(docker compose -f docker-compose.yml -f ops/observability/docker-compose.observability.yml)
 
 git_fetch_for_deploy
 
@@ -76,11 +86,12 @@ fi
 
 git checkout -f "${TARGET_BRANCH}"
 git reset --hard "${DEPLOY_REF}"
+export SERVICE_VERSION="${SERVICE_VERSION:-$(git rev-parse --short HEAD)}"
 
-docker compose up -d database
+"${COMPOSE[@]}" up -d database
 
 for attempt in {1..30}; do
-  if docker compose exec -T database pg_isready -U morrus -d morrusposs >/dev/null; then
+  if "${COMPOSE[@]}" exec -T database pg_isready -U morrus -d morrusposs >/dev/null; then
     break
   fi
   if [[ "${attempt}" -eq 30 ]]; then
@@ -92,16 +103,17 @@ done
 
 # Init scripts only run on a new PostgreSQL volume. Re-apply role ownership and
 # grants on every deployment so existing production volumes are upgraded too.
-docker compose exec -T database psql -U morrus -d morrusposs -v ON_ERROR_STOP=1 \
+"${COMPOSE[@]}" exec -T database psql -U morrus -d morrusposs -v ON_ERROR_STOP=1 \
   < db/tenant-roles.sql
 
-docker compose build backend
-docker compose up -d --no-deps backend
-docker compose ps
+"${COMPOSE[@]}" up -d loki tempo alertmanager otel-collector prometheus grafana
+"${COMPOSE[@]}" build backend
+"${COMPOSE[@]}" up -d --no-deps backend
+"${COMPOSE[@]}" ps
 
 for attempt in {1..30}; do
   if curl --fail --silent --show-error --location --max-time 10 "${HEALTHCHECK_URL}" >/dev/null; then
-    docker compose exec -T database psql -U morrus -d morrusposs -v ON_ERROR_STOP=1 \
+    "${COMPOSE[@]}" exec -T database psql -U morrus -d morrusposs -v ON_ERROR_STOP=1 \
       < db/tenant-verify.sql
     echo "Health check passed."
     exit 0

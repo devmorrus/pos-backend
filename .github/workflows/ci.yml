@@ -40,6 +40,35 @@ jobs:
       - name: Build solution
         run: dotnet build MorrusPOS.sln --configuration Release --no-restore
 
+      - name: Validate observability compose and rules
+        env:
+          GRAFANA_ADMIN_PASSWORD: ci-only-password
+          ALERT_WEBHOOK_FILE: ./ops/observability/secrets/alert_webhook_url
+          MORRUS_APP_PASSWORD: password123
+          MORRUS_SYSTEM_PASSWORD: password123
+          MORRUS_MIGRATION_PASSWORD: password123
+          JWT_SECRET: ci-only-jwt-secret-minimum-32-characters
+        run: |
+          printf '%s\n' 'http://example.invalid/alerts' > "$ALERT_WEBHOOK_FILE"
+          docker compose -f docker-compose.yml -f ops/observability/docker-compose.observability.yml config >/dev/null
+          docker run --rm --entrypoint /bin/promtool \
+            -v "$PWD/ops/observability/prometheus:/etc/prometheus:ro" \
+            prom/prometheus:v2.55.1 check config /etc/prometheus/prometheus.yml
+          docker run --rm --entrypoint /bin/amtool \
+            -v "$PWD/ops/observability/alertmanager:/etc/alertmanager:ro" \
+            prom/alertmanager:v0.27.0 check-config /etc/alertmanager/alertmanager.yml
+          docker run --rm \
+            -v "$PWD/ops/observability/otel-collector/config.yml:/etc/otelcol-contrib/config.yml:ro" \
+            otel/opentelemetry-collector-contrib:0.113.0 \
+            validate --config=/etc/otelcol-contrib/config.yml
+          docker run --rm \
+            -v "$PWD/ops/observability/loki/config.yml:/etc/loki/config.yml:ro" \
+            grafana/loki:3.2.1 -config.file=/etc/loki/config.yml -verify-config=true
+          docker run --rm \
+            -v "$PWD/ops/observability/tempo/config.yml:/etc/tempo/config.yml:ro" \
+            grafana/tempo:2.6.1 -config.file=/etc/tempo/config.yml -config.verify=true
+          rm -f "$ALERT_WEBHOOK_FILE"
+
       - name: Prepare tenancy database
         env:
           PGPASSWORD: password123

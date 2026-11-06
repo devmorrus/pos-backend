@@ -7,10 +7,10 @@ services:
     environment:
       POSTGRES_DB: morrusposs
       POSTGRES_USER: morrus
-      POSTGRES_PASSWORD: ${MORRUS_MIGRATION_PASSWORD:-password123}
-      MORRUS_APP_PASSWORD: ${MORRUS_APP_PASSWORD:-password123}
-      MORRUS_SYSTEM_PASSWORD: ${MORRUS_SYSTEM_PASSWORD:-password123}
-      MORRUS_MIGRATION_PASSWORD: ${MORRUS_MIGRATION_PASSWORD:-password123}
+      POSTGRES_PASSWORD: ${MORRUS_MIGRATION_PASSWORD:?MORRUS_MIGRATION_PASSWORD wajib diisi}
+      MORRUS_APP_PASSWORD: ${MORRUS_APP_PASSWORD:?MORRUS_APP_PASSWORD wajib diisi}
+      MORRUS_SYSTEM_PASSWORD: ${MORRUS_SYSTEM_PASSWORD:?MORRUS_SYSTEM_PASSWORD wajib diisi}
+      MORRUS_MIGRATION_PASSWORD: ${MORRUS_MIGRATION_PASSWORD:?MORRUS_MIGRATION_PASSWORD wajib diisi}
     ports:
       - "127.0.0.1:5436:5432"
     volumes:
@@ -30,15 +30,28 @@ services:
     ports:
       - "8085:8080"
     environment:
-      - ConnectionStrings__DefaultConnection=Host=database;Port=5432;Database=morrusposs;Username=morrus_app;Password=${MORRUS_APP_PASSWORD:-password123}
-      - ConnectionStrings__SystemConnection=Host=database;Port=5432;Database=morrusposs;Username=morrus_system;Password=${MORRUS_SYSTEM_PASSWORD:-password123}
-      - ConnectionStrings__MigrationConnection=Host=database;Port=5432;Database=morrusposs;Username=morrus_migration;Password=${MORRUS_MIGRATION_PASSWORD:-password123}
-      - Jwt__Secret=mohammadhilmiafifi1234567890123456
+      - ConnectionStrings__DefaultConnection=Host=database;Port=5432;Database=morrusposs;Username=morrus_app;Password=${MORRUS_APP_PASSWORD:?MORRUS_APP_PASSWORD wajib diisi}
+      - ConnectionStrings__SystemConnection=Host=database;Port=5432;Database=morrusposs;Username=morrus_system;Password=${MORRUS_SYSTEM_PASSWORD:?MORRUS_SYSTEM_PASSWORD wajib diisi}
+      - ConnectionStrings__MigrationConnection=Host=database;Port=5432;Database=morrusposs;Username=morrus_migration;Password=${MORRUS_MIGRATION_PASSWORD:?MORRUS_MIGRATION_PASSWORD wajib diisi}
+      - Jwt__Secret=${JWT_SECRET:?JWT_SECRET wajib diisi}
       - Jwt__Issuer=MorrusPOS
       - Jwt__Audience=MorrusPOS.Client
       - Jwt__AccessTokenMinutes=60
       - Frontend__Url=https://pos.morrusdigitalconnecting.com,http://localhost:5173
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
+      - Observability__Enabled=${OBSERVABILITY_ENABLED:-false}
+      - Observability__ServiceName=morruspos-api
+      - Observability__OtlpEndpoint=http://otel-collector:4317
+      - Observability__TraceSampleRatio=${OTEL_TRACE_SAMPLE_RATIO:-1}
+      - SERVICE_VERSION=${SERVICE_VERSION:-local}
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    networks:
+      - default
+      - observability
     depends_on:
       database:
         condition: service_healthy
@@ -58,3 +71,7 @@ services:
 
 volumes:
   pgdata:
+
+networks:
+  observability:
+    internal: true

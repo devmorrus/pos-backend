@@ -1,0 +1,70 @@
+groups:
+  - name: morruspos-platform
+    rules:
+      - alert: MorrusPosApiTelemetryMissing
+        expr: absent(morrus_api_info{service_name="morruspos-api"})
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: MorrusPOS API tidak mengirim telemetry
+          description: API mati atau jalur OTLP terputus selama lebih dari dua menit.
+          runbook_url: docs/runbooks/api-down.md
+
+      - alert: MorrusPosDatabaseNotReady
+        expr: min(morrus_readiness{service_name="morruspos-api"}) == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: PostgreSQL MorrusPOS tidak ready
+          description: Readiness database bernilai nol selama lebih dari satu menit.
+          runbook_url: docs/runbooks/database-unavailable.md
+
+      - alert: MorrusPosStockIntegrityError
+        expr: increase(morrus_stock_integrity_errors_total[5m]) > 0
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: Stock integrity error terdeteksi
+          description: Pergerakan stok ditolak oleh proteksi integritas database.
+          runbook_url: docs/runbooks/stock-integrity.md
+
+      - alert: MorrusPosHighServerErrorRate
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(http_server_request_duration_seconds_count[5m])), 0.01) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: HTTP 5xx MorrusPOS melebihi 5 persen
+          description: Error rate server tinggi selama lima menit.
+          runbook_url: docs/runbooks/high-error-rate.md
+
+      - alert: MorrusPosHighLatency
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket[10m]))) > 2
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: p95 latency MorrusPOS di atas dua detik
+          description: Periksa endpoint lambat dan trace terkait.
+          runbook_url: docs/runbooks/high-error-rate.md
+
+      - alert: MorrusPosCollectorDroppingTelemetry
+        expr: rate(otelcol_exporter_send_failed_log_records[5m]) > 0 or rate(otelcol_exporter_send_failed_spans[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: OpenTelemetry Collector gagal mengirim data
+          description: Periksa Loki, Tempo, storage queue, dan kapasitas disk.
+          runbook_url: docs/runbooks/api-down.md
