@@ -19,6 +19,15 @@ Integration test sengaja gagal dengan pesan konfigurasi jika connection string t
 
 Coverage dan hasil TRX di CI diunggah sebagai artifact `backend-test-results`. Alur API utama yang dilindungi mencakup rotasi/revoke token serta onboarding → produk → stock opname → buka sesi → checkout idempotent → pengurangan stok → tutup sesi.
 
+### Menjalankan test concurrency checkout
+
+```bash
+dotnet test tests/MorrusPOS.IntegrationTests/MorrusPOS.IntegrationTests.csproj \
+  --filter "Category=Concurrency"
+```
+
+`CheckoutConcurrencyApiTests` menjalankan dua user Kasir dan dua sesi berbeda dengan request ID berbeda untuk membeli unit terakhir yang sama. Test barrier berhenti setelah kedua request sama-sama membaca stok tersedia, lalu melepas keduanya ke `StockService` dan trigger PostgreSQL nyata. Syarat lulusnya: tepat satu HTTP `201`, satu `400 STOCK_MOVEMENT_INVALID`, stok akhir nol, dan hanya satu transaction, payment, sale ledger, idempotency receipt, serta jurnal seimbang yang tersimpan.
+
 ---
 
 ## 🧪 1. Jenis Testing yang Direkomendasikan
@@ -42,7 +51,7 @@ Dalam Clean Architecture, kita membagi testing menjadi dua kategori utama:
 * **Alat**: 
   * **xUnit**: Runner pengujian standar.
   * **NSubstitute**: Pustaka modern untuk membuat objek palsu (Mock) dari interface.
-  * **EF Core SQLite In-Memory**: Menggunakan SQLite di memori komputer sebagai database tiruan agar pengujian database sangat cepat.
+  * **EF Core InMemory**: Provider ringan untuk pengujian logika service; perilaku relasional PostgreSQL tetap diuji di integration project.
   * **FluentAssertions**: Menulis assertion pengujian dengan gaya bahasa natural (contoh: `result.Name.Should().Be("Chiki")`).
 
 ### B. Integration & API Testing (MorrusPOS.IntegrationTests)
