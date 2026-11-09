@@ -81,6 +81,13 @@ public class OutletsController : ControllerBase
             return Conflict("Kode cabang sudah digunakan.");
         }
 
+        var locationCodeExists = await _dbContext.StockLocations
+            .AnyAsync(l => l.Code.ToLower() == normalized.Code.ToLower(), ct);
+        if (locationCodeExists)
+        {
+            return Conflict("Kode cabang sudah digunakan oleh lokasi stok lain.");
+        }
+
         var outlet = new Outlet
         {
             Id = Guid.NewGuid(),
@@ -94,6 +101,19 @@ public class OutletsController : ControllerBase
         };
 
         _dbContext.Outlets.Add(outlet);
+        _dbContext.StockLocations.Add(new StockLocation
+        {
+            Id = outlet.Id,
+            Type = StockLocationTypes.Outlet,
+            Code = outlet.Code,
+            Name = outlet.Name,
+            OutletId = outlet.Id,
+            Address = outlet.Address,
+            Phone = outlet.Phone,
+            IsActive = true,
+            CreatedAt = outlet.CreatedAt,
+            UpdatedAt = outlet.UpdatedAt,
+        });
 
         var products = await _dbContext.Products
             .AsNoTracking()
@@ -111,7 +131,7 @@ public class OutletsController : ControllerBase
                         Id = Guid.NewGuid(),
                         ProductId = p.Id,
                         ProductVariantId = variantId,
-                        OutletId = outlet.Id,
+                        StockLocationId = outlet.Id,
                         QtyOnHand = 0,
                         MinStockAlert = 0,
                         UpdatedAt = now
@@ -149,6 +169,13 @@ public class OutletsController : ControllerBase
             return Conflict("Kode cabang sudah digunakan.");
         }
 
+        var locationCodeExists = await _dbContext.StockLocations
+            .AnyAsync(l => l.Id != id && l.Code.ToLower() == normalized.Code.ToLower(), ct);
+        if (locationCodeExists)
+        {
+            return Conflict("Kode cabang sudah digunakan oleh lokasi stok lain.");
+        }
+
         if (!normalized.IsActive && outlet.IsActive)
         {
             var hasActiveUsers = await _dbContext.Users
@@ -166,6 +193,27 @@ public class OutletsController : ControllerBase
         outlet.Phone = normalized.Phone;
         outlet.IsActive = normalized.IsActive;
         outlet.UpdatedAt = DateTime.UtcNow;
+
+        var stockLocation = await _dbContext.StockLocations
+            .FirstOrDefaultAsync(l => l.Id == id, ct);
+        if (stockLocation is null)
+        {
+            stockLocation = new StockLocation
+            {
+                Id = outlet.Id,
+                Type = StockLocationTypes.Outlet,
+                OutletId = outlet.Id,
+                CreatedAt = outlet.CreatedAt,
+            };
+            _dbContext.StockLocations.Add(stockLocation);
+        }
+
+        stockLocation.Code = outlet.Code;
+        stockLocation.Name = outlet.Name;
+        stockLocation.Address = outlet.Address;
+        stockLocation.Phone = outlet.Phone;
+        stockLocation.IsActive = outlet.IsActive;
+        stockLocation.UpdatedAt = outlet.UpdatedAt;
 
         await _dbContext.SaveChangesAsync(ct);
 

@@ -41,7 +41,7 @@ public class OnlineStockAvailabilityService : IOnlineStockAvailabilityService
     {
         var stocks = await _dbContext.InventoryStocks
             .AsNoTracking()
-            .Where(s => s.OutletId == outletId && s.Product.TrackingMode != ProductTrackingModes.None)
+            .Where(s => s.StockLocationId == outletId && s.Product.TrackingMode != ProductTrackingModes.None)
             .Select(s => new
             {
                 s.ProductId,

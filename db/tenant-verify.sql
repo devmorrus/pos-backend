@@ -159,7 +159,7 @@ BEGIN
             FROM product_serials serial
             WHERE serial."BusinessId"=stock."BusinessId"
               AND serial."ProductId"=stock."ProductId"
-              AND serial."OutletId"=stock."OutletId"
+              AND serial."StockLocationId"=stock."StockLocationId"
               AND serial."ProductVariantId" IS NOT DISTINCT FROM stock."ProductVariantId"
               AND serial."Status"='available'
         ) serial_count ON true
@@ -178,7 +178,7 @@ BEGIN
             FROM "ProductBatches" batch
             WHERE batch."BusinessId"=stock."BusinessId"
               AND batch."ProductId"=stock."ProductId"
-              AND batch."OutletId"=stock."OutletId"
+              AND batch."StockLocationId"=stock."StockLocationId"
               AND batch."ProductVariantId" IS NOT DISTINCT FROM stock."ProductVariantId"
         ) batch_total ON true
         WHERE product."TrackingMode"='batch' AND stock."QtyOnHand"<>batch_total.qty)
@@ -212,11 +212,11 @@ BEGIN
 
     IF to_regclass('public.stock_reconciliation_runs') IS NOT NULL AND EXISTS (
         WITH ledger AS (
-            SELECT "BusinessId","OutletId","ProductId","ProductVariantId",sum("QtyChange") qty
-            FROM stock_ledger GROUP BY "BusinessId","OutletId","ProductId","ProductVariantId")
+            SELECT "BusinessId","StockLocationId","ProductId","ProductVariantId",sum("QtyChange") qty
+            FROM stock_ledger GROUP BY "BusinessId","StockLocationId","ProductId","ProductVariantId")
         SELECT 1 FROM inventory_stock s
         JOIN products p ON p."BusinessId"=s."BusinessId" AND p."Id"=s."ProductId"
-        LEFT JOIN ledger l ON l."BusinessId"=s."BusinessId" AND l."OutletId"=s."OutletId"
+        LEFT JOIN ledger l ON l."BusinessId"=s."BusinessId" AND l."StockLocationId"=s."StockLocationId"
           AND l."ProductId"=s."ProductId"
           AND l."ProductVariantId" IS NOT DISTINCT FROM s."ProductVariantId"
         WHERE p."TrackingMode"<>'none' AND s."QtyOnHand"<>coalesce(l.qty,0))
@@ -307,6 +307,56 @@ BEGIN
           AND NOT (c.relrowsecurity AND c.relforcerowsecurity))
     THEN
         RAISE EXCEPTION 'Accounting verification failed: account mapping table is not RLS protected';
+    END IF;
+
+    IF to_regclass('public.stock_locations') IS NOT NULL AND EXISTS (
+        SELECT 1 FROM outlets o
+        LEFT JOIN stock_locations l ON l."Id"=o."Id"
+        WHERE l."Id" IS NULL OR l."Type"<>'outlet'
+           OR l."OutletId" IS DISTINCT FROM o."Id"
+           OR l."BusinessId"<>o."BusinessId")
+    THEN
+        RAISE EXCEPTION 'Stock location verification failed: outlet stock location is missing or invalid';
+    END IF;
+
+    IF to_regclass('public.stock_locations') IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+        WHERE n.nspname='public' AND p.proname='fn_update_inventory_stock'
+          AND pg_get_functiondef(p.oid) LIKE '%StockLocationId%')
+    THEN
+        RAISE EXCEPTION 'Stock location verification failed: inventory projection still uses outlet columns';
+    END IF;
+
+    IF to_regclass('public.stock_locations') IS NOT NULL
+       AND NOT has_table_privilege('morrus_system','stock_locations','INSERT')
+    THEN
+        RAISE EXCEPTION 'Stock location verification failed: provisioning role cannot create outlet locations';
+    END IF;
+
+    IF to_regclass('public.pos_devices') IS NOT NULL AND EXISTS (
+        SELECT 1 FROM pos_devices d
+        JOIN pos_registers pr ON pr."Id"=d."RegisterId"
+        WHERE d."BusinessId"<>pr."BusinessId"
+           OR (d."Status"='active' AND (d."CredentialHash" IS NULL OR NOT pr."IsActive")))
+    THEN
+        RAISE EXCEPTION 'POS device verification failed: active device is not bound to an active register';
+    END IF;
+
+    IF to_regclass('public.pos_device_pairing_codes') IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE schemaname='public' AND tablename='pos_device_pairing_codes'
+          AND indexname='IX_pos_device_pairing_codes_BusinessId_CodeHash')
+    THEN
+        RAISE EXCEPTION 'POS device verification failed: pairing code hash index is missing';
+    END IF;
+
+    IF to_regclass('public.cashier_sessions') IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE schemaname='public' AND tablename='cashier_sessions'
+          AND indexname='IX_cashier_sessions_RegisterId'
+          AND indexdef LIKE '%UNIQUE%' AND indexdef LIKE '%"RegisterId" IS NOT NULL%')
+    THEN
+        RAISE EXCEPTION 'POS session verification failed: open-session-per-register guard is missing';
     END IF;
 END
 $verify$;

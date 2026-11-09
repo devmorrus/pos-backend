@@ -19,7 +19,7 @@ public class StockService : IStockService
 
     public async Task AddMovementAsync(
         Guid productId,
-        Guid outletId,
+        Guid stockLocationId,
         decimal qtyChange,
         string movementType,
         string referenceType,
@@ -44,7 +44,7 @@ public class StockService : IStockService
             throw new StockIntegrityException(StockIntegrityErrorCodes.MovementInvalid,
                 "Produk tanpa tracking stok tidak boleh memiliki ledger.");
 
-        var postingKey = BuildPostingKey(productId, outletId, movementType, referenceType,
+        var postingKey = BuildPostingKey(productId, stockLocationId, movementType, referenceType,
             referenceId, operationId ?? documentItemId ?? referenceId,
             productVariantId, productBatchId, productSerialId);
         var local = _dbContext.StockLedgers.Local.FirstOrDefault(x => x.PostingKey == postingKey);
@@ -53,7 +53,7 @@ public class StockService : IStockService
         if (existing is not null)
         {
             if (existing.ProductId != productId || existing.ProductVariantId != productVariantId ||
-                existing.OutletId != outletId || existing.ProductBatchId != productBatchId ||
+                existing.StockLocationId != stockLocationId || existing.ProductBatchId != productBatchId ||
                 existing.ProductSerialId != productSerialId || existing.MovementType != movementType ||
                 existing.QtyChange != qtyChange || existing.ReferenceType != referenceType ||
                 existing.ReferenceId != referenceId)
@@ -68,7 +68,7 @@ public class StockService : IStockService
             Id = Guid.NewGuid(),
             ProductId = productId,
             ProductVariantId = productVariantId,
-            OutletId = outletId,
+            StockLocationId = stockLocationId,
             ProductBatchId = productBatchId,
             ProductSerialId = productSerialId,
             DocumentItemId = documentItemId,
@@ -89,7 +89,7 @@ public class StockService : IStockService
         if (_dbContext.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
         {
             var stock = await _dbContext.InventoryStocks
-                .FirstOrDefaultAsync(s => s.ProductId == productId && s.ProductVariantId == productVariantId && s.OutletId == outletId, ct);
+                .FirstOrDefaultAsync(s => s.ProductId == productId && s.ProductVariantId == productVariantId && s.StockLocationId == stockLocationId, ct);
 
             if (stock == null)
             {
@@ -98,7 +98,7 @@ public class StockService : IStockService
                     Id = Guid.NewGuid(),
                     ProductId = productId,
                     ProductVariantId = productVariantId,
-                    OutletId = outletId,
+                    StockLocationId = stockLocationId,
                     QtyOnHand = qtyChange,
                     MinStockAlert = 0,
                     UpdatedAt = DateTime.UtcNow
@@ -130,10 +130,10 @@ public class StockService : IStockService
     }
 
     private static string BuildPostingKey(
-        Guid productId, Guid outletId, string movementType, string referenceType,
+        Guid productId, Guid stockLocationId, string movementType, string referenceType,
         Guid referenceId, Guid operationId, Guid? variantId, Guid? batchId, Guid? serialId)
         => string.Join('/', referenceType, referenceId.ToString("N"), movementType,
-            operationId.ToString("N"), outletId.ToString("N"), productId.ToString("N"),
+            operationId.ToString("N"), stockLocationId.ToString("N"), productId.ToString("N"),
             variantId?.ToString("N") ?? "base", batchId?.ToString("N") ?? "no-batch",
             serialId?.ToString("N") ?? "no-serial");
 }

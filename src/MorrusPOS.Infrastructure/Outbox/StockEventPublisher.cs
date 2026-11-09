@@ -22,7 +22,7 @@ public sealed class StockEventPublisher : IStockEventPublisher
     }
 
     public async Task EnqueueCurrentStockAsync(
-        Guid outletId,
+        Guid stockLocationId,
         IReadOnlyCollection<StockEventKey> items,
         string deduplicationKey,
         CancellationToken ct = default)
@@ -33,15 +33,23 @@ public sealed class StockEventPublisher : IStockEventPublisher
         if (keys.Length == 0)
             return;
 
+        var location = await _db.StockLocations.AsNoTracking()
+            .Where(x => x.Id == stockLocationId)
+            .Select(x => new { x.Id, x.OutletId, x.Type })
+            .FirstOrDefaultAsync(ct)
+            ?? throw new InvalidOperationException("Lokasi stock event tidak valid.");
+
         var productIds = keys.Select(x => x.ProductId).Distinct().ToArray();
         var stocks = await _db.InventoryStocks.AsNoTracking()
-            .Where(x => x.OutletId == outletId && productIds.Contains(x.ProductId))
+            .Where(x => x.StockLocationId == stockLocationId && productIds.Contains(x.ProductId))
             .Select(x => new { x.ProductId, x.ProductVariantId, x.QtyOnHand })
             .ToListAsync(ct);
         var stockMap = stocks.ToDictionary(x => new StockEventKey(x.ProductId, x.ProductVariantId), x => x.QtyOnHand);
-        var payload = new StockUpdatedEventV1(
-            outletId,
-            keys.Select(key => new StockLevelV1(
+        var payload = new StockUpdatedEventV2(
+            location.Id,
+            location.OutletId,
+            location.Type,
+            keys.Select(key => new StockLevelV2(
                 key.ProductId,
                 key.ProductVariantId,
                 stockMap.GetValueOrDefault(key))).ToArray());
@@ -50,9 +58,9 @@ public sealed class StockEventPublisher : IStockEventPublisher
         await _outbox.EnqueueAsync(new OutboxWriteRequest(
             Guid.NewGuid(),
             businessId,
-            outletId,
+            location.OutletId,
             OutboxEventTypes.StockUpdated,
-            1,
+            2,
             JsonSerializer.Serialize(payload, JsonOptions),
             deduplicationKey,
             Activity.Current?.TraceId.ToString(),

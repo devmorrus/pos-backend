@@ -72,7 +72,7 @@ public class BufferStockServiceTests
         db.InventoryStocks.Add(new InventoryStock
         {
             Id = Guid.NewGuid(),
-            OutletId = outletId,
+            StockLocationId = outletId,
             ProductId = productId,
             QtyOnHand = 10,
             MinStockAlert = 0,
@@ -160,7 +160,7 @@ public class BufferStockServiceTests
         db.InventoryStocks.Add(new InventoryStock
         {
             Id = Guid.NewGuid(),
-            OutletId = outletId,
+            StockLocationId = outletId,
             ProductId = productId,
             QtyOnHand = 2,
             MinStockAlert = 0,
@@ -197,7 +197,7 @@ public class BufferStockServiceTests
         db.InventoryStocks.Add(new InventoryStock
         {
             Id = Guid.NewGuid(),
-            OutletId = outletId,
+            StockLocationId = outletId,
             ProductId = productId,
             ProductVariantId = variantId,
             QtyOnHand = 5,
@@ -230,7 +230,7 @@ public class BufferStockServiceTests
         db.InventoryStocks.Add(new InventoryStock
         {
             Id = Guid.NewGuid(),
-            OutletId = outletId,
+            StockLocationId = outletId,
             ProductId = productId,
             QtyOnHand = 8,
             MinStockAlert = 0,

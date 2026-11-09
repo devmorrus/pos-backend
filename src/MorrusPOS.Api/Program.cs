@@ -46,6 +46,11 @@ using MorrusPOS.Application.Common.Events;
 using MorrusPOS.Api.Outbox;
 
 var builder = WebApplication.CreateBuilder(args);
+var deviceEnforcement = builder.Configuration["Pos:DeviceEnforcement"]
+    ?? PosDeviceMiddleware.EnforcementReportOnly;
+if (deviceEnforcement is not PosDeviceMiddleware.EnforcementReportOnly
+    and not PosDeviceMiddleware.EnforcementRequired)
+    throw new InvalidOperationException("Pos:DeviceEnforcement harus report_only atau required.");
 builder.AddMorrusObservability();
 
 // ---- Layer registration ----
@@ -110,7 +115,10 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentUserService>();
 builder.Services.AddScoped<ICurrentUserService>(sp => sp.GetRequiredService<CurrentUserService>());
 builder.Services.AddScoped<ITenantContextSetter>(sp => sp.GetRequiredService<CurrentUserService>());
+builder.Services.AddScoped<PosDeviceContext>();
+builder.Services.AddScoped<IPosDeviceContext>(sp => sp.GetRequiredService<PosDeviceContext>());
 builder.Services.AddScoped<IOutboxEventHandler, SignalRStockUpdatedEventHandler>();
+builder.Services.AddScoped<IOutboxEventHandler, SignalRStockUpdatedV2EventHandler>();
 builder.Services.AddHostedService<OutboxDispatcherBackgroundService>();
 builder.Services.Configure<QueueMonitoringOptions>(
     builder.Configuration.GetSection(QueueMonitoringOptions.SectionName));
@@ -168,6 +176,7 @@ builder.Services.AddScoped<IAuthorizationHandler, CapabilityAuthorizationHandler
 builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationMiddlewareResultHandler,
     CapabilityAuthorizationResultHandler>();
 builder.Services.AddScoped<CapabilityOutletActionFilter>();
+builder.Services.AddScoped<StockLocationAccessResolver>();
 
 // ---- Controllers & Swagger ----
 builder.Services.AddControllers(options =>
@@ -315,6 +324,7 @@ app.UseMiddleware<SubscriptionVerificationMiddleware>();
 // Guard multi-tenant: pastikan user hanya bisa akses data outlet-nya sendiri
 // (kecuali Owner, yang outlet_id-nya null di JWT claim)
 app.UseMiddleware<OutletTenantMiddleware>();
+app.UseMiddleware<PosDeviceMiddleware>();
 
 app.MapControllers();
 app.MapHub<NotificationHub>("/hub/notifications");

@@ -42,10 +42,10 @@ public class ProductService : IProductService
         }
 
         Guid? outletId = _currentUserService.OutletId
-            ?? product.InventoryStocks.Select(stock => (Guid?)stock.OutletId).FirstOrDefault();
-        var stock = product.InventoryStocks.FirstOrDefault(s => s.OutletId == outletId && s.ProductVariantId == null);
+            ?? product.InventoryStocks.Select(stock => (Guid?)stock.StockLocationId).FirstOrDefault();
+        var stock = product.InventoryStocks.FirstOrDefault(s => s.StockLocationId == outletId && s.ProductVariantId == null);
         var qtyOnHand = product.HasVariants
-            ? product.InventoryStocks.Where(s => s.OutletId == outletId && s.ProductVariantId != null).Sum(s => s.QtyOnHand)
+            ? product.InventoryStocks.Where(s => s.StockLocationId == outletId && s.ProductVariantId != null).Sum(s => s.QtyOnHand)
             : stock?.QtyOnHand ?? 0;
 
         return MapToDto(product, qtyOnHand, outletId);
@@ -65,9 +65,9 @@ public class ProductService : IProductService
             .ToListAsync(ct);
 
         return products.Select(p => {
-            var stock = p.InventoryStocks.FirstOrDefault(s => s.OutletId == outletId && s.ProductVariantId == null);
+            var stock = p.InventoryStocks.FirstOrDefault(s => s.StockLocationId == outletId && s.ProductVariantId == null);
             var qtyOnHand = p.HasVariants
-                ? p.InventoryStocks.Where(s => s.OutletId == outletId && s.ProductVariantId != null).Sum(s => s.QtyOnHand)
+                ? p.InventoryStocks.Where(s => s.StockLocationId == outletId && s.ProductVariantId != null).Sum(s => s.QtyOnHand)
                 : stock?.QtyOnHand ?? 0;
             return MapToDto(p, qtyOnHand, outletId);
         }).ToList();
@@ -148,7 +148,7 @@ public class ProductService : IProductService
             _dbContext.InventoryStocks.Add(new InventoryStock
             {
                 Id = Guid.NewGuid(),
-                OutletId = outlet.Id,
+                StockLocationId = outlet.Id,
                 ProductId = newProduct.Id,
                 QtyOnHand = 0,
                 MinStockAlert = 0,
@@ -214,7 +214,7 @@ public class ProductService : IProductService
                     _dbContext.InventoryStocks.Add(new InventoryStock
                     {
                         Id = Guid.NewGuid(),
-                        OutletId = outlet.Id,
+                        StockLocationId = outlet.Id,
                         ProductId = newProduct.Id,
                         ProductVariantId = variant.Id,
                         QtyOnHand = 0,
@@ -500,7 +500,7 @@ public class ProductService : IProductService
                         _dbContext.InventoryStocks.Add(new InventoryStock
                         {
                             Id = Guid.NewGuid(),
-                            OutletId = outlet.Id,
+                            StockLocationId = outlet.Id,
                             ProductId = product.Id,
                             ProductVariantId = variant.Id,
                             QtyOnHand = 0,
@@ -646,7 +646,7 @@ public class ProductService : IProductService
             )
             {
                 QtyOnHand = outletId.HasValue
-                    ? p.InventoryStocks.FirstOrDefault(s => s.OutletId == outletId && s.ProductVariantId == v.Id)?.QtyOnHand ?? 0
+                    ? p.InventoryStocks.FirstOrDefault(s => s.StockLocationId == outletId && s.ProductVariantId == v.Id)?.QtyOnHand ?? 0
                     : 0
             }).ToList(),
             p.TrackingMode
@@ -663,7 +663,7 @@ public class ProductService : IProductService
         var product = await _dbContext.Products.AsNoTracking().SingleOrDefaultAsync(x => x.Id == productId, ct)
             ?? throw new KeyNotFoundException("Produk tidak ditemukan.");
         var stock = await _dbContext.InventoryStocks.AsNoTracking()
-            .Where(x => x.ProductId == productId && x.ProductVariantId == productVariantId && x.OutletId == outletId)
+            .Where(x => x.ProductId == productId && x.ProductVariantId == productVariantId && x.StockLocationId == outletId)
             .Select(x => (decimal?)x.QtyOnHand).FirstOrDefaultAsync(ct) ?? 0;
         var safeTake = Math.Clamp(take, 1, 100);
         var term = search?.Trim();
@@ -671,7 +671,7 @@ public class ProductService : IProductService
         var batches = product.TrackingMode == ProductTrackingModes.Batch
             ? await _dbContext.ProductBatches.AsNoTracking()
                 .Where(x => x.ProductId == productId && x.ProductVariantId == productVariantId &&
-                            x.OutletId == outletId && (includeUnavailable || (x.QtyRemaining > 0 &&
+                            x.StockLocationId == outletId && (includeUnavailable || (x.QtyRemaining > 0 &&
                             (!x.ExpiryDate.HasValue || x.ExpiryDate.Value.Date >= DateTime.UtcNow.Date))) &&
                             (string.IsNullOrEmpty(term) || x.BatchNumber.Contains(term)))
                 .OrderBy(x => x.ExpiryDate == null).ThenBy(x => x.ExpiryDate).ThenBy(x => x.CreatedAt)
@@ -682,7 +682,7 @@ public class ProductService : IProductService
         var serials = product.TrackingMode == ProductTrackingModes.Serial
             ? await _dbContext.ProductSerials.AsNoTracking()
                 .Where(x => x.ProductId == productId && x.ProductVariantId == productVariantId &&
-                            x.OutletId == outletId && x.Status == ProductSerialStatuses.Available &&
+                            x.StockLocationId == outletId && x.Status == ProductSerialStatuses.Available &&
                             (string.IsNullOrEmpty(term) || x.NormalizedSerialNumber.Contains(term!.ToUpper())))
                 .OrderBy(x => x.SerialNumber).Take(safeTake)
                 .Select(x => new ProductSerialOptionDto(x.Id, x.SerialNumber)).ToListAsync(ct)
@@ -757,7 +757,7 @@ public class ProductService : IProductService
                     Id = Guid.NewGuid(),
                     ProductId = product.Id,
                     ProductVariantId = variantId,
-                    OutletId = outlet.Id,
+                    StockLocationId = outlet.Id,
                     QtyOnHand = 0,
                     MinStockAlert = 0,
                     UpdatedAt = DateTime.UtcNow

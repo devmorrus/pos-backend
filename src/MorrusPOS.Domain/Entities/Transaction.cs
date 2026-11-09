@@ -34,6 +34,14 @@ public class Transaction : BaseEntity
     public Guid? CashierSessionId { get; set; }
     public CashierSession? CashierSession { get; set; }
 
+    // Snapshot identitas POS. Null untuk transaksi channel online/GoBiz.
+    public Guid? RegisterId { get; set; }
+    public PosRegister? Register { get; set; }
+    public Guid? DeviceId { get; set; }
+    public PosDevice? Device { get; set; }
+    public Guid? StockLocationId { get; set; }
+    public StockLocation? StockLocation { get; set; }
+
     public Guid? CustomerId { get; set; }
     public Customer? Customer { get; set; }
 

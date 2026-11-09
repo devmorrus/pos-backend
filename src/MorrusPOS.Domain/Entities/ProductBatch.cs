@@ -13,8 +13,8 @@ public class ProductBatch : AuditableEntity
     public Guid? ProductVariantId { get; set; }
     public ProductVariant? ProductVariant { get; set; }
 
-    public Guid OutletId { get; set; }
-    public Outlet Outlet { get; set; } = default!;
+    public Guid StockLocationId { get; set; }
+    public StockLocation StockLocation { get; set; } = default!;
 
     public string BatchNumber { get; set; } = default!;
     public DateTime? ExpiryDate { get; set; }

@@ -102,6 +102,8 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
             cleanup.CommandText = """
                 delete from outlet_capability_overrides where "BusinessId"=@business;
                 delete from users where "Id"=@user;
+                delete from stock_locations where "OutletId"=@outlet;
+
                 delete from outlets where "Id"=@outlet;
                 delete from businesses where "Id"=@business;
                 """;
@@ -238,6 +240,8 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
                 delete from users where "BusinessId"=@business;
                 delete from accounting_account_mappings where "BusinessId"=@business;
                 delete from chart_of_accounts where "BusinessId"=@business;
+                delete from stock_locations where "BusinessId"=@business;
+
                 delete from outlets where "BusinessId"=@business;
                 delete from businesses where "Id"=@business;
                 """;
@@ -364,6 +368,8 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
                 delete from outlet_capability_overrides where "BusinessId"=@business;
                 delete from cashier_sessions where "Id"=@cashierSession;
                 delete from users where "Id"=@user;
+                delete from stock_locations where "OutletId" in (@outlet,@disabledOutlet);
+
                 delete from outlets where "Id" in (@outlet,@disabledOutlet);
                 delete from businesses where "Id"=@business;
                 """;
@@ -502,6 +508,8 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
             await using var cleanup = admin.CreateCommand();
             cleanup.CommandText = """
                 delete from users where "Id"=@userA;
+                delete from stock_locations where "OutletId" in (@outletA,@outletB);
+
                 delete from outlets where "Id" in (@outletA,@outletB);
                 delete from businesses where "Id" in (@businessA,@businessB);
                 """;
@@ -556,6 +564,8 @@ public class CapabilityControllerTests : IClassFixture<WebApplicationFactory<Pro
             delete from users where "BusinessId"=@business;
             delete from accounting_account_mappings where "BusinessId"=@business;
             delete from chart_of_accounts where "BusinessId"=@business;
+            delete from stock_locations where "BusinessId"=@business;
+
             delete from outlets where "BusinessId"=@business;
             delete from businesses where "Id"=@business;
             """;

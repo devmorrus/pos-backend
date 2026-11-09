@@ -4,7 +4,7 @@ public interface IStockService
 {
     Task AddMovementAsync(
         Guid productId,
-        Guid outletId,
+        Guid stockLocationId,
         decimal qtyChange,
         string movementType,
         string referenceType,

@@ -39,16 +39,17 @@ public class StockOpnameServiceTests
         var catId = Guid.NewGuid();
 
         _dbContext.Outlets.Add(new Outlet { Id = outletId, Code = "OUT-1", Name = "Main Outlet", IsActive = true });
+        _dbContext.StockLocations.Add(new StockLocation { Id = outletId, Type = StockLocationTypes.Outlet, Code = "LOC-1", Name = "Main Outlet", OutletId = outletId });
         _dbContext.Users.Add(new User { Id = userId, Name = "Admin 1", Email = "a1@morruspos.com", PasswordHash = "hash", RoleId = Guid.NewGuid() });
         _dbContext.Categories.Add(new Category { Id = catId, Name = "Snack" });
         _dbContext.Products.Add(new Product { Id = prodId, CategoryId = catId, Sku = "SKU-1", Name = "Chiki", BasePrice = 10000, CostPrice = 8000, Unit = "pcs", IsActive = true });
-        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), OutletId = outletId, ProductId = prodId, QtyOnHand = 10, MinStockAlert = 0 });
+        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), StockLocationId = outletId, ProductId = prodId, QtyOnHand = 10, MinStockAlert = 0 });
         await _dbContext.SaveChangesAsync();
 
         var service = new StockOpnameService(_dbContext, _stockServiceMock, _notificationServiceMock);
 
         var request = new CreateStockOpnameRequest(
-            OutletId: outletId,
+            StockLocationId: outletId,
             Items: new List<StockOpnameItemRequest>
             {
                 new(prodId, PhysicalQty: 15) // Variance: 15 - 10 = +5
@@ -66,7 +67,7 @@ public class StockOpnameServiceTests
         // Verify stock service call
         await _stockServiceMock.Received(1).AddMovementAsync(
             productId: prodId,
-            outletId: outletId,
+            stockLocationId: outletId,
             qtyChange: 5,
             movementType: "opname_adjustment",
             referenceType: "stock_opname",
@@ -97,16 +98,17 @@ public class StockOpnameServiceTests
         var catId = Guid.NewGuid();
 
         _dbContext.Outlets.Add(new Outlet { Id = outletId, Code = "OUT-1", Name = "Main Outlet", IsActive = true });
+        _dbContext.StockLocations.Add(new StockLocation { Id = outletId, Type = StockLocationTypes.Outlet, Code = "LOC-1", Name = "Main Outlet", OutletId = outletId });
         _dbContext.Users.Add(new User { Id = userId, Name = "Admin 1", Email = "a1@morruspos.com", PasswordHash = "hash", RoleId = Guid.NewGuid() });
         _dbContext.Categories.Add(new Category { Id = catId, Name = "Snack" });
         _dbContext.Products.Add(new Product { Id = prodId, CategoryId = catId, Sku = "SKU-1", Name = "Chiki", BasePrice = 10000, CostPrice = 8000, Unit = "pcs", IsActive = true });
-        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), OutletId = outletId, ProductId = prodId, QtyOnHand = 10, MinStockAlert = 0 });
+        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), StockLocationId = outletId, ProductId = prodId, QtyOnHand = 10, MinStockAlert = 0 });
         await _dbContext.SaveChangesAsync();
 
         var service = new StockOpnameService(_dbContext, _stockServiceMock, _notificationServiceMock);
 
         var request = new CreateStockOpnameRequest(
-            OutletId: outletId,
+            StockLocationId: outletId,
             Items: new List<StockOpnameItemRequest>
             {
                 new(prodId, PhysicalQty: 10) // Variance: 10 - 10 = 0
@@ -123,7 +125,7 @@ public class StockOpnameServiceTests
         // Verify NO stock service or notification call
         await _stockServiceMock.DidNotReceiveWithAnyArgs().AddMovementAsync(
             productId: default,
-            outletId: default,
+            stockLocationId: default,
             qtyChange: default,
             movementType: default!,
             referenceType: default!,
@@ -146,6 +148,7 @@ public class StockOpnameServiceTests
         var batchId = Guid.NewGuid();
 
         _dbContext.Outlets.Add(new Outlet { Id = outletId, Code = "OUT-1", Name = "Main Outlet", IsActive = true });
+        _dbContext.StockLocations.Add(new StockLocation { Id = outletId, Type = StockLocationTypes.Outlet, Code = "LOC-1", Name = "Main Outlet", OutletId = outletId });
         _dbContext.Users.Add(new User { Id = userId, Name = "Admin 1", Email = "a1@morruspos.com", PasswordHash = "hash", RoleId = Guid.NewGuid() });
         _dbContext.Categories.Add(new Category { Id = catId, Name = "Snack" });
         _dbContext.Products.Add(new Product
@@ -156,7 +159,7 @@ public class StockOpnameServiceTests
         });
         _dbContext.ProductBatches.Add(new ProductBatch
         {
-            Id = batchId, ProductId = prodId, OutletId = outletId,
+            Id = batchId, ProductId = prodId, StockLocationId = outletId,
             BatchNumber = "B-001", QtyProduction = 10, QtyRemaining = 4
         });
         await _dbContext.SaveChangesAsync();
@@ -179,7 +182,7 @@ public class StockOpnameServiceTests
 
         await _stockServiceMock.Received(1).AddMovementAsync(
             productId: prodId,
-            outletId: outletId,
+            stockLocationId: outletId,
             qtyChange: 2,
             movementType: "opname_adjustment",
             referenceType: "stock_opname",
@@ -205,6 +208,7 @@ public class StockOpnameServiceTests
         var missingSerialId = Guid.NewGuid();
 
         _dbContext.Outlets.Add(new Outlet { Id = outletId, Code = "OUT-1", Name = "Main Outlet", IsActive = true });
+        _dbContext.StockLocations.Add(new StockLocation { Id = outletId, Type = StockLocationTypes.Outlet, Code = "LOC-1", Name = "Main Outlet", OutletId = outletId });
         _dbContext.Users.Add(new User { Id = userId, Name = "Admin 1", Email = "a1@morruspos.com", PasswordHash = "hash", RoleId = Guid.NewGuid() });
         _dbContext.Categories.Add(new Category { Id = catId, Name = "Electronics" });
         _dbContext.Products.Add(new Product
@@ -216,12 +220,12 @@ public class StockOpnameServiceTests
         _dbContext.ProductSerials.AddRange(
             new ProductSerial
             {
-                Id = presentSerialId, ProductId = prodId, OutletId = outletId,
+                Id = presentSerialId, ProductId = prodId, StockLocationId = outletId,
                 SerialNumber = "IMEI-1", NormalizedSerialNumber = "IMEI-1", Status = ProductSerialStatuses.Available
             },
             new ProductSerial
             {
-                Id = missingSerialId, ProductId = prodId, OutletId = outletId,
+                Id = missingSerialId, ProductId = prodId, StockLocationId = outletId,
                 SerialNumber = "IMEI-2", NormalizedSerialNumber = "IMEI-2", Status = ProductSerialStatuses.Available
             });
         await _dbContext.SaveChangesAsync();
@@ -245,7 +249,7 @@ public class StockOpnameServiceTests
 
         await _stockServiceMock.Received(1).AddMovementAsync(
             productId: prodId,
-            outletId: outletId,
+            stockLocationId: outletId,
             qtyChange: -1,
             movementType: "opname_adjustment",
             referenceType: "stock_opname",

@@ -33,6 +33,12 @@ public sealed record OutboxDeliveryMessage(
 public sealed record StockEventKey(Guid ProductId, Guid? ProductVariantId = null);
 public sealed record StockLevelV1(Guid ProductId, Guid? ProductVariantId, decimal QtyOnHand);
 public sealed record StockUpdatedEventV1(Guid OutletId, IReadOnlyList<StockLevelV1> Items);
+public sealed record StockLevelV2(Guid ProductId, Guid? ProductVariantId, decimal QtyOnHand);
+public sealed record StockUpdatedEventV2(
+    Guid StockLocationId,
+    Guid? OutletId,
+    string LocationType,
+    IReadOnlyList<StockLevelV2> Items);
 
 public sealed class OutboxPermanentFailureException : Exception
 {

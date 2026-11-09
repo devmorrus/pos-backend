@@ -39,6 +39,11 @@ public class PurchaseOrderConfiguration : IEntityTypeConfiguration<PurchaseOrder
             .HasForeignKey(x => x.OutletId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne(x => x.DestinationStockLocation)
+            .WithMany()
+            .HasForeignKey(x => x.DestinationStockLocationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(x => x.CreatedByUser)
             .WithMany()
             .HasForeignKey(x => x.CreatedBy)

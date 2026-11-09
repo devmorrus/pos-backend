@@ -43,20 +43,22 @@ public class StockTransferServiceTests
         var catId = Guid.NewGuid();
 
         _dbContext.Outlets.Add(new Outlet { Id = fromOutletId, Code = "OUT-1", Name = "Source Outlet", IsActive = true });
+        _dbContext.StockLocations.Add(new StockLocation { Id = fromOutletId, Type = StockLocationTypes.Outlet, Code = "LOC-1", Name = "Source", OutletId = fromOutletId });
         _dbContext.Outlets.Add(new Outlet { Id = toOutletId, Code = "OUT-2", Name = "Destination Outlet", IsActive = true });
+        _dbContext.StockLocations.Add(new StockLocation { Id = toOutletId, Type = StockLocationTypes.Outlet, Code = "LOC-2", Name = "Destination", OutletId = toOutletId });
         _dbContext.Users.Add(new User { Id = userId, Name = "Admin 1", Email = "a1@morruspos.com", PasswordHash = "hash", RoleId = Guid.NewGuid() });
         _dbContext.Categories.Add(new Category { Id = catId, Name = "Snack" });
         _dbContext.Products.Add(new Product { Id = prodId, CategoryId = catId, Sku = "SKU-1", Name = "Chiki", BasePrice = 10000, CostPrice = 8000, Unit = "pcs", IsActive = true });
         
         // Seed stock at Source: 10 units
-        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), OutletId = fromOutletId, ProductId = prodId, QtyOnHand = 10, MinStockAlert = 0 });
+        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), StockLocationId = fromOutletId, ProductId = prodId, QtyOnHand = 10, MinStockAlert = 0 });
         await _dbContext.SaveChangesAsync();
 
         var service = new StockTransferService(_dbContext, _stockServiceMock, _notificationServiceMock, _currentUserServiceMock);
 
         var request = new CreateStockTransferRequest(
-            FromOutletId: fromOutletId,
-            ToOutletId: toOutletId,
+            FromStockLocationId: fromOutletId,
+            ToStockLocationId: toOutletId,
             Items: new List<StockTransferItemRequest>
             {
                 new(prodId, Qty: 4)
@@ -75,7 +77,7 @@ public class StockTransferServiceTests
         // Verify stock was immediately deducted from source
         await _stockServiceMock.Received(1).AddMovementAsync(
             productId: prodId,
-            outletId: fromOutletId,
+            stockLocationId: fromOutletId,
             qtyChange: -4,
             movementType: "transfer_out",
             referenceType: "stock_transfer",
@@ -100,20 +102,22 @@ public class StockTransferServiceTests
         var catId = Guid.NewGuid();
 
         _dbContext.Outlets.Add(new Outlet { Id = fromOutletId, Code = "OUT-1", Name = "Source Outlet", IsActive = true });
+        _dbContext.StockLocations.Add(new StockLocation { Id = fromOutletId, Type = StockLocationTypes.Outlet, Code = "LOC-1", Name = "Source", OutletId = fromOutletId });
         _dbContext.Outlets.Add(new Outlet { Id = toOutletId, Code = "OUT-2", Name = "Destination Outlet", IsActive = true });
+        _dbContext.StockLocations.Add(new StockLocation { Id = toOutletId, Type = StockLocationTypes.Outlet, Code = "LOC-2", Name = "Destination", OutletId = toOutletId });
         _dbContext.Users.Add(new User { Id = userId, Name = "Admin 1", Email = "a1@morruspos.com", PasswordHash = "hash", RoleId = Guid.NewGuid() });
         _dbContext.Categories.Add(new Category { Id = catId, Name = "Snack" });
         _dbContext.Products.Add(new Product { Id = prodId, CategoryId = catId, Sku = "SKU-1", Name = "Chiki", BasePrice = 10000, CostPrice = 8000, Unit = "pcs", IsActive = true });
         
         // Seed insufficient stock: 2 units
-        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), OutletId = fromOutletId, ProductId = prodId, QtyOnHand = 2, MinStockAlert = 0 });
+        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), StockLocationId = fromOutletId, ProductId = prodId, QtyOnHand = 2, MinStockAlert = 0 });
         await _dbContext.SaveChangesAsync();
 
         var service = new StockTransferService(_dbContext, _stockServiceMock, _notificationServiceMock, _currentUserServiceMock);
 
         var request = new CreateStockTransferRequest(
-            FromOutletId: fromOutletId,
-            ToOutletId: toOutletId,
+            FromStockLocationId: fromOutletId,
+            ToStockLocationId: toOutletId,
             Items: new List<StockTransferItemRequest> { new(prodId, Qty: 5) } // Request 5, only 2 available
         );
 
@@ -133,20 +137,22 @@ public class StockTransferServiceTests
         var catId = Guid.NewGuid();
 
         _dbContext.Outlets.Add(new Outlet { Id = fromOutletId, Code = "OUT-1", Name = "Source Outlet", IsActive = true });
+        _dbContext.StockLocations.Add(new StockLocation { Id = fromOutletId, Type = StockLocationTypes.Outlet, Code = "LOC-1", Name = "Source", OutletId = fromOutletId });
         _dbContext.Outlets.Add(new Outlet { Id = toOutletId, Code = "OUT-2", Name = "Destination Outlet", IsActive = true });
+        _dbContext.StockLocations.Add(new StockLocation { Id = toOutletId, Type = StockLocationTypes.Outlet, Code = "LOC-2", Name = "Destination", OutletId = toOutletId });
         _dbContext.Users.Add(new User { Id = userId, Name = "Admin 1", Email = "a1@morruspos.com", PasswordHash = "hash", RoleId = Guid.NewGuid() });
         _dbContext.Categories.Add(new Category { Id = catId, Name = "Snack" });
         _dbContext.Products.Add(new Product { Id = prodId, CategoryId = catId, Sku = "SKU-1", Name = "Chiki", BasePrice = 10000, CostPrice = 8000, Unit = "pcs", IsActive = true });
         
         // Seed stock at Source: 10 units
-        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), OutletId = fromOutletId, ProductId = prodId, QtyOnHand = 10, MinStockAlert = 0 });
+        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), StockLocationId = fromOutletId, ProductId = prodId, QtyOnHand = 10, MinStockAlert = 0 });
         await _dbContext.SaveChangesAsync();
 
         var service = new StockTransferService(_dbContext, _stockServiceMock, _notificationServiceMock, _currentUserServiceMock);
 
         var request = new CreateStockTransferRequest(
-            FromOutletId: fromOutletId,
-            ToOutletId: toOutletId,
+            FromStockLocationId: fromOutletId,
+            ToStockLocationId: toOutletId,
             Items: new List<StockTransferItemRequest> { new(prodId, Qty: 4) }
         );
         var transfer = await service.CreateAsync(userId, request);
@@ -160,7 +166,7 @@ public class StockTransferServiceTests
         // Verify destination addition movement
         await _stockServiceMock.Received(1).AddMovementAsync(
             productId: prodId,
-            outletId: toOutletId,
+            stockLocationId: toOutletId,
             qtyChange: 4,
             movementType: "transfer_in",
             referenceType: "stock_transfer",
@@ -191,20 +197,22 @@ public class StockTransferServiceTests
         var catId = Guid.NewGuid();
 
         _dbContext.Outlets.Add(new Outlet { Id = fromOutletId, Code = "OUT-1", Name = "Source Outlet", IsActive = true });
+        _dbContext.StockLocations.Add(new StockLocation { Id = fromOutletId, Type = StockLocationTypes.Outlet, Code = "LOC-1", Name = "Source", OutletId = fromOutletId });
         _dbContext.Outlets.Add(new Outlet { Id = toOutletId, Code = "OUT-2", Name = "Destination Outlet", IsActive = true });
+        _dbContext.StockLocations.Add(new StockLocation { Id = toOutletId, Type = StockLocationTypes.Outlet, Code = "LOC-2", Name = "Destination", OutletId = toOutletId });
         _dbContext.Users.Add(new User { Id = userId, Name = "Admin 1", Email = "a1@morruspos.com", PasswordHash = "hash", RoleId = Guid.NewGuid() });
         _dbContext.Categories.Add(new Category { Id = catId, Name = "Snack" });
         _dbContext.Products.Add(new Product { Id = prodId, CategoryId = catId, Sku = "SKU-1", Name = "Chiki", BasePrice = 10000, CostPrice = 8000, Unit = "pcs", IsActive = true });
         
         // Seed stock at Source: 10 units
-        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), OutletId = fromOutletId, ProductId = prodId, QtyOnHand = 10, MinStockAlert = 0 });
+        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), StockLocationId = fromOutletId, ProductId = prodId, QtyOnHand = 10, MinStockAlert = 0 });
         await _dbContext.SaveChangesAsync();
 
         var service = new StockTransferService(_dbContext, _stockServiceMock, _notificationServiceMock, _currentUserServiceMock);
 
         var request = new CreateStockTransferRequest(
-            FromOutletId: fromOutletId,
-            ToOutletId: toOutletId,
+            FromStockLocationId: fromOutletId,
+            ToStockLocationId: toOutletId,
             Items: new List<StockTransferItemRequest> { new(prodId, Qty: 4) }
         );
         var transfer = await service.CreateAsync(userId, request);
@@ -218,7 +226,7 @@ public class StockTransferServiceTests
         // Verify stock was restored/returned to FromOutlet (so it receives TransferIn of 4)
         await _stockServiceMock.Received(1).AddMovementAsync(
             productId: prodId,
-            outletId: fromOutletId,
+            stockLocationId: fromOutletId,
             qtyChange: 4,
             movementType: "transfer_in",
             referenceType: "stock_transfer",
@@ -243,7 +251,9 @@ public class StockTransferServiceTests
         var batchId = Guid.NewGuid();
 
         _dbContext.Outlets.Add(new Outlet { Id = fromOutletId, Code = "OUT-1", Name = "Source", IsActive = true });
+        _dbContext.StockLocations.Add(new StockLocation { Id = fromOutletId, Type = StockLocationTypes.Outlet, Code = "LOC-1", Name = "Source", OutletId = fromOutletId });
         _dbContext.Outlets.Add(new Outlet { Id = toOutletId, Code = "OUT-2", Name = "Destination", IsActive = true });
+        _dbContext.StockLocations.Add(new StockLocation { Id = toOutletId, Type = StockLocationTypes.Outlet, Code = "LOC-2", Name = "Destination", OutletId = toOutletId });
         _dbContext.Users.Add(new User { Id = userId, Name = "Admin 1", Email = "a1@morruspos.com", PasswordHash = "hash", RoleId = Guid.NewGuid() });
         _dbContext.Categories.Add(new Category { Id = catId, Name = "Snack" });
         _dbContext.Products.Add(new Product
@@ -254,7 +264,7 @@ public class StockTransferServiceTests
         });
         _dbContext.ProductBatches.Add(new ProductBatch
         {
-            Id = batchId, ProductId = prodId, OutletId = fromOutletId,
+            Id = batchId, ProductId = prodId, StockLocationId = fromOutletId,
             BatchNumber = "B-001", QtyProduction = 10, QtyRemaining = 10,
             ExpiryDate = DateTime.UtcNow.Date.AddDays(30)
         });
@@ -278,7 +288,7 @@ public class StockTransferServiceTests
 
         approved.Status.Should().Be(StockTransferStatus.Approved);
         var destinationBatch = await _dbContext.ProductBatches.SingleAsync(x =>
-            x.OutletId == toOutletId && x.ProductId == prodId && x.BatchNumber == "B-001");
+            x.StockLocationId == toOutletId && x.ProductId == prodId && x.BatchNumber == "B-001");
         destinationBatch.QtyRemaining.Should().Be(3);
         destinationBatch.QtyProduction.Should().Be(3);
     }

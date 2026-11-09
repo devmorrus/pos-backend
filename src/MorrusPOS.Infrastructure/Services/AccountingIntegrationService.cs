@@ -626,7 +626,7 @@ public class AccountingIntegrationService : IAccountingIntegrationService
     public async Task<bool> EnsureStockOpnamePostedAsync(Guid stockOpnameId, CancellationToken ct = default)
     {
         if (await HasPostingAsync("stock_opname", stockOpnameId, ct)) return false;
-        var opname = await _dbContext.StockOpnames.Include(x => x.Outlet)
+        var opname = await _dbContext.StockOpnames.Include(x => x.StockLocation)
             .Include(x => x.Items).ThenInclude(x => x.Product)
             .SingleOrDefaultAsync(x => x.Id == stockOpnameId, ct)
             ?? throw new InvalidOperationException("Stock opname tidak ditemukan.");
@@ -639,24 +639,29 @@ public class AccountingIntegrationService : IAccountingIntegrationService
                     : x.Product.CostPrice), 2)
             }).ToList();
         if (valued.Count == 0) return false;
-        var businessId = GetBusinessId(opname.Outlet.BusinessId);
-        var inventory = await ResolveRoleAsync(businessId, opname.OutletId, AccountingAccountRole.Inventory, ct);
+        var businessId = GetBusinessId(opname.StockLocation.BusinessId);
+        // Opname gudang tidak punya outlet; mapping akun memakai outlet pertama.
+        var outletId = opname.StockLocation.OutletId
+            ?? await _dbContext.Outlets.Where(x => x.IsActive)
+                .OrderBy(x => x.CreatedAt).Select(x => (Guid?)x.Id).FirstOrDefaultAsync(ct)
+            ?? throw new InvalidOperationException("Business belum memiliki outlet untuk posting opname.");
+        var inventory = await ResolveRoleAsync(businessId, outletId, AccountingAccountRole.Inventory, ct);
         var lines = new List<JournalLine>();
         var gain = valued.Where(x => x.Variance > 0).Sum(x => x.Amount);
         var loss = valued.Where(x => x.Variance < 0).Sum(x => x.Amount);
         if (gain > 0)
         {
-            var gainAccount = await ResolveRoleAsync(businessId, opname.OutletId, AccountingAccountRole.InventoryGain, ct);
+            var gainAccount = await ResolveRoleAsync(businessId, outletId, AccountingAccountRole.InventoryGain, ct);
             lines.Add(new JournalLine(inventory, gain, 0));
             lines.Add(new JournalLine(gainAccount, 0, gain));
         }
         if (loss > 0)
         {
-            var lossAccount = await ResolveRoleAsync(businessId, opname.OutletId, AccountingAccountRole.InventoryLoss, ct);
+            var lossAccount = await ResolveRoleAsync(businessId, outletId, AccountingAccountRole.InventoryLoss, ct);
             lines.Add(new JournalLine(lossAccount, loss, 0));
             lines.Add(new JournalLine(inventory, 0, loss));
         }
-        await CreatePostingAsync(businessId, opname.OutletId, opname.CreatedAt,
+        await CreatePostingAsync(businessId, outletId, opname.CreatedAt,
             $"OPNAME-{opname.Id:N}", "stock_opname", opname.Id, "Penyesuaian stock opname", lines, ct);
         return true;
     }

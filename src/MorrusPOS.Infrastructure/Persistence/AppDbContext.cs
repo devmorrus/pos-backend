@@ -61,6 +61,11 @@ public class AppDbContext : DbContext
     public DbSet<PettyCashExpense> PettyCashExpenses => Set<PettyCashExpense>();
 
     // Fase 2 — Stok
+    public DbSet<StockLocation> StockLocations => Set<StockLocation>();
+    public DbSet<UserStockLocationAccess> UserStockLocationAccesses => Set<UserStockLocationAccess>();
+    public DbSet<PosRegister> PosRegisters => Set<PosRegister>();
+    public DbSet<PosDevice> PosDevices => Set<PosDevice>();
+    public DbSet<PosDevicePairingCode> PosDevicePairingCodes => Set<PosDevicePairingCode>();
     public DbSet<InventoryStock> InventoryStocks => Set<InventoryStock>();
     public DbSet<StockLedger> StockLedgers => Set<StockLedger>();
     public DbSet<StockReconciliationRun> StockReconciliationRuns => Set<StockReconciliationRun>();
@@ -174,6 +179,11 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<AuditLog>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
 
         modelBuilder.Entity<InventoryStock>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<StockLocation>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<UserStockLocationAccess>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<PosRegister>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<PosDevice>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<PosDevicePairingCode>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<StockLedger>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<StockReconciliationRun>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<StockReconciliationItem>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
@@ -185,6 +195,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<ProductVariant>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<ProductRecipe>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<ProductBatch>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ProductSerial>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<ProductAttributeValue>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<ModifierOption>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<ModifierGroupProduct>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));

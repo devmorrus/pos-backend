@@ -19,8 +19,8 @@ public class CreateStockOpnameRequestValidator : AbstractValidator<CreateStockOp
 {
     public CreateStockOpnameRequestValidator()
     {
-        RuleFor(x => x.OutletId)
-            .NotEmpty().WithMessage("Outlet ID wajib diisi.");
+        RuleFor(x => x.StockLocationId)
+            .NotEmpty().WithMessage("Lokasi stok wajib diisi.");
 
         RuleFor(x => x.Items)
             .NotEmpty().WithMessage("Item opname tidak boleh kosong.");

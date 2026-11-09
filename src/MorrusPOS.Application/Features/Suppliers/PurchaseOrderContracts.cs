@@ -28,7 +28,11 @@ public record PurchaseOrderDto(
     DateTime? DueDate,
     decimal TotalAmount,
     IReadOnlyList<PurchaseOrderItemDto> Items
-);
+)
+{
+    public Guid? DestinationStockLocationId { get; init; }
+    public string? DestinationStockLocationName { get; init; }
+}
 
 public record PurchaseOrderItemRequest(
     Guid ProductId,
@@ -45,7 +49,10 @@ public record CreatePurchaseOrderRequest(
     string PaymentType,
     DateTime? DueDate,
     List<PurchaseOrderItemRequest> Items
-);
+)
+{
+    public Guid? DestinationStockLocationId { get; init; }
+}
 
 public record UpdatePoStatusRequest(
     string Status

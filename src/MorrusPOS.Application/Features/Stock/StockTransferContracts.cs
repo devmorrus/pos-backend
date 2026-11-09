@@ -17,10 +17,14 @@ public record StockTransferItemDto(
 
 public record StockTransferDto(
     Guid Id,
-    Guid FromOutletId,
-    string FromOutletName,
-    Guid ToOutletId,
-    string ToOutletName,
+    Guid FromStockLocationId,
+    string FromStockLocationName,
+    string FromStockLocationType,
+    Guid? FromOutletId,
+    Guid ToStockLocationId,
+    string ToStockLocationName,
+    string ToStockLocationType,
+    Guid? ToOutletId,
     string TransferNumber,
     string Status,
     Guid RequestedBy,
@@ -42,16 +46,16 @@ public record StockTransferItemRequest(
 }
 
 public record CreateStockTransferRequest(
-    Guid FromOutletId,
-    Guid ToOutletId,
+    Guid FromStockLocationId,
+    Guid ToStockLocationId,
     List<StockTransferItemRequest> Items
 );
 
 public interface IStockTransferService
 {
     Task<StockTransferDto> GetByIdAsync(Guid id, CancellationToken ct = default);
-    Task<IReadOnlyList<StockTransferDto>> GetOutgoingTransfersAsync(Guid outletId, CancellationToken ct = default);
-    Task<IReadOnlyList<StockTransferDto>> GetIncomingTransfersAsync(Guid outletId, CancellationToken ct = default);
+    Task<IReadOnlyList<StockTransferDto>> GetOutgoingTransfersAsync(Guid stockLocationId, CancellationToken ct = default);
+    Task<IReadOnlyList<StockTransferDto>> GetIncomingTransfersAsync(Guid stockLocationId, CancellationToken ct = default);
     Task<StockTransferDto> CreateAsync(Guid userId, CreateStockTransferRequest request, CancellationToken ct = default);
     Task<StockTransferDto> ApproveAsync(Guid userId, Guid transferId, CancellationToken ct = default);
     Task<StockTransferDto> RejectAsync(Guid userId, Guid transferId, CancellationToken ct = default);

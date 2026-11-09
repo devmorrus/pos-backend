@@ -122,7 +122,7 @@ public class ConsignmentServiceTests
         // Assert Stock movement added
         await _stockServiceMock.Received(1).AddMovementAsync(
             productId: _productId,
-            outletId: _outletId,
+            stockLocationId: _outletId,
             qtyChange: 15,
             movementType: "consignment_in",
             referenceType: "consignment",

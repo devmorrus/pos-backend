@@ -14,51 +14,35 @@ namespace MorrusPOS.Api.Controllers;
 public class InventoryController : ControllerBase
 {
     private readonly IInventoryService _inventoryService;
-    private readonly ICurrentUserService _currentUser;
+    private readonly StockLocationAccessResolver _locations;
 
-    public InventoryController(IInventoryService inventoryService, ICurrentUserService currentUser)
+    public InventoryController(
+        IInventoryService inventoryService,
+        StockLocationAccessResolver locations)
     {
         _inventoryService = inventoryService;
-        _currentUser = currentUser;
+        _locations = locations;
     }
 
     [HttpGet]
     [HasPermission("stock.manage")]
     public async Task<ActionResult<IReadOnlyList<InventoryListItemDto>>> GetByOutlet(
+        [FromQuery] Guid? stockLocationId,
         [FromQuery] Guid? outletId,
         [FromQuery] string? search,
         [FromQuery] bool lowStockOnly = false,
         [FromQuery] bool includeZeroStock = true,
         CancellationToken ct = default)
     {
-        var resolvedOutletId = ResolveTargetOutletId(outletId);
-        if (resolvedOutletId == null)
-        {
-            return BadRequest("Pilih outlet terlebih dahulu untuk melihat inventory.");
-        }
+        var resolvedLocationId = await _locations.ResolveAsync(stockLocationId, outletId, ct);
 
-        var result = await _inventoryService.GetByOutletAsync(
-            resolvedOutletId.Value,
+        var result = await _inventoryService.GetByStockLocationAsync(
+            resolvedLocationId,
             search,
             lowStockOnly,
             includeZeroStock,
             ct);
 
         return Ok(result);
-    }
-
-    private Guid? ResolveTargetOutletId(Guid? requestedOutletId)
-    {
-        if (_currentUser.Role == "Owner")
-        {
-            return requestedOutletId;
-        }
-
-        if (requestedOutletId.HasValue && requestedOutletId != _currentUser.OutletId)
-        {
-            throw new UnauthorizedAccessException("Anda tidak memiliki akses ke outlet tersebut.");
-        }
-
-        return _currentUser.OutletId;
     }
 }

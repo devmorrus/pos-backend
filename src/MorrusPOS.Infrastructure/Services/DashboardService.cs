@@ -387,7 +387,7 @@ public class DashboardService : IDashboardService
             .Where(s => s.Product.TrackingMode != ProductTrackingModes.None);
         if (outletId.HasValue)
         {
-            stockQuery = stockQuery.Where(s => s.OutletId == outletId.Value);
+            stockQuery = stockQuery.Where(s => s.StockLocationId == outletId.Value);
         }
 
         var lowStockAlertsCount = await stockQuery.CountAsync(s => s.QtyOnHand <= s.MinStockAlert, ct);
@@ -423,7 +423,7 @@ public class DashboardService : IDashboardService
 
         if (outletId.HasValue)
         {
-            transferQuery = transferQuery.Where(t => t.FromOutletId == outletId.Value || t.ToOutletId == outletId.Value);
+            transferQuery = transferQuery.Where(t => t.FromStockLocationId == outletId.Value || t.ToStockLocationId == outletId.Value);
         }
 
         var pendingStockTransfersCount = await transferQuery.CountAsync(ct);

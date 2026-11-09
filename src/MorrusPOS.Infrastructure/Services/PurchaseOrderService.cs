@@ -40,6 +40,7 @@ public class PurchaseOrderService : IPurchaseOrderService
         var po = await _dbContext.PurchaseOrders
             .Include(p => p.Supplier)
             .Include(p => p.Outlet)
+            .Include(p => p.DestinationStockLocation)
             .Include(p => p.CreatedByUser)
             .Include(p => p.Items).ThenInclude(i => i.Product)
             .Include(p => p.Items).ThenInclude(i => i.ProductVariant)
@@ -63,6 +64,7 @@ public class PurchaseOrderService : IPurchaseOrderService
         var pos = await _dbContext.PurchaseOrders
             .Include(p => p.Supplier)
             .Include(p => p.Outlet)
+            .Include(p => p.DestinationStockLocation)
             .Include(p => p.CreatedByUser)
             .Include(p => p.Items).ThenInclude(i => i.Product)
             .Include(p => p.Items).ThenInclude(i => i.ProductVariant)
@@ -88,6 +90,12 @@ public class PurchaseOrderService : IPurchaseOrderService
         if (outlet == null || !outlet.IsActive)
             throw new InvalidOperationException("Outlet tidak ditemukan atau tidak aktif.");
 
+        var destinationStockLocationId = request.DestinationStockLocationId ?? request.OutletId;
+        var destinationIsActive = await _dbContext.StockLocations.AsNoTracking()
+            .AnyAsync(x => x.Id == destinationStockLocationId && x.IsActive, ct);
+        if (!destinationIsActive)
+            throw new InvalidOperationException("Lokasi penerimaan stok tidak valid atau tidak aktif.");
+
         if (request.Items.Count == 0)
             throw new InvalidOperationException("Purchase Order wajib memiliki minimal satu item.");
 
@@ -111,6 +119,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             Id = Guid.NewGuid(),
             SupplierId = request.SupplierId,
             OutletId = request.OutletId,
+            DestinationStockLocationId = destinationStockLocationId,
             PoNumber = poNumber,
             PoDate = DateTime.UtcNow,
             PaymentType = request.PaymentType,
@@ -165,6 +174,7 @@ public class PurchaseOrderService : IPurchaseOrderService
         var po = await _dbContext.PurchaseOrders
             .Include(p => p.Items).ThenInclude(i => i.Product)
             .Include(p => p.Outlet)
+            .Include(p => p.DestinationStockLocation)
             .FirstOrDefaultAsync(p => p.Id == poId, ct);
 
         if (po == null)
@@ -197,6 +207,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                 }
 
                 var isConsignmentPayment = po.PaymentType == PurchaseOrderPaymentType.Consignment;
+                var stockLocationId = po.DestinationStockLocationId ?? po.OutletId;
 
                 Consignment? consignment = null;
                 if (isConsignmentPayment)
@@ -237,7 +248,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                         // 2. Add stock movement (consignment_in)
                         await _stockService.AddMovementAsync(
                             productId: item.ProductId,
-                            outletId: po.OutletId,
+                            stockLocationId: stockLocationId,
                             qtyChange: item.Qty,
                             movementType: "consignment_in",
                             referenceType: "consignment",
@@ -253,7 +264,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                         // 1. Add stock movement (purchase_in)
                         await _stockService.AddMovementAsync(
                             productId: item.ProductId,
-                            outletId: po.OutletId,
+                            stockLocationId: stockLocationId,
                             qtyChange: item.Qty,
                             movementType: "purchase_in",
                             referenceType: "purchase_order",
@@ -327,7 +338,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             if (request.Status == PurchaseOrderStatus.Completed)
             {
                 await _stockEvents.EnqueueCurrentStockAsync(
-                    po.OutletId,
+                    po.DestinationStockLocationId ?? po.OutletId,
                     po.Items.Select(item => new StockEventKey(item.ProductId, item.ProductVariantId)).ToArray(),
                     $"stock:purchase-order:{po.Id:N}:completed",
                     ct);
@@ -355,6 +366,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             .Include(p => p.Items).ThenInclude(i => i.Product)
             .Include(p => p.Items).ThenInclude(i => i.ProductVariant)
             .Include(p => p.Outlet)
+            .Include(p => p.DestinationStockLocation)
             .FirstOrDefaultAsync(p => p.Id == poId, ct);
 
         if (po == null)
@@ -410,7 +422,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                 _dbContext.ReceivingNoteItems.Add(receivingItem);
 
                 await ReceiveTrackedStockAsync(
-                    poItem.Product, po.OutletId, itemReq, receivingNote.Id, receivingItem.Id,
+                    poItem.Product, po.DestinationStockLocationId ?? po.OutletId, itemReq, receivingNote.Id, receivingItem.Id,
                     $"Penerimaan barang dari PO {po.PoNumber} (No. RCV: {receivingNote.ReceivingNumber})", ct);
             }
 
@@ -434,7 +446,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             }
 
             await _stockEvents.EnqueueCurrentStockAsync(
-                po.OutletId,
+                po.DestinationStockLocationId ?? po.OutletId,
                 request.Items.Select(item => new StockEventKey(item.ProductId, item.ProductVariantId)).ToArray(),
                 $"stock:receiving-note:{receivingNote.Id:N}",
                 ct);
@@ -483,13 +495,13 @@ public class PurchaseOrderService : IPurchaseOrderService
                 var number = allocation.BatchNumber.Trim();
                 var batch = await _dbContext.ProductBatches.FirstOrDefaultAsync(x =>
                     x.ProductId == product.Id && x.ProductVariantId == request.ProductVariantId &&
-                    x.OutletId == outletId && x.BatchNumber == number, ct);
+                    x.StockLocationId == outletId && x.BatchNumber == number, ct);
                 if (batch is null)
                 {
                     batch = new ProductBatch
                     {
                         Id = Guid.NewGuid(), ProductId = product.Id, ProductVariantId = request.ProductVariantId,
-                        OutletId = outletId, BatchNumber = number, ExpiryDate = allocation.ExpiryDate,
+                        StockLocationId = outletId, BatchNumber = number, ExpiryDate = allocation.ExpiryDate,
                         QtyProduction = allocation.Qty, QtyRemaining = allocation.Qty,
                         CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
                     };
@@ -523,7 +535,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             var serial = new ProductSerial
             {
                 Id = Guid.NewGuid(), ProductId = product.Id, ProductVariantId = request.ProductVariantId,
-                OutletId = outletId, ReceivingNoteItemId = receivingItemId,
+                StockLocationId = outletId, ReceivingNoteItemId = receivingItemId,
                 SerialNumber = number, NormalizedSerialNumber = normalized,
                 Status = ProductSerialStatuses.Available, ReceivedAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
@@ -561,7 +573,11 @@ public class PurchaseOrderService : IPurchaseOrderService
             QtyReceived = i.QtyReceived,
             TrackingMode = i.Product?.TrackingMode ?? ProductTrackingModes.Quantity
         }).ToList()
-    );
+    )
+    {
+        DestinationStockLocationId = po.DestinationStockLocationId,
+        DestinationStockLocationName = po.DestinationStockLocation?.Name ?? po.Outlet?.Name,
+    };
 
     private async Task EnsureOutletAccessibleAsync(Guid outletId, CancellationToken ct)
     {

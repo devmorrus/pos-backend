@@ -14,8 +14,8 @@ public class InventoryService : IInventoryService
         _dbContext = dbContext;
     }
 
-    public async Task<IReadOnlyList<InventoryListItemDto>> GetByOutletAsync(
-        Guid outletId,
+    public async Task<IReadOnlyList<InventoryListItemDto>> GetByStockLocationAsync(
+        Guid stockLocationId,
         string? search = null,
         bool lowStockOnly = false,
         bool includeZeroStock = true,
@@ -29,7 +29,7 @@ public class InventoryService : IInventoryService
                 .ThenInclude(product => product.Category)
             .Include(stock => stock.ProductVariant)
             // Untracked products never have a stock balance; drop legacy rows defensively.
-            .Where(stock => stock.OutletId == outletId && stock.Product.IsActive &&
+            .Where(stock => stock.StockLocationId == stockLocationId && stock.Product.IsActive &&
                             stock.Product.TrackingMode != ProductTrackingModes.None);
 
         if (!includeZeroStock)
@@ -83,13 +83,13 @@ public class InventoryService : IInventoryService
 
         var batchCounts = await _dbContext.ProductBatches
             .AsNoTracking()
-            .Where(x => x.OutletId == outletId && x.QtyRemaining > 0)
+            .Where(x => x.StockLocationId == stockLocationId && x.QtyRemaining > 0)
             .GroupBy(x => new { x.ProductId, x.ProductVariantId })
             .Select(g => new { g.Key.ProductId, g.Key.ProductVariantId, Count = g.Count() })
             .ToListAsync(ct);
         var serialCounts = await _dbContext.ProductSerials
             .AsNoTracking()
-            .Where(x => x.OutletId == outletId && x.Status == ProductSerialStatuses.Available)
+            .Where(x => x.StockLocationId == stockLocationId && x.Status == ProductSerialStatuses.Available)
             .GroupBy(x => new { x.ProductId, x.ProductVariantId })
             .Select(g => new { g.Key.ProductId, g.Key.ProductVariantId, Count = g.Count() })
             .ToListAsync(ct);

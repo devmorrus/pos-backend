@@ -15,11 +15,16 @@ public class StockTransfersController : ControllerBase
 {
     private readonly IStockTransferService _transferService;
     private readonly ICurrentUserService _currentUser;
+    private readonly StockLocationAccessResolver _locations;
 
-    public StockTransfersController(IStockTransferService transferService, ICurrentUserService currentUser)
+    public StockTransfersController(
+        IStockTransferService transferService,
+        ICurrentUserService currentUser,
+        StockLocationAccessResolver locations)
     {
         _transferService = transferService;
         _currentUser = currentUser;
+        _locations = locations;
     }
 
     [HttpGet("{id}")]
@@ -32,29 +37,25 @@ public class StockTransfersController : ControllerBase
 
     [HttpGet("outgoing")]
     [HasPermission("stock.manage")]
-    public async Task<ActionResult<IReadOnlyList<StockTransferDto>>> GetOutgoing([FromQuery] Guid? outletId, CancellationToken ct)
+    public async Task<ActionResult<IReadOnlyList<StockTransferDto>>> GetOutgoing(
+        [FromQuery] Guid? stockLocationId,
+        [FromQuery] Guid? outletId,
+        CancellationToken ct)
     {
-        var resolvedOutletId = ResolveTargetOutletId(outletId);
-        if (resolvedOutletId == null)
-        {
-            return BadRequest("Data outlet tidak valid.");
-        }
-
-        var result = await _transferService.GetOutgoingTransfersAsync(resolvedOutletId.Value, ct);
+        var resolvedLocationId = await _locations.ResolveAsync(stockLocationId, outletId, ct);
+        var result = await _transferService.GetOutgoingTransfersAsync(resolvedLocationId, ct);
         return Ok(result);
     }
 
     [HttpGet("incoming")]
     [HasPermission("stock.manage")]
-    public async Task<ActionResult<IReadOnlyList<StockTransferDto>>> GetIncoming([FromQuery] Guid? outletId, CancellationToken ct)
+    public async Task<ActionResult<IReadOnlyList<StockTransferDto>>> GetIncoming(
+        [FromQuery] Guid? stockLocationId,
+        [FromQuery] Guid? outletId,
+        CancellationToken ct)
     {
-        var resolvedOutletId = ResolveTargetOutletId(outletId);
-        if (resolvedOutletId == null)
-        {
-            return BadRequest("Data outlet tidak valid.");
-        }
-
-        var result = await _transferService.GetIncomingTransfersAsync(resolvedOutletId.Value, ct);
+        var resolvedLocationId = await _locations.ResolveAsync(stockLocationId, outletId, ct);
+        var result = await _transferService.GetIncomingTransfersAsync(resolvedLocationId, ct);
         return Ok(result);
     }
 
@@ -98,20 +99,5 @@ public class StockTransfersController : ControllerBase
 
         var result = await _transferService.RejectAsync(userId.Value, id, ct);
         return Ok(result);
-    }
-
-    private Guid? ResolveTargetOutletId(Guid? requestedOutletId)
-    {
-        if (_currentUser.Role == "Owner")
-        {
-            return requestedOutletId;
-        }
-
-        if (requestedOutletId.HasValue && requestedOutletId != _currentUser.OutletId)
-        {
-            throw new UnauthorizedAccessException("Anda tidak memiliki akses ke outlet tersebut.");
-        }
-
-        return _currentUser.OutletId;
     }
 }

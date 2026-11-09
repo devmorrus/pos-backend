@@ -48,6 +48,15 @@ public class PurchaseOrderConsignmentTests
     private async Task SeedBaseDataAsync()
     {
         _dbContext.Outlets.Add(new Outlet { Id = _outletId, Code = "OUT-1", Name = "Main Outlet", IsActive = true });
+        _dbContext.StockLocations.Add(new StockLocation
+        {
+            Id = _outletId,
+            Type = StockLocationTypes.Outlet,
+            Code = "OUT-1",
+            Name = "Main Outlet",
+            OutletId = _outletId,
+            IsActive = true,
+        });
         _dbContext.Suppliers.Add(new Supplier { Id = _supplierId, Name = "PT Maju Jaya", IsActive = true });
         _dbContext.Users.Add(new User { Id = _userId, Name = "Admin", Email = "a@test.com", PasswordHash = "hash", RoleId = _roleId });
         _dbContext.Categories.Add(new Category { Id = _catId, Name = "Minuman" });
@@ -113,7 +122,7 @@ public class PurchaseOrderConsignmentTests
         // Verify stock service was called with consignment_in movement type
         await _stockServiceMock.Received(1).AddMovementAsync(
             productId: _prodId,
-            outletId: _outletId,
+            stockLocationId: _outletId,
             qtyChange: 10,
             movementType: "consignment_in",
             referenceType: "consignment",

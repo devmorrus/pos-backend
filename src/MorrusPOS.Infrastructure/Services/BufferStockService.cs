@@ -36,7 +36,7 @@ public class BufferStockService : IBufferStockService
                 .ThenInclude(p => p.Category)
             .Include(s => s.ProductVariant)
                 .ThenInclude(v => v!.AttributeValues)
-            .Where(s => s.OutletId == outletId && s.Product.IsActive &&
+            .Where(s => s.StockLocationId == outletId && s.Product.IsActive &&
                         s.Product.TrackingMode != ProductTrackingModes.None);
 
         if (!string.IsNullOrWhiteSpace(normalizedSearch))
@@ -150,7 +150,7 @@ public class BufferStockService : IBufferStockService
         var stock = await _dbContext.InventoryStocks
             .AsNoTracking()
             .FirstOrDefaultAsync(
-                s => s.OutletId == outletId &&
+                s => s.StockLocationId == outletId &&
                      s.ProductId == productId &&
                      s.ProductVariantId == productVariantId,
                 ct);

@@ -19,8 +19,8 @@ public class ProductSerial : AuditableEntity
     public Product Product { get; set; } = default!;
     public Guid? ProductVariantId { get; set; }
     public ProductVariant? ProductVariant { get; set; }
-    public Guid OutletId { get; set; }
-    public Outlet Outlet { get; set; } = default!;
+    public Guid StockLocationId { get; set; }
+    public StockLocation StockLocation { get; set; } = default!;
     public Guid? ReceivingNoteItemId { get; set; }
     public ReceivingNoteItem? ReceivingNoteItem { get; set; }
     public string SerialNumber { get; set; } = default!;

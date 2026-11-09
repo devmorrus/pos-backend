@@ -191,6 +191,20 @@ public class AuthService : IAuthService
                 UpdatedAt = DateTime.UtcNow
             };
             _context.Outlets.Add(outlet);
+            _context.StockLocations.Add(new StockLocation
+            {
+                Id = outlet.Id,
+                BusinessId = business.Id,
+                Type = StockLocationTypes.Outlet,
+                Code = outlet.Code,
+                Name = outlet.Name,
+                OutletId = outlet.Id,
+                Address = outlet.Address,
+                Phone = outlet.Phone,
+                IsActive = true,
+                CreatedAt = outlet.CreatedAt,
+                UpdatedAt = outlet.UpdatedAt,
+            });
 
             // Create Owner User
             var passwordHash = _hasher.Hash(request.Owner.Password);

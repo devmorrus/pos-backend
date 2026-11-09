@@ -18,7 +18,7 @@ public class StockRequestValidatorsTests
     public void StockOpname_ValidInput_Should_Pass()
     {
         var request = new CreateStockOpnameRequest(
-            OutletId: Guid.NewGuid(),
+            StockLocationId: Guid.NewGuid(),
             Items: new List<StockOpnameItemRequest>
             {
                 new(Guid.NewGuid(), 10),
@@ -34,7 +34,7 @@ public class StockRequestValidatorsTests
     public void StockOpname_EmptyItems_Should_Fail()
     {
         var request = new CreateStockOpnameRequest(
-            OutletId: Guid.NewGuid(),
+            StockLocationId: Guid.NewGuid(),
             Items: new List<StockOpnameItemRequest>()
         );
 
@@ -46,7 +46,7 @@ public class StockRequestValidatorsTests
     public void StockOpname_NegativePhysicalQty_Should_Fail()
     {
         var request = new CreateStockOpnameRequest(
-            OutletId: Guid.NewGuid(),
+            StockLocationId: Guid.NewGuid(),
             Items: new List<StockOpnameItemRequest>
             {
                 new(Guid.NewGuid(), -5)
@@ -62,7 +62,7 @@ public class StockRequestValidatorsTests
     {
         var sameProductId = Guid.NewGuid();
         var request = new CreateStockOpnameRequest(
-            OutletId: Guid.NewGuid(),
+            StockLocationId: Guid.NewGuid(),
             Items: new List<StockOpnameItemRequest>
             {
                 new(sameProductId, 10),
@@ -80,8 +80,8 @@ public class StockRequestValidatorsTests
     public void StockTransfer_ValidInput_Should_Pass()
     {
         var request = new CreateStockTransferRequest(
-            FromOutletId: Guid.NewGuid(),
-            ToOutletId: Guid.NewGuid(),
+            FromStockLocationId: Guid.NewGuid(),
+            ToStockLocationId: Guid.NewGuid(),
             Items: new List<StockTransferItemRequest>
             {
                 new(Guid.NewGuid(), 5)
@@ -97,8 +97,8 @@ public class StockRequestValidatorsTests
     {
         var sameOutletId = Guid.NewGuid();
         var request = new CreateStockTransferRequest(
-            FromOutletId: sameOutletId,
-            ToOutletId: sameOutletId,
+            FromStockLocationId: sameOutletId,
+            ToStockLocationId: sameOutletId,
             Items: new List<StockTransferItemRequest>
             {
                 new(Guid.NewGuid(), 5)
@@ -113,8 +113,8 @@ public class StockRequestValidatorsTests
     public void StockTransfer_ZeroQty_Should_Fail()
     {
         var request = new CreateStockTransferRequest(
-            FromOutletId: Guid.NewGuid(),
-            ToOutletId: Guid.NewGuid(),
+            FromStockLocationId: Guid.NewGuid(),
+            ToStockLocationId: Guid.NewGuid(),
             Items: new List<StockTransferItemRequest>
             {
                 new(Guid.NewGuid(), 0)
@@ -130,8 +130,8 @@ public class StockRequestValidatorsTests
     {
         var sameProductId = Guid.NewGuid();
         var request = new CreateStockTransferRequest(
-            FromOutletId: Guid.NewGuid(),
-            ToOutletId: Guid.NewGuid(),
+            FromStockLocationId: Guid.NewGuid(),
+            ToStockLocationId: Guid.NewGuid(),
             Items: new List<StockTransferItemRequest>
             {
                 new(sameProductId, 5),

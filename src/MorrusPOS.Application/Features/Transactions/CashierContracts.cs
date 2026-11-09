@@ -18,9 +18,16 @@ public record CashierSessionDto(
     decimal TotalCashReceived,
     decimal TotalPettyCashExpenses,
     IReadOnlyDictionary<string, decimal> PaymentsSummary
-);
+)
+{
+    public Guid? RegisterId { get; init; }
+    public string? RegisterName { get; init; }
+    public Guid? DeviceId { get; init; }
+    public string? DeviceName { get; init; }
+    public Guid? StockLocationId { get; init; }
+}
 
-public record OpenSessionRequest(decimal OpeningCash, Guid? OutletId = null);
+public record OpenSessionRequest(decimal OpeningCash, Guid? OutletId = null, Guid? RegisterId = null);
 
 public record CloseSessionRequest(decimal ActualCash);
 

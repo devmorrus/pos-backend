@@ -17,15 +17,18 @@ public class ProductsController : ControllerBase
     private readonly IProductService _productService;
     private readonly ICurrentUserService _currentUser;
     private readonly Microsoft.AspNetCore.Hosting.IWebHostEnvironment _env;
+    private readonly StockLocationAccessResolver _locations;
 
     public ProductsController(
         IProductService productService,
         ICurrentUserService currentUser,
-        Microsoft.AspNetCore.Hosting.IWebHostEnvironment env)
+        Microsoft.AspNetCore.Hosting.IWebHostEnvironment env,
+        StockLocationAccessResolver locations)
     {
         _productService = productService;
         _currentUser = currentUser;
         _env = env;
+        _locations = locations;
     }
 
     [HttpGet]
@@ -61,13 +64,20 @@ public class ProductsController : ControllerBase
     [HttpGet("{id:guid}/stock-tracking")]
     public async Task<ActionResult<ProductTrackingOptionsDto>> GetTrackingOptions(
         Guid id,
-        [FromQuery] Guid outletId,
+        [FromQuery] Guid? stockLocationId,
+        [FromQuery] Guid? outletId,
         [FromQuery] Guid? productVariantId,
         [FromQuery] string? search,
         [FromQuery] int take = 50,
         [FromQuery] bool includeUnavailable = false,
         CancellationToken ct = default)
-        => Ok(await _productService.GetTrackingOptionsAsync(id, outletId, productVariantId, search, take, includeUnavailable, ct));
+    {
+        var locationId = stockLocationId ?? outletId
+            ?? throw new InvalidOperationException("Lokasi stok wajib dipilih.");
+        await _locations.EnsureAsync(locationId, ct);
+        return Ok(await _productService.GetTrackingOptionsAsync(
+            id, locationId, productVariantId, search, take, includeUnavailable, ct));
+    }
 
     [HttpPost]
     [HasPermission("product.manage")]

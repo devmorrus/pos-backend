@@ -59,6 +59,8 @@ services:
       - Outbox__LeaseSeconds=${OUTBOX_LEASE_SECONDS:-120}
       - Outbox__ProcessedRetentionDays=${OUTBOX_PROCESSED_RETENTION_DAYS:-14}
       - Outbox__MaxPayloadBytes=${OUTBOX_MAX_PAYLOAD_BYTES:-262144}
+      - Pos__DeviceEnforcement=${POS_DEVICE_ENFORCEMENT:-report_only}
+      - Pos__PairingCodeTtlMinutes=${POS_PAIRING_CODE_TTL_MINUTES:-10}
     logging:
       driver: json-file
       options:

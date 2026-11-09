@@ -15,18 +15,23 @@ public class CashierSessionsController : ControllerBase
 {
     private readonly ICashierSessionService _sessionService;
     private readonly ICurrentUserService _currentUser;
+    private readonly IPosDeviceContext _posDevice;
 
-    public CashierSessionsController(ICashierSessionService sessionService, ICurrentUserService currentUser)
+    public CashierSessionsController(
+        ICashierSessionService sessionService,
+        ICurrentUserService currentUser,
+        IPosDeviceContext posDevice)
     {
         _sessionService = sessionService;
         _currentUser = currentUser;
+        _posDevice = posDevice;
     }
 
     [HttpGet("current")]
     public async Task<ActionResult<CashierSessionDto?>> GetCurrent([FromQuery] Guid? outletId, CancellationToken ct)
     {
         var userId = _currentUser.UserId;
-        var resolvedOutletId = ResolveTargetOutletId(outletId);
+        var resolvedOutletId = ResolveTargetOutletId(outletId) ?? _posDevice.OutletId;
 
         if (userId == null || resolvedOutletId == null)
         {
@@ -41,7 +46,7 @@ public class CashierSessionsController : ControllerBase
     public async Task<ActionResult<CashierSessionDto>> Open(OpenSessionRequest request, CancellationToken ct)
     {
         var userId = _currentUser.UserId;
-        var outletId = ResolveTargetOutletId(request.OutletId);
+        var outletId = ResolveTargetOutletId(request.OutletId) ?? _posDevice.OutletId;
 
         if (userId == null || outletId == null)
         {

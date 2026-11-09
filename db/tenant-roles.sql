@@ -144,6 +144,9 @@ BEGIN
         IF to_regclass('public.accounting_account_mappings') IS NOT NULL THEN
             GRANT SELECT, INSERT ON accounting_account_mappings TO morrus_system;
         END IF;
+        IF to_regclass('public.stock_locations') IS NOT NULL THEN
+            GRANT SELECT, INSERT ON stock_locations TO morrus_system;
+        END IF;
     END IF;
 END
 $grants$;

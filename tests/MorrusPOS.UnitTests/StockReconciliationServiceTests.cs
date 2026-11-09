@@ -30,6 +30,7 @@ public class StockReconciliationServiceTests
         _user.OutletId.Returns(_outletId);
         var categoryId = Guid.NewGuid();
         _db.Outlets.Add(new Outlet { Id = _outletId, Code = "OUT", Name = "Outlet", IsActive = true });
+        _db.StockLocations.Add(new StockLocation { Id = _outletId, Type = StockLocationTypes.Outlet, Code = "LOC", Name = "Outlet", OutletId = _outletId });
         _db.Categories.Add(new Category { Id = categoryId, Name = "Category" });
         _db.Users.Add(new User { Id = _userId, Name = "Admin", Email = "admin@test", PasswordHash = "x", RoleId = Guid.NewGuid(), OutletId = _outletId });
         _db.Products.Add(new Product
@@ -65,7 +66,7 @@ public class StockReconciliationServiceTests
         SeedMismatch(ledgerQty: 5, storedQty: 2);
         _db.ProductBatches.Add(new ProductBatch
         {
-            Id = Guid.NewGuid(), ProductId = _productId, OutletId = _outletId,
+            Id = Guid.NewGuid(), ProductId = _productId, StockLocationId = _outletId,
             BatchNumber = "B-1", QtyProduction = 4, QtyRemaining = 4
         });
         await _db.SaveChangesAsync();
@@ -83,14 +84,14 @@ public class StockReconciliationServiceTests
     {
         _db.StockLedgers.Add(new StockLedger
         {
-            Id = Guid.NewGuid(), ProductId = _productId, OutletId = _outletId,
+            Id = Guid.NewGuid(), ProductId = _productId, StockLocationId = _outletId,
             PostingKey = $"test/{Guid.NewGuid():N}", MovementType = StockMovementType.OpeningBalance,
             QtyChange = ledgerQty, ReferenceType = "test", ReferenceId = Guid.NewGuid(),
             CreatedBy = _userId, CreatedAt = DateTime.UtcNow
         });
         _db.InventoryStocks.Add(new InventoryStock
         {
-            Id = Guid.NewGuid(), ProductId = _productId, OutletId = _outletId,
+            Id = Guid.NewGuid(), ProductId = _productId, StockLocationId = _outletId,
             QtyOnHand = storedQty, MinStockAlert = 0
         });
         _db.SaveChanges();

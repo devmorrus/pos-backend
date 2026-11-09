@@ -72,7 +72,7 @@ public class ConsignmentCheckoutTests
         _dbContext.InventoryStocks.Add(new InventoryStock
         {
             Id = Guid.NewGuid(),
-            OutletId = _outletId,
+            StockLocationId = _outletId,
             ProductId = _productId,
             QtyOnHand = 50,
             MinStockAlert = 0

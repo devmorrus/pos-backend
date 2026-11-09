@@ -65,7 +65,7 @@ public class ConsignmentReturnServiceTests
         _dbContext.InventoryStocks.Add(new InventoryStock
         {
             ProductId = _productId,
-            OutletId = _outletId,
+            StockLocationId = _outletId,
             QtyOnHand = initialStock
         });
 
@@ -164,7 +164,7 @@ public class ConsignmentReturnServiceTests
         result.Status.Should().Be("completed");
         await _stockServiceMock.Received(1).AddMovementAsync(
             productId: _productId,
-            outletId: _outletId,
+            stockLocationId: _outletId,
             qtyChange: -8m,
             movementType: StockMovementType.ConsignmentReturn,
             referenceType: "consignment_return",

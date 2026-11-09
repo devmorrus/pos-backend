@@ -15,11 +15,11 @@ public class StockTransfer : AuditableEntity
     // Tenant scope: row milik business ini; FK businesses via konvensi EF
     public Guid BusinessId { get; set; }
     public Business Business { get; set; } = default!;
-    public Guid FromOutletId { get; set; }
-    public Outlet FromOutlet { get; set; } = default!;
+    public Guid FromStockLocationId { get; set; }
+    public StockLocation FromStockLocation { get; set; } = default!;
 
-    public Guid ToOutletId { get; set; }
-    public Outlet ToOutlet { get; set; } = default!;
+    public Guid ToStockLocationId { get; set; }
+    public StockLocation ToStockLocation { get; set; } = default!;
 
     public string TransferNumber { get; set; } = default!;
     public string Status { get; set; } = StockTransferStatus.Pending;

@@ -10,7 +10,7 @@ public interface IOutboxWriter
 public interface IStockEventPublisher
 {
     Task EnqueueCurrentStockAsync(
-        Guid outletId,
+        Guid stockLocationId,
         IReadOnlyCollection<StockEventKey> items,
         string deduplicationKey,
         CancellationToken ct = default);

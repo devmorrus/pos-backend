@@ -181,7 +181,7 @@ public class ConsignmentReturnService : IConsignmentReturnService
 
                     // 1. Get current stock to verify availability
                     var inventory = await _dbContext.InventoryStocks
-                        .FirstOrDefaultAsync(i => i.ProductId == item.ProductId && i.OutletId == consignmentReturn.OutletId, ct);
+                        .FirstOrDefaultAsync(i => i.ProductId == item.ProductId && i.StockLocationId == consignmentReturn.OutletId, ct);
                     
                     var currentStock = inventory?.QtyOnHand ?? 0;
                     if (currentStock < item.Qty)
@@ -219,7 +219,7 @@ public class ConsignmentReturnService : IConsignmentReturnService
                     // 2. Reduce stock via ledger (consignment_return)
                     await _stockService.AddMovementAsync(
                         productId: item.ProductId,
-                        outletId: consignmentReturn.OutletId,
+                        stockLocationId: consignmentReturn.OutletId,
                         qtyChange: -item.Qty, // Negative for stock reduction
                         movementType: StockMovementType.ConsignmentReturn,
                         referenceType: "consignment_return",

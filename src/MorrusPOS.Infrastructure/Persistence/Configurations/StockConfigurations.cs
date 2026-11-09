@@ -15,11 +15,11 @@ public class InventoryStockConfiguration : IEntityTypeConfiguration<InventorySto
         builder.Property(x => x.MinStockAlert).HasColumnType("decimal(12,2)");
 
         // Unique constraints to support both parent stock and variant stock
-        builder.HasIndex(x => new { x.BusinessId, x.ProductId, x.OutletId })
+        builder.HasIndex(x => new { x.BusinessId, x.ProductId, x.StockLocationId })
             .IsUnique()
             .HasFilter("\"ProductVariantId\" IS NULL");
 
-        builder.HasIndex(x => new { x.BusinessId, x.ProductId, x.ProductVariantId, x.OutletId })
+        builder.HasIndex(x => new { x.BusinessId, x.ProductId, x.ProductVariantId, x.StockLocationId })
             .IsUnique()
             .HasFilter("\"ProductVariantId\" IS NOT NULL");
 
@@ -28,9 +28,9 @@ public class InventoryStockConfiguration : IEntityTypeConfiguration<InventorySto
             .HasForeignKey(x => x.ProductId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.Outlet)
-            .WithMany(o => o.InventoryStocks)
-            .HasForeignKey(x => x.OutletId)
+        builder.HasOne(x => x.StockLocation)
+            .WithMany()
+            .HasForeignKey(x => x.StockLocationId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }
@@ -103,18 +103,18 @@ public class StockLedgerConfiguration : IEntityTypeConfiguration<StockLedger>
         // ReferenceId SENGAJA tidak dikonfigurasi sebagai FK — polimorfik,
         // bisa merujuk ke transactions/purchase_orders/stock_transfers/stock_opnames.
 
-        builder.HasIndex(x => new { x.ProductId, x.OutletId }); // dipakai untuk rekalkulasi & laporan
+        builder.HasIndex(x => new { x.ProductId, x.StockLocationId }); // dipakai untuk rekalkulasi & laporan
         builder.HasIndex(x => new { x.BusinessId, x.PostingKey }).IsUnique();
-        builder.HasIndex(x => new { x.BusinessId, x.OutletId, x.ProductId, x.ProductVariantId, x.CreatedAt, x.Id });
+        builder.HasIndex(x => new { x.BusinessId, x.StockLocationId, x.ProductId, x.ProductVariantId, x.CreatedAt, x.Id });
 
         builder.HasOne(x => x.Product)
             .WithMany(p => p.StockLedgers)
             .HasForeignKey(x => x.ProductId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.Outlet)
+        builder.HasOne(x => x.StockLocation)
             .WithMany()
-            .HasForeignKey(x => x.OutletId)
+            .HasForeignKey(x => x.StockLocationId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.CreatedByUser)
@@ -144,8 +144,8 @@ public class StockReconciliationRunConfiguration : IEntityTypeConfiguration<Stoc
         builder.Property(x => x.Reason).HasMaxLength(500);
         builder.Property(x => x.ErrorCode).HasMaxLength(80);
         builder.Property(x => x.ErrorMessage).HasMaxLength(1000);
-        builder.HasIndex(x => new { x.BusinessId, x.OutletId, x.StartedAt });
-        builder.HasOne(x => x.Outlet).WithMany().HasForeignKey(x => x.OutletId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(x => new { x.BusinessId, x.StockLocationId, x.StartedAt });
+        builder.HasOne(x => x.StockLocation).WithMany().HasForeignKey(x => x.StockLocationId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.RequestedByUser).WithMany().HasForeignKey(x => x.RequestedBy).OnDelete(DeleteBehavior.Restrict);
     }
 }
@@ -164,9 +164,9 @@ public class StockReconciliationItemConfiguration : IEntityTypeConfiguration<Sto
         builder.Property(x => x.IssueType).HasMaxLength(60).IsRequired();
         builder.Property(x => x.Action).HasMaxLength(30).IsRequired();
         builder.HasIndex(x => new { x.BusinessId, x.RunId, x.IssueType });
-        builder.HasIndex(x => new { x.BusinessId, x.OutletId, x.ProductId, x.ProductVariantId });
+        builder.HasIndex(x => new { x.BusinessId, x.StockLocationId, x.ProductId, x.ProductVariantId });
         builder.HasOne(x => x.Run).WithMany(x => x.Items).HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasOne(x => x.Outlet).WithMany().HasForeignKey(x => x.OutletId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.StockLocation).WithMany().HasForeignKey(x => x.StockLocationId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.ProductVariant).WithMany().HasForeignKey(x => x.ProductVariantId).OnDelete(DeleteBehavior.Restrict);
     }
@@ -180,9 +180,9 @@ public class StockOpnameConfiguration : IEntityTypeConfiguration<StockOpname>
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
 
-        builder.HasOne(x => x.Outlet)
+        builder.HasOne(x => x.StockLocation)
             .WithMany()
-            .HasForeignKey(x => x.OutletId)
+            .HasForeignKey(x => x.StockLocationId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.PerformedByUser)
@@ -232,12 +232,12 @@ public class ProductBatchConfiguration : IEntityTypeConfiguration<ProductBatch>
         builder.Property(x => x.BatchNumber).HasMaxLength(100).IsRequired();
         builder.Property(x => x.QtyProduction).HasColumnType("decimal(12,2)");
         builder.Property(x => x.QtyRemaining).HasColumnType("decimal(12,2)");
-        builder.HasOne(x => x.Outlet).WithMany().HasForeignKey(x => x.OutletId).OnDelete(DeleteBehavior.Restrict);
-        builder.HasIndex(x => new { x.BusinessId, x.OutletId, x.ProductId, x.BatchNumber })
+        builder.HasOne(x => x.StockLocation).WithMany().HasForeignKey(x => x.StockLocationId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(x => new { x.BusinessId, x.StockLocationId, x.ProductId, x.BatchNumber })
             .IsUnique().HasFilter("\"ProductVariantId\" IS NULL");
-        builder.HasIndex(x => new { x.BusinessId, x.OutletId, x.ProductId, x.ProductVariantId, x.BatchNumber })
+        builder.HasIndex(x => new { x.BusinessId, x.StockLocationId, x.ProductId, x.ProductVariantId, x.BatchNumber })
             .IsUnique().HasFilter("\"ProductVariantId\" IS NOT NULL");
-        builder.HasIndex(x => new { x.OutletId, x.ProductId, x.ExpiryDate });
+        builder.HasIndex(x => new { x.StockLocationId, x.ProductId, x.ExpiryDate });
     }
 }
 
@@ -252,10 +252,10 @@ public class ProductSerialConfiguration : IEntityTypeConfiguration<ProductSerial
         builder.Property(x => x.NormalizedSerialNumber).HasMaxLength(150).IsRequired();
         builder.Property(x => x.Status).HasMaxLength(30).IsRequired();
         builder.HasIndex(x => new { x.BusinessId, x.NormalizedSerialNumber }).IsUnique();
-        builder.HasIndex(x => new { x.BusinessId, x.OutletId, x.ProductId, x.ProductVariantId, x.Status });
+        builder.HasIndex(x => new { x.BusinessId, x.StockLocationId, x.ProductId, x.ProductVariantId, x.Status });
         builder.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.ProductVariant).WithMany().HasForeignKey(x => x.ProductVariantId).OnDelete(DeleteBehavior.Restrict);
-        builder.HasOne(x => x.Outlet).WithMany().HasForeignKey(x => x.OutletId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.StockLocation).WithMany().HasForeignKey(x => x.StockLocationId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.ReceivingNoteItem).WithMany().HasForeignKey(x => x.ReceivingNoteItemId).OnDelete(DeleteBehavior.SetNull);
     }
 }
@@ -270,14 +270,14 @@ public class StockTransferConfiguration : IEntityTypeConfiguration<StockTransfer
         builder.HasIndex(x => new { x.BusinessId, x.TransferNumber }).IsUnique();
         builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
 
-        builder.HasOne(x => x.FromOutlet)
+        builder.HasOne(x => x.FromStockLocation)
             .WithMany()
-            .HasForeignKey(x => x.FromOutletId)
+            .HasForeignKey(x => x.FromStockLocationId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.ToOutlet)
+        builder.HasOne(x => x.ToStockLocation)
             .WithMany()
-            .HasForeignKey(x => x.ToOutletId)
+            .HasForeignKey(x => x.ToStockLocationId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.RequestedByUser)

@@ -24,8 +24,8 @@ public record InventoryListItemDto(
 
 public interface IInventoryService
 {
-    Task<IReadOnlyList<InventoryListItemDto>> GetByOutletAsync(
-        Guid outletId,
+    Task<IReadOnlyList<InventoryListItemDto>> GetByStockLocationAsync(
+        Guid stockLocationId,
         string? search = null,
         bool lowStockOnly = false,
         bool includeZeroStock = true,

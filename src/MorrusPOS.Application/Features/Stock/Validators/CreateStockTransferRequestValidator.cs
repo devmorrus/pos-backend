@@ -19,15 +19,15 @@ public class CreateStockTransferRequestValidator : AbstractValidator<CreateStock
 {
     public CreateStockTransferRequestValidator()
     {
-        RuleFor(x => x.FromOutletId)
-            .NotEmpty().WithMessage("Outlet asal wajib diisi.");
+        RuleFor(x => x.FromStockLocationId)
+            .NotEmpty().WithMessage("Lokasi asal wajib diisi.");
 
-        RuleFor(x => x.ToOutletId)
-            .NotEmpty().WithMessage("Outlet tujuan wajib diisi.");
+        RuleFor(x => x.ToStockLocationId)
+            .NotEmpty().WithMessage("Lokasi tujuan wajib diisi.");
 
         RuleFor(x => x)
-            .Must(x => x.FromOutletId != x.ToOutletId)
-            .WithMessage("Outlet asal dan outlet tujuan tidak boleh sama.");
+            .Must(x => x.FromStockLocationId != x.ToStockLocationId)
+            .WithMessage("Lokasi asal dan lokasi tujuan tidak boleh sama.");
 
         RuleFor(x => x.Items)
             .NotEmpty().WithMessage("Item transfer tidak boleh kosong.");

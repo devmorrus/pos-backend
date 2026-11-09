@@ -33,6 +33,9 @@ public class StockLedgerPostgresTests
                     VALUES (@business,'Stock Test',@slug,'Test','ca100001-0000-4000-8000-000000000001','Active',now(),now()+interval '1 day',now(),now());
                     INSERT INTO outlets ("Id","BusinessId","Name","Code","IsActive","CreatedAt","UpdatedAt")
                     VALUES (@outlet,@business,'Stock Outlet',@code,true,now(),now());
+                    INSERT INTO stock_locations
+                        ("Id","BusinessId","Type","Code","Name","OutletId","IsActive","CreatedAt","UpdatedAt")
+                    VALUES (@outlet,@business,'outlet',@code,'Stock Outlet',@outlet,true,now(),now());
                     INSERT INTO categories ("Id","BusinessId","Name","ParentId","CreatedAt","UpdatedAt")
                     VALUES (@category,@business,'Stock Category',NULL,now(),now());
                     INSERT INTO products
@@ -59,7 +62,7 @@ public class StockLedgerPostgresTests
             {
                 movement.CommandText = """
                     INSERT INTO stock_ledger
-                        ("Id","BusinessId","ProductId","ProductVariantId","OutletId","ProductBatchId","ProductSerialId",
+                        ("Id","BusinessId","ProductId","ProductVariantId","StockLocationId","ProductBatchId","ProductSerialId",
                          "DocumentItemId","PostingKey","IsSystemGenerated","MovementType","QtyChange","ReferenceType",
                          "ReferenceId","Note","CreatedBy","CreatedAt")
                     VALUES (@id,@business,@product,NULL,@outlet,NULL,NULL,NULL,@key,false,'purchase_in',5,'integration_test',@reference,NULL,NULL,now());
@@ -77,7 +80,7 @@ public class StockLedgerPostgresTests
 
             await using (var directBalanceWrite = app.CreateCommand())
             {
-                directBalanceWrite.CommandText = "UPDATE inventory_stock SET \"QtyOnHand\"=4 WHERE \"ProductId\"=@product AND \"OutletId\"=@outlet;";
+                directBalanceWrite.CommandText = "UPDATE inventory_stock SET \"QtyOnHand\"=4 WHERE \"ProductId\"=@product AND \"StockLocationId\"=@outlet;";
                 directBalanceWrite.Parameters.AddWithValue("product", productId);
                 directBalanceWrite.Parameters.AddWithValue("outlet", outletId);
                 var exception = await Assert.ThrowsAsync<PostgresException>(() => directBalanceWrite.ExecuteNonQueryAsync());
@@ -98,7 +101,7 @@ public class StockLedgerPostgresTests
                 corrupt.CommandText = """
                     BEGIN;
                     SET LOCAL session_replication_role = replica;
-                    UPDATE inventory_stock SET "QtyOnHand"=2 WHERE "BusinessId"=@business AND "ProductId"=@product AND "OutletId"=@outlet;
+                    UPDATE inventory_stock SET "QtyOnHand"=2 WHERE "BusinessId"=@business AND "ProductId"=@product AND "StockLocationId"=@outlet;
                     COMMIT;
                     """;
                 corrupt.Parameters.AddWithValue("business", businessId);
@@ -140,6 +143,7 @@ public class StockLedgerPostgresTests
                 DELETE FROM inventory_stock WHERE "BusinessId"=@business;
                 DELETE FROM products WHERE "BusinessId"=@business;
                 DELETE FROM categories WHERE "BusinessId"=@business;
+                DELETE FROM stock_locations WHERE "BusinessId"=@business;
                 DELETE FROM outlets WHERE "BusinessId"=@business;
                 DELETE FROM businesses WHERE "Id"=@business;
                 COMMIT;
@@ -160,7 +164,7 @@ public class StockLedgerPostgresTests
     private static async Task<decimal> ReadBalanceAsync(NpgsqlConnection connection, Guid productId, Guid outletId)
     {
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT \"QtyOnHand\" FROM inventory_stock WHERE \"ProductId\"=@product AND \"OutletId\"=@outlet;";
+        command.CommandText = "SELECT \"QtyOnHand\" FROM inventory_stock WHERE \"ProductId\"=@product AND \"StockLocationId\"=@outlet;";
         command.Parameters.AddWithValue("product", productId);
         command.Parameters.AddWithValue("outlet", outletId);
         return (decimal)(await command.ExecuteScalarAsync())!;

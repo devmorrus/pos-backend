@@ -38,8 +38,8 @@ public class StockLedger : BaseEntity
     public Guid? ProductVariantId { get; set; }
     public ProductVariant? ProductVariant { get; set; }
 
-    public Guid OutletId { get; set; }
-    public Outlet Outlet { get; set; } = default!;
+    public Guid StockLocationId { get; set; }
+    public StockLocation StockLocation { get; set; } = default!;
 
     public Guid? ProductBatchId { get; set; }
     public ProductBatch? ProductBatch { get; set; }
@@ -82,8 +82,8 @@ public class StockReconciliationRun : BaseEntity
 {
     public Guid BusinessId { get; set; }
     public Business Business { get; set; } = default!;
-    public Guid OutletId { get; set; }
-    public Outlet Outlet { get; set; } = default!;
+    public Guid StockLocationId { get; set; }
+    public StockLocation StockLocation { get; set; } = default!;
     public Guid RequestedBy { get; set; }
     public User RequestedByUser { get; set; } = default!;
     public string Mode { get; set; } = StockReconciliationMode.Preview;
@@ -107,8 +107,8 @@ public class StockReconciliationItem : BaseEntity
     public Business Business { get; set; } = default!;
     public Guid RunId { get; set; }
     public StockReconciliationRun Run { get; set; } = default!;
-    public Guid OutletId { get; set; }
-    public Outlet Outlet { get; set; } = default!;
+    public Guid StockLocationId { get; set; }
+    public StockLocation StockLocation { get; set; } = default!;
     public Guid ProductId { get; set; }
     public Product Product { get; set; } = default!;
     public Guid? ProductVariantId { get; set; }
@@ -129,8 +129,8 @@ public class StockOpname : BaseEntity
     // Tenant scope: row milik business ini; FK businesses via konvensi EF
     public Guid BusinessId { get; set; }
     public Business Business { get; set; } = default!;
-    public Guid OutletId { get; set; }
-    public Outlet Outlet { get; set; } = default!;
+    public Guid StockLocationId { get; set; }
+    public StockLocation StockLocation { get; set; } = default!;
 
     public Guid PerformedBy { get; set; }
     public User PerformedByUser { get; set; } = default!;

@@ -29,6 +29,10 @@ public class PurchaseOrder : AuditableEntity
     public Guid OutletId { get; set; }
     public Outlet Outlet { get; set; } = default!;
 
+    // Tujuan penerimaan stok; null berarti mengikuti outlet (legacy).
+    public Guid? DestinationStockLocationId { get; set; }
+    public StockLocation? DestinationStockLocation { get; set; }
+
     public string PoNumber { get; set; } = default!;
     public DateTime PoDate { get; set; } = DateTime.UtcNow;
     

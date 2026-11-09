@@ -48,7 +48,7 @@ public class TransactionServiceTests
         _dbContext.Users.Add(new User { Id = userId, Name = "Kasir 1", Email = "k1@morruspos.com", PasswordHash = "hash", RoleId = Guid.NewGuid() });
         _dbContext.Categories.Add(new Category { Id = catId, Name = "Snack" });
         _dbContext.Products.Add(new Product { Id = prodId, CategoryId = catId, Sku = "SKU-1", Name = "Chiki", BasePrice = 10000, CostPrice = 8000, Unit = "pcs", IsActive = true });
-        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), OutletId = outletId, ProductId = prodId, QtyOnHand = 10, MinStockAlert = 0 });
+        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), StockLocationId = outletId, ProductId = prodId, QtyOnHand = 10, MinStockAlert = 0 });
         _dbContext.CashierSessions.Add(new CashierSession { Id = sessionId, UserId = userId, OutletId = outletId, OpeningCash = 100000, Status = "open" });
         await _dbContext.SaveChangesAsync();
 
@@ -97,7 +97,7 @@ public class TransactionServiceTests
         // Verify stock adjustment call
         await _stockServiceMock.Received(1).AddMovementAsync(
             productId: prodId,
-            outletId: outletId,
+            stockLocationId: outletId,
             qtyChange: -2,
             movementType: "sale",
             referenceType: "transaction",
@@ -138,11 +138,11 @@ public class TransactionServiceTests
         });
         _dbContext.InventoryStocks.Add(new InventoryStock
         {
-            Id = Guid.NewGuid(), OutletId = outletId, ProductId = prodId, QtyOnHand = 1, MinStockAlert = 0
+            Id = Guid.NewGuid(), StockLocationId = outletId, ProductId = prodId, QtyOnHand = 1, MinStockAlert = 0
         });
         _dbContext.ProductSerials.Add(new ProductSerial
         {
-            Id = serialId, ProductId = prodId, OutletId = outletId,
+            Id = serialId, ProductId = prodId, StockLocationId = outletId,
             SerialNumber = "IMEI-1", NormalizedSerialNumber = "IMEI-1",
             Status = ProductSerialStatuses.Available
         });
@@ -225,10 +225,10 @@ public class TransactionServiceTests
             BasePrice = 10000, CostPrice = 8000, Unit = "pcs", IsActive = true,
             TrackingMode = ProductTrackingModes.Batch
         });
-        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), OutletId = outletId, ProductId = productId, QtyOnHand = 2 });
+        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), StockLocationId = outletId, ProductId = productId, QtyOnHand = 2 });
         _dbContext.ProductBatches.AddRange(
-            new ProductBatch { Id = soldBatchId, ProductId = productId, OutletId = outletId, BatchNumber = "SOLD", QtyProduction = 1, QtyRemaining = 1 },
-            new ProductBatch { Id = otherBatchId, ProductId = productId, OutletId = outletId, BatchNumber = "OTHER", QtyProduction = 1, QtyRemaining = 1 });
+            new ProductBatch { Id = soldBatchId, ProductId = productId, StockLocationId = outletId, BatchNumber = "SOLD", QtyProduction = 1, QtyRemaining = 1 },
+            new ProductBatch { Id = otherBatchId, ProductId = productId, StockLocationId = outletId, BatchNumber = "OTHER", QtyProduction = 1, QtyRemaining = 1 });
         _dbContext.CashierSessions.Add(new CashierSession { Id = sessionId, UserId = userId, OutletId = outletId, OpeningCash = 0, Status = "open" });
         await _dbContext.SaveChangesAsync();
 
@@ -267,7 +267,7 @@ public class TransactionServiceTests
         _dbContext.Users.Add(new User { Id = userId, Name = "Kasir 1", Email = "k1@morruspos.com", PasswordHash = "hash", RoleId = Guid.NewGuid() });
         _dbContext.Categories.Add(new Category { Id = catId, Name = "Snack" });
         _dbContext.Products.Add(new Product { Id = prodId, CategoryId = catId, Sku = "SKU-1", Name = "Chiki", BasePrice = 10000, CostPrice = 8000, Unit = "pcs", IsActive = true });
-        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), OutletId = outletId, ProductId = prodId, QtyOnHand = 1, MinStockAlert = 0 }); // only 1 stock
+        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), StockLocationId = outletId, ProductId = prodId, QtyOnHand = 1, MinStockAlert = 0 }); // only 1 stock
         _dbContext.CashierSessions.Add(new CashierSession { Id = sessionId, UserId = userId, OutletId = outletId, OpeningCash = 100000, Status = "open" });
         await _dbContext.SaveChangesAsync();
 
@@ -314,7 +314,7 @@ public class TransactionServiceTests
         _dbContext.Users.Add(new User { Id = userId, Name = "Kasir 1", Email = "k1@morruspos.com", PasswordHash = "hash", RoleId = Guid.NewGuid() });
         _dbContext.Categories.Add(new Category { Id = catId, Name = "Snack" });
         _dbContext.Products.Add(new Product { Id = prodId, CategoryId = catId, Sku = "SKU-1", Name = "Chiki", BasePrice = 10000, CostPrice = 8000, Unit = "pcs", IsActive = true });
-        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), OutletId = outletId, ProductId = prodId, QtyOnHand = 10, MinStockAlert = 0 });
+        _dbContext.InventoryStocks.Add(new InventoryStock { Id = Guid.NewGuid(), StockLocationId = outletId, ProductId = prodId, QtyOnHand = 10, MinStockAlert = 0 });
         _dbContext.CashierSessions.Add(new CashierSession { Id = sessionId, UserId = userId, OutletId = outletId, OpeningCash = 100000, Status = "open" });
         _dbContext.Transactions.Add(new Transaction
         {

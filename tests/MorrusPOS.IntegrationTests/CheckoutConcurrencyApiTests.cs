@@ -231,7 +231,7 @@ public class CheckoutConcurrencyApiTests : IClassFixture<WebApplicationFactory<P
 
         (await ScalarAsync<decimal>(connection, """
             SELECT "QtyOnHand" FROM inventory_stock
-            WHERE "BusinessId"=@business AND "OutletId"=@outlet AND "ProductId"=@product
+            WHERE "BusinessId"=@business AND "StockLocationId"=@outlet AND "ProductId"=@product
               AND "ProductVariantId" IS NULL;
             """, businessId, outletId, productId, checkoutAId, checkoutBId, ct)).Should().Be(0);
 

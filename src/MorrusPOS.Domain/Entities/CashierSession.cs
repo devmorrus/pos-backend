@@ -19,6 +19,13 @@ public class CashierSession : AuditableEntity
     public Guid UserId { get; set; }
     public User User { get; set; } = default!;
 
+    public Guid? RegisterId { get; set; }
+    public PosRegister? Register { get; set; }
+    public Guid? DeviceId { get; set; }
+    public PosDevice? Device { get; set; }
+    public Guid? StockLocationId { get; set; }
+    public StockLocation? StockLocation { get; set; }
+
     public DateTime OpeningTime { get; set; } = DateTime.UtcNow;
     public DateTime? ClosingTime { get; set; }
 

@@ -42,16 +42,16 @@ public class StockOpnameService : IStockOpnameService
             throw new InvalidOperationException("Laporan Stok Opname tidak ditemukan.");
         }
 
-        await EnsureEnabledAsync(opname.OutletId, ct);
+        await EnsureEnabledAsync(opname.StockLocationId, ct);
 
         return MapToDto(opname);
     }
 
-    public async Task<IReadOnlyList<StockOpnameDto>> GetByOutletAsync(Guid outletId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<StockOpnameDto>> GetByStockLocationAsync(Guid stockLocationId, CancellationToken ct = default)
     {
-        await EnsureEnabledAsync(outletId, ct);
+        await EnsureEnabledAsync(stockLocationId, ct);
         var opnames = await OpnameQuery()
-            .Where(o => o.OutletId == outletId)
+            .Where(o => o.StockLocationId == stockLocationId)
             .OrderByDescending(o => o.CreatedAt)
             .ToListAsync(ct);
 
@@ -60,7 +60,7 @@ public class StockOpnameService : IStockOpnameService
 
     public async Task<StockOpnameDto> CreateAsync(Guid userId, CreateStockOpnameRequest request, CancellationToken ct = default)
     {
-        await EnsureEnabledAsync(request.OutletId, ct);
+        await EnsureEnabledAsync(request.StockLocationId, ct);
         if (request.Items.Count == 0)
         {
             throw new InvalidOperationException("Item opname tidak boleh kosong.");
@@ -72,7 +72,7 @@ public class StockOpnameService : IStockOpnameService
             var opname = new StockOpname
             {
                 Id = Guid.NewGuid(),
-                OutletId = request.OutletId,
+                StockLocationId = request.StockLocationId,
                 PerformedBy = userId,
                 Status = "completed",
                 CreatedAt = DateTime.UtcNow
@@ -114,13 +114,13 @@ public class StockOpnameService : IStockOpnameService
                         throw new TrackingValidationException(TrackingErrorCodes.TrackingModeInvalid,
                             $"Produk '{product.Name}' tidak memiliki stok sehingga tidak perlu diopname.");
                     case ProductTrackingModes.Quantity:
-                        await AddQuantityItemAsync(opname, product, itemReq, request.OutletId, stockUpdates, ct);
+                        await AddQuantityItemAsync(opname, product, itemReq, request.StockLocationId, stockUpdates, ct);
                         break;
                     case ProductTrackingModes.Batch:
-                        await AddBatchItemAsync(opname, product, itemReq, request.OutletId, stockUpdates, ct);
+                        await AddBatchItemAsync(opname, product, itemReq, request.StockLocationId, stockUpdates, ct);
                         break;
                     case ProductTrackingModes.Serial:
-                        await AddSerialItemsAsync(opname, product, itemReq, request.OutletId, stockUpdates, seenSerialIds, ct);
+                        await AddSerialItemsAsync(opname, product, itemReq, request.StockLocationId, stockUpdates, seenSerialIds, ct);
                         break;
                     default:
                         throw new InvalidOperationException($"Tracking mode produk '{product.Name}' tidak valid.");
@@ -133,7 +133,7 @@ public class StockOpnameService : IStockOpnameService
             if (stockUpdates.Count > 0)
             {
                 await _stockEvents.EnqueueCurrentStockAsync(
-                    request.OutletId,
+                    request.StockLocationId,
                     stockUpdates,
                     $"stock:opname:{opname.Id:N}:completed",
                     ct);
@@ -153,7 +153,7 @@ public class StockOpnameService : IStockOpnameService
         StockOpname opname,
         Product product,
         StockOpnameItemRequest itemReq,
-        Guid outletId,
+        Guid stockLocationId,
         List<StockEventKey> stockUpdates,
         CancellationToken ct)
     {
@@ -166,7 +166,7 @@ public class StockOpnameService : IStockOpnameService
         var stock = await _dbContext.InventoryStocks
             .FirstOrDefaultAsync(s => s.ProductId == itemReq.ProductId &&
                 s.ProductVariantId == itemReq.ProductVariantId &&
-                s.OutletId == outletId, ct);
+                s.StockLocationId == stockLocationId, ct);
 
         var systemQty = stock?.QtyOnHand ?? 0;
         var variance = itemReq.PhysicalQty - systemQty;
@@ -178,7 +178,7 @@ public class StockOpnameService : IStockOpnameService
         {
             await _stockService.AddMovementAsync(
                 productId: itemReq.ProductId,
-                outletId: outletId,
+                stockLocationId: stockLocationId,
                 qtyChange: variance,
                 movementType: StockMovementType.OpnameAdjustment,
                 referenceType: "stock_opname",
@@ -198,7 +198,7 @@ public class StockOpnameService : IStockOpnameService
         StockOpname opname,
         Product product,
         StockOpnameItemRequest itemReq,
-        Guid outletId,
+        Guid stockLocationId,
         List<StockEventKey> stockUpdates,
         CancellationToken ct)
     {
@@ -217,7 +217,7 @@ public class StockOpnameService : IStockOpnameService
             x.Id == itemReq.ProductBatchId.Value &&
             x.ProductId == itemReq.ProductId &&
             x.ProductVariantId == itemReq.ProductVariantId &&
-            x.OutletId == outletId, ct);
+            x.StockLocationId == stockLocationId, ct);
 
         if (batch == null)
         {
@@ -247,7 +247,7 @@ public class StockOpnameService : IStockOpnameService
 
         await _stockService.AddMovementAsync(
             productId: itemReq.ProductId,
-            outletId: outletId,
+            stockLocationId: stockLocationId,
             qtyChange: variance,
             movementType: StockMovementType.OpnameAdjustment,
             referenceType: "stock_opname",
@@ -267,7 +267,7 @@ public class StockOpnameService : IStockOpnameService
         StockOpname opname,
         Product product,
         StockOpnameItemRequest itemReq,
-        Guid outletId,
+        Guid stockLocationId,
         List<StockEventKey> stockUpdates,
         HashSet<Guid> seenSerialIds,
         CancellationToken ct)
@@ -293,7 +293,7 @@ public class StockOpnameService : IStockOpnameService
         var available = await _dbContext.ProductSerials
             .Where(x => x.ProductId == itemReq.ProductId &&
                 x.ProductVariantId == itemReq.ProductVariantId &&
-                x.OutletId == outletId &&
+                x.StockLocationId == stockLocationId &&
                 x.Status == ProductSerialStatuses.Available)
             .ToListAsync(ct);
 
@@ -332,7 +332,7 @@ public class StockOpnameService : IStockOpnameService
 
             await _stockService.AddMovementAsync(
                 productId: itemReq.ProductId,
-                outletId: outletId,
+                stockLocationId: stockLocationId,
                 qtyChange: -1,
                 movementType: StockMovementType.OpnameAdjustment,
                 referenceType: "stock_opname",
@@ -372,7 +372,7 @@ public class StockOpnameService : IStockOpnameService
 
     private IQueryable<StockOpname> OpnameQuery()
         => _dbContext.StockOpnames
-            .Include(o => o.Outlet)
+            .Include(o => o.StockLocation)
             .Include(o => o.PerformedByUser)
             .Include(o => o.Items).ThenInclude(i => i.Product)
             .Include(o => o.Items).ThenInclude(i => i.ProductVariant)
@@ -384,8 +384,9 @@ public class StockOpnameService : IStockOpnameService
     {
         return new StockOpnameDto(
             o.Id,
-            o.OutletId,
-            o.Outlet?.Name ?? string.Empty,
+            o.StockLocationId,
+            o.StockLocation?.Name ?? string.Empty,
+            o.StockLocation?.Type ?? string.Empty,
             o.PerformedBy,
             o.PerformedByUser?.Name ?? string.Empty,
             o.Status,
@@ -408,7 +409,17 @@ public class StockOpnameService : IStockOpnameService
         );
     }
 
-    private Task EnsureEnabledAsync(Guid outletId, CancellationToken ct)
-        => _capabilities?.EnsureEnabledAsync(CapabilityCodes.InventoryOpname, outletId, ct)
-            ?? Task.CompletedTask;
+    private async Task EnsureEnabledAsync(Guid stockLocationId, CancellationToken ct)
+    {
+        if (_capabilities is null)
+        {
+            return;
+        }
+
+        var outletId = await _dbContext.StockLocations.AsNoTracking()
+            .Where(x => x.Id == stockLocationId)
+            .Select(x => x.OutletId)
+            .SingleOrDefaultAsync(ct);
+        await _capabilities.EnsureEnabledAsync(CapabilityCodes.InventoryOpname, outletId, ct);
+    }
 }

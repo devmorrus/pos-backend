@@ -250,7 +250,7 @@ public class ConsignmentService : IConsignmentService
                     // 2. Add stock movement (consignment_in)
                     await _stockService.AddMovementAsync(
                         productId: item.ProductId,
-                        outletId: consignment.OutletId,
+                        stockLocationId: consignment.OutletId,
                         qtyChange: item.Qty,
                         movementType: StockMovementType.ConsignmentIn,
                         referenceType: "consignment",

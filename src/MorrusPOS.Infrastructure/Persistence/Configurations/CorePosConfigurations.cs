@@ -137,6 +137,19 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
             .HasForeignKey(x => x.CashierSessionId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne(x => x.Register)
+            .WithMany()
+            .HasForeignKey(x => x.RegisterId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Device)
+            .WithMany()
+            .HasForeignKey(x => x.DeviceId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.StockLocation)
+            .WithMany()
+            .HasForeignKey(x => x.StockLocationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(x => x.Customer)
             .WithMany(c => c.Transactions)
             .HasForeignKey(x => x.CustomerId)
@@ -250,6 +263,26 @@ public class CashierSessionConfiguration : IEntityTypeConfiguration<CashierSessi
             .WithMany()
             .HasForeignKey(x => x.UserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.Register)
+            .WithMany()
+            .HasForeignKey(x => x.RegisterId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Device)
+            .WithMany()
+            .HasForeignKey(x => x.DeviceId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.StockLocation)
+            .WithMany()
+            .HasForeignKey(x => x.StockLocationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => x.RegisterId)
+            .IsUnique()
+            .HasFilter("\"Status\"='open' AND \"RegisterId\" IS NOT NULL");
+        builder.HasIndex(x => x.UserId)
+            .IsUnique()
+            .HasFilter("\"Status\"='open' AND \"RegisterId\" IS NOT NULL");
     }
 }
 

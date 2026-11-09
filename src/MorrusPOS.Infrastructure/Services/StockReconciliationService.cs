@@ -27,31 +27,31 @@ public class StockReconciliationService : IStockReconciliationService
     }
 
     public async Task<StockReconciliationResultDto> PreviewAsync(
-        Guid userId, Guid outletId, CancellationToken ct = default)
+        Guid userId, Guid stockLocationId, CancellationToken ct = default)
     {
-        await EnsureAccessAsync(outletId, repair: false, ct);
+        await EnsureAccessAsync(stockLocationId, repair: false, ct);
         var startedAt = DateTime.UtcNow;
-        var rows = await GetRowsAsync(outletId, apply: false, ct);
-        var scanned = await GetScannedCountAsync(outletId, ct);
-        return MapResult(null, outletId, StockReconciliationMode.Preview,
+        var rows = await GetRowsAsync(stockLocationId, apply: false, ct);
+        var scanned = await GetScannedCountAsync(stockLocationId, ct);
+        return MapResult(null, stockLocationId, StockReconciliationMode.Preview,
             StockReconciliationStatus.Completed, scanned, rows, startedAt, DateTime.UtcNow);
     }
 
     public async Task<StockReconciliationResultDto> RepairAsync(
-        Guid userId, Guid outletId, string reason, CancellationToken ct = default)
+        Guid userId, Guid stockLocationId, string reason, CancellationToken ct = default)
     {
-        await EnsureAccessAsync(outletId, repair: true, ct);
+        await EnsureAccessAsync(stockLocationId, repair: true, ct);
         var normalizedReason = reason?.Trim();
         if (string.IsNullOrWhiteSpace(normalizedReason) || normalizedReason.Length < 5)
             throw new StockIntegrityException(StockIntegrityErrorCodes.ReconciliationScopeInvalid,
                 "Alasan rekonsiliasi wajib diisi minimal 5 karakter.");
 
         var startedAt = DateTime.UtcNow;
-        var preview = await GetRowsAsync(outletId, apply: false, ct);
-        var scanned = await GetScannedCountAsync(outletId, ct);
+        var preview = await GetRowsAsync(stockLocationId, apply: false, ct);
+        var scanned = await GetScannedCountAsync(stockLocationId, ct);
         if (preview.Any(x => !x.Repairable))
         {
-            var blockedRun = await SaveRunAsync(userId, outletId, normalizedReason,
+            var blockedRun = await SaveRunAsync(userId, stockLocationId, normalizedReason,
                 StockReconciliationStatus.Blocked, scanned, preview, ct);
             throw new StockIntegrityException(StockIntegrityErrorCodes.ReconciliationBlocked,
                 $"Rekonsiliasi diblokir oleh {blockedRun.BlockedCount} masalah batch, serial, produk non-stok, atau saldo ledger negatif.");
@@ -62,8 +62,8 @@ public class StockReconciliationService : IStockReconciliationService
             transaction = await _dbContext.Database.BeginTransactionAsync(ct);
         try
         {
-            var repaired = await GetRowsAsync(outletId, apply: true, ct);
-            var run = await SaveRunAsync(userId, outletId, normalizedReason,
+            var repaired = await GetRowsAsync(stockLocationId, apply: true, ct);
+            var run = await SaveRunAsync(userId, stockLocationId, normalizedReason,
                 StockReconciliationStatus.Completed, scanned, repaired, ct);
             var repairedKeys = repaired
                 .Where(x => x.Action is "updated_balance" or "inserted_balance")
@@ -72,14 +72,14 @@ public class StockReconciliationService : IStockReconciliationService
             if (repairedKeys.Length > 0)
             {
                 await _stockEvents.EnqueueCurrentStockAsync(
-                    outletId,
+                    stockLocationId,
                     repairedKeys,
                     $"stock:reconciliation:{run.Id:N}",
                     ct);
             }
             if (transaction is not null) await transaction.CommitAsync(ct);
 
-            return MapResult(run.Id, outletId, StockReconciliationMode.Repair,
+            return MapResult(run.Id, stockLocationId, StockReconciliationMode.Repair,
                 run.Status, scanned, repaired, startedAt, run.CompletedAt);
         }
         catch (PostgresException ex) when (ex.MessageText.Contains("STOCK_RECONCILIATION_BLOCKED", StringComparison.Ordinal))
@@ -100,15 +100,15 @@ public class StockReconciliationService : IStockReconciliationService
     }
 
     public async Task<IReadOnlyList<StockReconciliationRunDto>> GetRunsAsync(
-        Guid outletId, int take, CancellationToken ct = default)
+        Guid stockLocationId, int take, CancellationToken ct = default)
     {
-        await EnsureAccessAsync(outletId, repair: false, ct);
+        await EnsureAccessAsync(stockLocationId, repair: false, ct);
         return await _dbContext.StockReconciliationRuns.AsNoTracking()
-            .Where(x => x.OutletId == outletId)
+            .Where(x => x.StockLocationId == stockLocationId)
             .OrderByDescending(x => x.StartedAt)
             .Take(Math.Clamp(take, 1, 100))
             .Select(x => new StockReconciliationRunDto(
-                x.Id, x.OutletId, x.Outlet.Name, x.RequestedBy, x.RequestedByUser.Name,
+                x.Id, x.StockLocationId, x.StockLocation.Name, x.RequestedBy, x.RequestedByUser.Name,
                 x.Mode, x.Status, x.Reason, x.ScannedCount, x.MismatchCount,
                 x.RepairableCount, x.RepairedCount, x.BlockedCount,
                 x.ErrorCode, x.ErrorMessage, x.StartedAt, x.CompletedAt))
@@ -122,7 +122,7 @@ public class StockReconciliationService : IStockReconciliationService
             .Include(x => x.Items).ThenInclude(x => x.ProductVariant)
             .SingleOrDefaultAsync(x => x.Id == id, ct)
             ?? throw new KeyNotFoundException("Run rekonsiliasi tidak ditemukan.");
-        await EnsureAccessAsync(run.OutletId, repair: false, ct);
+        await EnsureAccessAsync(run.StockLocationId, repair: false, ct);
         var rows = run.Items.Select(x => new StockReconciliationSqlRow
         {
             ProductId = x.ProductId,
@@ -137,7 +137,7 @@ public class StockReconciliationService : IStockReconciliationService
             Repairable = x.Action != "blocked",
             Action = x.Action
         }).ToList();
-        return MapResult(run.Id, run.OutletId, run.Mode, run.Status,
+        return MapResult(run.Id, run.StockLocationId, run.Mode, run.Status,
             run.ScannedCount, rows, run.StartedAt, run.CompletedAt);
     }
 
@@ -147,7 +147,7 @@ public class StockReconciliationService : IStockReconciliationService
         var run = await _dbContext.StockReconciliationRuns.AsNoTracking()
             .SingleOrDefaultAsync(x => x.Id == id, ct)
             ?? throw new KeyNotFoundException("Run rekonsiliasi tidak ditemukan.");
-        await EnsureAccessAsync(run.OutletId, repair: false, ct);
+        await EnsureAccessAsync(run.StockLocationId, repair: false, ct);
         var safePage = Math.Max(1, page);
         var safeSize = Math.Clamp(pageSize, 1, 200);
         return await _dbContext.StockReconciliationItems.AsNoTracking()
@@ -166,37 +166,37 @@ public class StockReconciliationService : IStockReconciliationService
     }
 
     private async Task<List<StockReconciliationSqlRow>> GetRowsAsync(
-        Guid outletId, bool apply, CancellationToken ct)
+        Guid stockLocationId, bool apply, CancellationToken ct)
     {
         if (_dbContext.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
-            return await GetInMemoryRowsAsync(outletId, apply, ct);
+            return await GetInMemoryRowsAsync(stockLocationId, apply, ct);
 
         return await _dbContext.Database
             .SqlQuery<StockReconciliationSqlRow>(
-                $"SELECT * FROM fn_reconcile_inventory_stock({outletId}, {apply})")
+                $"SELECT * FROM fn_reconcile_inventory_stock({stockLocationId}, {apply})")
             .ToListAsync(ct);
     }
 
     private async Task<List<StockReconciliationSqlRow>> GetInMemoryRowsAsync(
-        Guid outletId, bool apply, CancellationToken ct)
+        Guid stockLocationId, bool apply, CancellationToken ct)
     {
         var ledger = await _dbContext.StockLedgers.AsNoTracking()
-            .Where(x => x.OutletId == outletId)
+            .Where(x => x.StockLocationId == stockLocationId)
             .GroupBy(x => new { x.ProductId, x.ProductVariantId })
             .Select(x => new { x.Key.ProductId, x.Key.ProductVariantId, Qty = x.Sum(v => v.QtyChange) })
             .ToListAsync(ct);
         var balances = await _dbContext.InventoryStocks
-            .Where(x => x.OutletId == outletId)
+            .Where(x => x.StockLocationId == stockLocationId)
             .ToListAsync(ct);
         var products = await _dbContext.Products.AsNoTracking()
             .ToDictionaryAsync(x => x.Id, ct);
         var batchTotals = await _dbContext.ProductBatches.AsNoTracking()
-            .Where(x => x.OutletId == outletId)
+            .Where(x => x.StockLocationId == stockLocationId)
             .GroupBy(x => new { x.ProductId, x.ProductVariantId })
             .Select(x => new { x.Key.ProductId, x.Key.ProductVariantId, Qty = x.Sum(v => v.QtyRemaining) })
             .ToListAsync(ct);
         var serialTotals = await _dbContext.ProductSerials.AsNoTracking()
-            .Where(x => x.OutletId == outletId && x.Status == ProductSerialStatuses.Available)
+            .Where(x => x.StockLocationId == stockLocationId && x.Status == ProductSerialStatuses.Available)
             .GroupBy(x => new { x.ProductId, x.ProductVariantId })
             .Select(x => new { x.Key.ProductId, x.Key.ProductVariantId, Qty = x.Count() })
             .ToListAsync(ct);
@@ -223,7 +223,7 @@ public class StockReconciliationService : IStockReconciliationService
                     _dbContext.InventoryStocks.Add(new InventoryStock
                     {
                         Id = Guid.NewGuid(), ProductId = key.ProductId, ProductVariantId = key.ProductVariantId,
-                        OutletId = outletId, QtyOnHand = expected, MinStockAlert = 0, UpdatedAt = DateTime.UtcNow
+                        StockLocationId = stockLocationId, QtyOnHand = expected, MinStockAlert = 0, UpdatedAt = DateTime.UtcNow
                     });
                     action = "inserted_balance";
                 }
@@ -255,24 +255,24 @@ public class StockReconciliationService : IStockReconciliationService
         return ledger != stored ? "balance_mismatch" : null;
     }
 
-    private async Task<int> GetScannedCountAsync(Guid outletId, CancellationToken ct)
+    private async Task<int> GetScannedCountAsync(Guid stockLocationId, CancellationToken ct)
     {
-        var stockKeys = await _dbContext.InventoryStocks.AsNoTracking().Where(x => x.OutletId == outletId)
+        var stockKeys = await _dbContext.InventoryStocks.AsNoTracking().Where(x => x.StockLocationId == stockLocationId)
             .Select(x => new { x.ProductId, x.ProductVariantId }).ToListAsync(ct);
-        var ledgerKeys = await _dbContext.StockLedgers.AsNoTracking().Where(x => x.OutletId == outletId)
+        var ledgerKeys = await _dbContext.StockLedgers.AsNoTracking().Where(x => x.StockLocationId == stockLocationId)
             .Select(x => new { x.ProductId, x.ProductVariantId }).Distinct().ToListAsync(ct);
         return stockKeys.Select(x => (x.ProductId, x.ProductVariantId))
             .Concat(ledgerKeys.Select(x => (x.ProductId, x.ProductVariantId))).Distinct().Count();
     }
 
     private async Task<StockReconciliationRun> SaveRunAsync(
-        Guid userId, Guid outletId, string reason, string status, int scanned,
+        Guid userId, Guid stockLocationId, string reason, string status, int scanned,
         IReadOnlyList<StockReconciliationSqlRow> rows, CancellationToken ct)
     {
         var now = DateTime.UtcNow;
         var run = new StockReconciliationRun
         {
-            Id = Guid.NewGuid(), OutletId = outletId, RequestedBy = userId,
+            Id = Guid.NewGuid(), StockLocationId = stockLocationId, RequestedBy = userId,
             Mode = StockReconciliationMode.Repair, Status = status, Reason = reason,
             ScannedCount = scanned, MismatchCount = rows.Count,
             RepairableCount = rows.Count(x => x.Repairable),
@@ -287,7 +287,7 @@ public class StockReconciliationService : IStockReconciliationService
         foreach (var row in rows)
             run.Items.Add(new StockReconciliationItem
             {
-                Id = Guid.NewGuid(), OutletId = outletId, ProductId = row.ProductId,
+                Id = Guid.NewGuid(), StockLocationId = stockLocationId, ProductId = row.ProductId,
                 ProductVariantId = row.ProductVariantId, TrackingMode = row.TrackingMode,
                 LedgerQty = row.LedgerQty, StoredQty = row.StoredQty, Difference = row.Difference,
                 BatchQty = row.BatchQty, AvailableSerialCount = row.AvailableSerialCount,
@@ -298,19 +298,28 @@ public class StockReconciliationService : IStockReconciliationService
         return run;
     }
 
-    private async Task EnsureAccessAsync(Guid outletId, bool repair, CancellationToken ct)
+    private async Task EnsureAccessAsync(Guid stockLocationId, bool repair, CancellationToken ct)
     {
-        if (!await _dbContext.Outlets.AsNoTracking().AnyAsync(x => x.Id == outletId, ct))
-            throw new StockIntegrityException(StockIntegrityErrorCodes.ReconciliationScopeInvalid,
-                "Outlet rekonsiliasi tidak valid.");
-        if (_currentUser.Role != "Owner" && _currentUser.OutletId != outletId)
-            throw new UnauthorizedAccessException("Anda tidak memiliki akses ke outlet tersebut.");
+        var location = await _dbContext.StockLocations.AsNoTracking()
+            .Where(x => x.Id == stockLocationId)
+            .Select(x => new { x.OutletId })
+            .SingleOrDefaultAsync(ct)
+            ?? throw new StockIntegrityException(StockIntegrityErrorCodes.ReconciliationScopeInvalid,
+                "Lokasi stok rekonsiliasi tidak valid.");
+        if (_currentUser.Role is not ("Owner" or "Admin") && _currentUser.OutletId != location.OutletId)
+        {
+            var userId = _currentUser.UserId ?? Guid.Empty;
+            var assigned = await _dbContext.UserStockLocationAccesses.AsNoTracking()
+                .AnyAsync(x => x.UserId == userId && x.StockLocationId == stockLocationId, ct);
+            if (!assigned)
+                throw new UnauthorizedAccessException("Anda tidak memiliki akses ke lokasi stok tersebut.");
+        }
         if (repair && _currentUser.Role is not ("Owner" or "Admin"))
             throw new UnauthorizedAccessException("Repair stok hanya dapat dilakukan Owner atau Admin.");
     }
 
     private StockReconciliationResultDto MapResult(
-        Guid? runId, Guid outletId, string mode, string status, int scanned,
+        Guid? runId, Guid stockLocationId, string mode, string status, int scanned,
         IReadOnlyList<StockReconciliationSqlRow> rows, DateTime startedAt, DateTime? completedAt)
     {
         var productIds = rows.Select(r => r.ProductId).Distinct().ToList();
@@ -331,7 +340,7 @@ public class StockReconciliationService : IStockReconciliationService
                 product?.Name ?? string.Empty, x.TrackingMode, x.LedgerQty, x.StoredQty,
                 x.Difference, x.BatchQty, x.AvailableSerialCount, x.IssueType, x.Repairable, x.Action);
         }).ToList();
-        return new StockReconciliationResultDto(runId, outletId, mode, status, scanned,
+        return new StockReconciliationResultDto(runId, stockLocationId, mode, status, scanned,
             rows.Count, rows.Count(x => x.Repairable),
             rows.Count(x => x.Action is "updated_balance" or "inserted_balance"),
             rows.Count(x => !x.Repairable), startedAt, completedAt, items);

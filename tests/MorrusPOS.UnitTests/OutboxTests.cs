@@ -71,10 +71,18 @@ public class OutboxTests
         var outletId = Guid.NewGuid();
         var productWithStock = Guid.NewGuid();
         var missingProduct = Guid.NewGuid();
+        db.StockLocations.Add(new StockLocation
+        {
+            Id = outletId,
+            Type = StockLocationTypes.Outlet,
+            Code = "OUT-TEST",
+            Name = "Test Outlet",
+            OutletId = outletId,
+        });
         db.InventoryStocks.Add(new InventoryStock
         {
             Id = Guid.NewGuid(),
-            OutletId = outletId,
+            StockLocationId = outletId,
             ProductId = productWithStock,
             QtyOnHand = 17,
         });
@@ -88,15 +96,52 @@ public class OutboxTests
             "stock:test");
 
         await writer.Received(1).EnqueueAsync(
-            Arg.Is<OutboxWriteRequest>(request => request != null && PayloadMatches(request.PayloadJson, productWithStock, missingProduct)),
+            Arg.Is<OutboxWriteRequest>(request => request != null
+                && request.SchemaVersion == 2
+                && request.OutletId == outletId
+                && PayloadMatches(request.PayloadJson, productWithStock, missingProduct)),
             Arg.Any<CancellationToken>());
     }
 
     private static bool PayloadMatches(string json, Guid productWithStock, Guid missingProduct)
     {
-        var payload = JsonSerializer.Deserialize<StockUpdatedEventV1>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var payload = JsonSerializer.Deserialize<StockUpdatedEventV2>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         return payload is not null &&
+               payload.StockLocationId != Guid.Empty &&
+               payload.LocationType == StockLocationTypes.Outlet &&
                payload.Items.Single(x => x.ProductId == productWithStock).QtyOnHand == 17 &&
                payload.Items.Single(x => x.ProductId == missingProduct).QtyOnHand == 0;
+    }
+
+    [Fact]
+    public async Task StockPublisher_WarehouseEvent_IsLocationScopedWithoutOutlet()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var db = new AppDbContext(options, TestTenant.CurrentUser);
+        var warehouseId = Guid.NewGuid();
+        db.StockLocations.Add(new StockLocation
+        {
+            Id = warehouseId,
+            Type = StockLocationTypes.Warehouse,
+            Code = "WH-TEST",
+            Name = "Test Warehouse",
+        });
+        await db.SaveChangesAsync();
+        var writer = Substitute.For<IOutboxWriter>();
+        var publisher = new StockEventPublisher(db, TestTenant.CurrentUser, writer);
+
+        await publisher.EnqueueCurrentStockAsync(
+            warehouseId,
+            [new StockEventKey(Guid.NewGuid())],
+            "stock:warehouse:test");
+
+        await writer.Received(1).EnqueueAsync(
+            Arg.Is<OutboxWriteRequest>(request => request != null && request.OutletId == null
+                && request.SchemaVersion == 2
+                && request.PayloadJson.Contains(warehouseId.ToString(), StringComparison.OrdinalIgnoreCase)
+                && request.PayloadJson.Contains("warehouse", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
     }
 }

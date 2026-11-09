@@ -18,8 +18,8 @@ public class InventoryStock : BaseEntity
     public Guid? ProductVariantId { get; set; }
     public ProductVariant? ProductVariant { get; set; }
 
-    public Guid OutletId { get; set; }
-    public Outlet Outlet { get; set; } = default!;
+    public Guid StockLocationId { get; set; }
+    public StockLocation StockLocation { get; set; } = default!;
 
     public decimal QtyOnHand { get; set; }
     public decimal MinStockAlert { get; set; }

@@ -40,28 +40,33 @@ public class StockTransferService : IStockTransferService
             throw new InvalidOperationException("Transfer Stok tidak ditemukan.");
         }
 
-        await EnsureEnabledAsync(transfer.FromOutletId, ct);
-        await EnsureEnabledAsync(transfer.ToOutletId, ct);
+        await EnsureEnabledAsync(transfer.FromStockLocationId, ct);
+        await EnsureEnabledAsync(transfer.ToStockLocationId, ct);
+        if (!await HasLocationAccessAsync(transfer.FromStockLocationId, ct)
+            && !await HasLocationAccessAsync(transfer.ToStockLocationId, ct))
+            throw new UnauthorizedAccessException("Anda tidak memiliki akses ke transfer stok tersebut.");
 
         return MapToDto(transfer);
     }
 
-    public async Task<IReadOnlyList<StockTransferDto>> GetOutgoingTransfersAsync(Guid outletId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<StockTransferDto>> GetOutgoingTransfersAsync(Guid stockLocationId, CancellationToken ct = default)
     {
-        await EnsureEnabledAsync(outletId, ct);
+        await EnsureEnabledAsync(stockLocationId, ct);
+        await EnsureLocationAccessAsync(stockLocationId, ct);
         var transfers = await TransferQuery()
-            .Where(t => t.FromOutletId == outletId)
+            .Where(t => t.FromStockLocationId == stockLocationId)
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync(ct);
 
         return transfers.Select(MapToDto).ToList();
     }
 
-    public async Task<IReadOnlyList<StockTransferDto>> GetIncomingTransfersAsync(Guid outletId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<StockTransferDto>> GetIncomingTransfersAsync(Guid stockLocationId, CancellationToken ct = default)
     {
-        await EnsureEnabledAsync(outletId, ct);
+        await EnsureEnabledAsync(stockLocationId, ct);
+        await EnsureLocationAccessAsync(stockLocationId, ct);
         var transfers = await TransferQuery()
-            .Where(t => t.ToOutletId == outletId)
+            .Where(t => t.ToStockLocationId == stockLocationId)
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync(ct);
 
@@ -70,14 +75,12 @@ public class StockTransferService : IStockTransferService
 
     public async Task<StockTransferDto> CreateAsync(Guid userId, CreateStockTransferRequest request, CancellationToken ct = default)
     {
-        if (_capabilityEvaluator is not null)
+        await EnsureEnabledAsync(request.FromStockLocationId, ct);
+        await EnsureEnabledAsync(request.ToStockLocationId, ct);
+        await EnsureLocationAccessAsync(request.FromStockLocationId, ct);
+        if (request.FromStockLocationId == request.ToStockLocationId)
         {
-            await _capabilityEvaluator.EnsureEnabledAsync(CapabilityCodes.InventoryTransfer, request.FromOutletId, ct);
-            await _capabilityEvaluator.EnsureEnabledAsync(CapabilityCodes.InventoryTransfer, request.ToOutletId, ct);
-        }
-        if (request.FromOutletId == request.ToOutletId)
-        {
-            throw new InvalidOperationException("Outlet asal dan tujuan tidak boleh sama.");
+            throw new InvalidOperationException("Lokasi asal dan tujuan tidak boleh sama.");
         }
         if (request.Items.Count == 0)
         {
@@ -90,8 +93,8 @@ public class StockTransferService : IStockTransferService
             var transfer = new StockTransfer
             {
                 Id = Guid.NewGuid(),
-                FromOutletId = request.FromOutletId,
-                ToOutletId = request.ToOutletId,
+                FromStockLocationId = request.FromStockLocationId,
+                ToStockLocationId = request.ToStockLocationId,
                 TransferNumber = $"TRF-{DateTime.UtcNow:yyyyMMddHHmmss}-{Random.Shared.Next(1000, 9999)}",
                 Status = StockTransferStatus.Pending,
                 RequestedBy = userId,
@@ -133,7 +136,7 @@ public class StockTransferService : IStockTransferService
 
             await _dbContext.SaveChangesAsync(ct);
             await _stockEvents.EnqueueCurrentStockAsync(
-                request.FromOutletId,
+                request.FromStockLocationId,
                 request.Items.Select(item => new StockEventKey(item.ProductId, item.ProductVariantId)).ToArray(),
                 $"stock:transfer:{transfer.Id:N}:created",
                 ct);
@@ -157,15 +160,15 @@ public class StockTransferService : IStockTransferService
             throw new InvalidOperationException("Transfer Stok tidak ditemukan.");
         }
 
-        await EnsureEnabledAsync(transfer.FromOutletId, ct);
-        await EnsureEnabledAsync(transfer.ToOutletId, ct);
+        await EnsureEnabledAsync(transfer.FromStockLocationId, ct);
+        await EnsureEnabledAsync(transfer.ToStockLocationId, ct);
 
         if (transfer.Status != StockTransferStatus.Pending)
         {
             throw new InvalidOperationException("Transfer Stok sudah diproses sebelumnya.");
         }
 
-        EnsureTransferApprovalAccess(transfer.ToOutletId);
+        await EnsureTransferApprovalAccessAsync(transfer.ToStockLocationId, ct);
 
         using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
         try
@@ -179,7 +182,7 @@ public class StockTransferService : IStockTransferService
                 {
                     case ProductTrackingModes.Quantity:
                         await _stockService.AddMovementAsync(
-                            item.ProductId, transfer.ToOutletId, item.Qty,
+                            item.ProductId, transfer.ToStockLocationId, item.Qty,
                             StockMovementType.TransferIn, "stock_transfer", transfer.Id,
                             $"Transfer masuk dari cabang via {transfer.TransferNumber}", ct,
                             item.ProductVariantId, documentItemId: item.Id);
@@ -201,7 +204,7 @@ public class StockTransferService : IStockTransferService
 
             await _dbContext.SaveChangesAsync(ct);
             await _stockEvents.EnqueueCurrentStockAsync(
-                transfer.ToOutletId,
+                transfer.ToStockLocationId,
                 transfer.Items.Select(item => new StockEventKey(item.ProductId, item.ProductVariantId)).ToArray(),
                 $"stock:transfer:{transfer.Id:N}:approved",
                 ct);
@@ -225,15 +228,15 @@ public class StockTransferService : IStockTransferService
             throw new InvalidOperationException("Transfer Stok tidak ditemukan.");
         }
 
-        await EnsureEnabledAsync(transfer.FromOutletId, ct);
-        await EnsureEnabledAsync(transfer.ToOutletId, ct);
+        await EnsureEnabledAsync(transfer.FromStockLocationId, ct);
+        await EnsureEnabledAsync(transfer.ToStockLocationId, ct);
 
         if (transfer.Status != StockTransferStatus.Pending)
         {
             throw new InvalidOperationException("Transfer Stok sudah diproses sebelumnya.");
         }
 
-        EnsureTransferApprovalAccess(transfer.ToOutletId);
+        await EnsureTransferApprovalAccessAsync(transfer.ToStockLocationId, ct);
 
         using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
         try
@@ -251,7 +254,7 @@ public class StockTransferService : IStockTransferService
                     batch.QtyRemaining += item.Qty;
                     batch.UpdatedAt = DateTime.UtcNow;
                     await _stockService.AddMovementAsync(
-                        item.ProductId, transfer.FromOutletId, item.Qty,
+                        item.ProductId, transfer.FromStockLocationId, item.Qty,
                         StockMovementType.TransferIn, "stock_transfer", transfer.Id,
                         $"Pengembalian stok akibat transfer ditolak {transfer.TransferNumber}", ct,
                         item.ProductVariantId, batch.Id, documentItemId: item.Id);
@@ -268,7 +271,7 @@ public class StockTransferService : IStockTransferService
                     serial.Status = ProductSerialStatuses.Available;
                     serial.UpdatedAt = DateTime.UtcNow;
                     await _stockService.AddMovementAsync(
-                        item.ProductId, transfer.FromOutletId, 1,
+                        item.ProductId, transfer.FromStockLocationId, 1,
                         StockMovementType.TransferIn, "stock_transfer", transfer.Id,
                         $"Pengembalian stok akibat transfer ditolak {transfer.TransferNumber}", ct,
                         item.ProductVariantId, productSerialId: serial.Id, documentItemId: item.Id);
@@ -276,7 +279,7 @@ public class StockTransferService : IStockTransferService
                 else
                 {
                     await _stockService.AddMovementAsync(
-                        item.ProductId, transfer.FromOutletId, item.Qty,
+                        item.ProductId, transfer.FromStockLocationId, item.Qty,
                         StockMovementType.TransferIn, "stock_transfer", transfer.Id,
                         $"Pengembalian stok akibat transfer ditolak {transfer.TransferNumber}", ct,
                         item.ProductVariantId, documentItemId: item.Id);
@@ -289,7 +292,7 @@ public class StockTransferService : IStockTransferService
 
             await _dbContext.SaveChangesAsync(ct);
             await _stockEvents.EnqueueCurrentStockAsync(
-                transfer.FromOutletId,
+                transfer.FromStockLocationId,
                 transfer.Items.Select(item => new StockEventKey(item.ProductId, item.ProductVariantId)).ToArray(),
                 $"stock:transfer:{transfer.Id:N}:rejected",
                 ct);
@@ -315,7 +318,7 @@ public class StockTransferService : IStockTransferService
         var stock = await _dbContext.InventoryStocks
             .FirstOrDefaultAsync(s => s.ProductId == itemReq.ProductId &&
                 s.ProductVariantId == itemReq.ProductVariantId &&
-                s.OutletId == transfer.FromOutletId, ct);
+                s.StockLocationId == transfer.FromStockLocationId, ct);
 
         if (stock == null || stock.QtyOnHand < itemReq.Qty)
         {
@@ -333,7 +336,7 @@ public class StockTransferService : IStockTransferService
         _dbContext.StockTransferItems.Add(item);
 
         await _stockService.AddMovementAsync(
-            itemReq.ProductId, transfer.FromOutletId, -itemReq.Qty,
+            itemReq.ProductId, transfer.FromStockLocationId, -itemReq.Qty,
             StockMovementType.TransferOut, "stock_transfer", transfer.Id,
             $"Transfer keluar ke cabang via {transfer.TransferNumber}", ct,
             itemReq.ProductVariantId, documentItemId: item.Id);
@@ -356,7 +359,7 @@ public class StockTransferService : IStockTransferService
             x.Id == itemReq.ProductBatchId.Value &&
             x.ProductId == itemReq.ProductId &&
             x.ProductVariantId == itemReq.ProductVariantId &&
-            x.OutletId == transfer.FromOutletId, ct)
+            x.StockLocationId == transfer.FromStockLocationId, ct)
             ?? throw new TrackingValidationException(TrackingErrorCodes.BatchNotFound,
                 $"Batch untuk produk {product.Name} tidak ditemukan di outlet asal.");
 
@@ -381,7 +384,7 @@ public class StockTransferService : IStockTransferService
         _dbContext.StockTransferItems.Add(item);
 
         await _stockService.AddMovementAsync(
-            itemReq.ProductId, transfer.FromOutletId, -itemReq.Qty,
+            itemReq.ProductId, transfer.FromStockLocationId, -itemReq.Qty,
             StockMovementType.TransferOut, "stock_transfer", transfer.Id,
             $"Transfer keluar ke cabang via {transfer.TransferNumber}", ct,
             itemReq.ProductVariantId, batch.Id, documentItemId: item.Id);
@@ -417,7 +420,7 @@ public class StockTransferService : IStockTransferService
         {
             if (serial.ProductId != itemReq.ProductId ||
                 serial.ProductVariantId != itemReq.ProductVariantId ||
-                serial.OutletId != transfer.FromOutletId ||
+                serial.StockLocationId != transfer.FromStockLocationId ||
                 serial.Status != ProductSerialStatuses.Available)
             {
                 throw new TrackingValidationException(TrackingErrorCodes.SerialNotAvailable,
@@ -439,7 +442,7 @@ public class StockTransferService : IStockTransferService
             _dbContext.StockTransferItems.Add(item);
 
             await _stockService.AddMovementAsync(
-                itemReq.ProductId, transfer.FromOutletId, -1,
+                itemReq.ProductId, transfer.FromStockLocationId, -1,
                 StockMovementType.TransferOut, "stock_transfer", transfer.Id,
                 $"Transfer keluar ke cabang via {transfer.TransferNumber}", ct,
                 itemReq.ProductVariantId, productSerialId: serial.Id, documentItemId: item.Id);
@@ -453,7 +456,7 @@ public class StockTransferService : IStockTransferService
             ?? throw new InvalidOperationException("Batch transfer tidak ditemukan.");
 
         var destinationBatch = await _dbContext.ProductBatches.FirstOrDefaultAsync(x =>
-            x.OutletId == transfer.ToOutletId &&
+            x.StockLocationId == transfer.ToStockLocationId &&
             x.ProductId == item.ProductId &&
             x.ProductVariantId == item.ProductVariantId &&
             x.BatchNumber == sourceBatch.BatchNumber, ct);
@@ -465,7 +468,7 @@ public class StockTransferService : IStockTransferService
                 Id = Guid.NewGuid(),
                 ProductId = item.ProductId,
                 ProductVariantId = item.ProductVariantId,
-                OutletId = transfer.ToOutletId,
+                StockLocationId = transfer.ToStockLocationId,
                 BatchNumber = sourceBatch.BatchNumber,
                 ExpiryDate = sourceBatch.ExpiryDate,
                 QtyProduction = item.Qty,
@@ -487,7 +490,7 @@ public class StockTransferService : IStockTransferService
         }
 
         await _stockService.AddMovementAsync(
-            item.ProductId, transfer.ToOutletId, item.Qty,
+            item.ProductId, transfer.ToStockLocationId, item.Qty,
             StockMovementType.TransferIn, "stock_transfer", transfer.Id,
             $"Transfer masuk dari cabang via {transfer.TransferNumber}", ct,
             item.ProductVariantId, destinationBatch.Id, documentItemId: item.Id);
@@ -504,12 +507,12 @@ public class StockTransferService : IStockTransferService
             throw new InvalidOperationException($"Serial {serial.SerialNumber} tidak sedang dalam transfer.");
         }
 
-        serial.OutletId = transfer.ToOutletId;
+        serial.StockLocationId = transfer.ToStockLocationId;
         serial.Status = ProductSerialStatuses.Available;
         serial.UpdatedAt = DateTime.UtcNow;
 
         await _stockService.AddMovementAsync(
-            item.ProductId, transfer.ToOutletId, 1,
+            item.ProductId, transfer.ToStockLocationId, 1,
             StockMovementType.TransferIn, "stock_transfer", transfer.Id,
             $"Transfer masuk dari cabang via {transfer.TransferNumber}", ct,
             item.ProductVariantId, productSerialId: serial.Id, documentItemId: item.Id);
@@ -518,8 +521,8 @@ public class StockTransferService : IStockTransferService
     private IQueryable<StockTransfer> TransferQuery(bool tracking = false)
     {
         var query = _dbContext.StockTransfers
-            .Include(t => t.FromOutlet)
-            .Include(t => t.ToOutlet)
+            .Include(t => t.FromStockLocation)
+            .Include(t => t.ToStockLocation)
             .Include(t => t.RequestedByUser)
             .Include(t => t.ApprovedByUser)
             .Include(t => t.Items).ThenInclude(i => i.Product)
@@ -535,10 +538,14 @@ public class StockTransferService : IStockTransferService
     {
         return new StockTransferDto(
             t.Id,
-            t.FromOutletId,
-            t.FromOutlet?.Name ?? string.Empty,
-            t.ToOutletId,
-            t.ToOutlet?.Name ?? string.Empty,
+            t.FromStockLocationId,
+            t.FromStockLocation?.Name ?? string.Empty,
+            t.FromStockLocation?.Type ?? string.Empty,
+            t.FromStockLocation?.OutletId,
+            t.ToStockLocationId,
+            t.ToStockLocation?.Name ?? string.Empty,
+            t.ToStockLocation?.Type ?? string.Empty,
+            t.ToStockLocation?.OutletId,
             t.TransferNumber,
             t.Status,
             t.RequestedBy,
@@ -563,20 +570,54 @@ public class StockTransferService : IStockTransferService
         );
     }
 
-    private void EnsureTransferApprovalAccess(Guid targetOutletId)
+    private async Task EnsureTransferApprovalAccessAsync(Guid targetStockLocationId, CancellationToken ct)
     {
-        if (_currentUserService.Role is "Owner" or "Admin")
+        if (!await HasLocationAccessAsync(targetStockLocationId, ct))
+            throw new UnauthorizedAccessException("Approve atau reject transfer hanya bisa dilakukan oleh lokasi tujuan.");
+    }
+
+    private async Task EnsureLocationAccessAsync(Guid stockLocationId, CancellationToken ct)
+    {
+        if (!await HasLocationAccessAsync(stockLocationId, ct))
+            throw new UnauthorizedAccessException("Anda tidak memiliki akses ke lokasi stok tersebut.");
+    }
+
+    private async Task<bool> HasLocationAccessAsync(Guid stockLocationId, CancellationToken ct)
+    {
+        if (_currentUserService.Role is "Owner" or "Admin") return true;
+
+        var outletId = await ResolveLocationOutletAsync(stockLocationId, ct);
+        if (outletId == _currentUserService.OutletId) return true;
+
+        var userId = _currentUserService.UserId ?? Guid.Empty;
+        return await _dbContext.UserStockLocationAccesses.AsNoTracking()
+            .AnyAsync(x => x.UserId == userId && x.StockLocationId == stockLocationId, ct);
+    }
+
+    private async Task<Guid?> ResolveLocationOutletAsync(Guid stockLocationId, CancellationToken ct)
+    {
+        var location = await _dbContext.StockLocations.AsNoTracking()
+            .Where(x => x.Id == stockLocationId)
+            .Select(x => new { x.OutletId, x.IsActive })
+            .SingleOrDefaultAsync(ct)
+            ?? throw new InvalidOperationException("Lokasi stok tidak ditemukan.");
+
+        if (!location.IsActive)
+        {
+            throw new InvalidOperationException("Lokasi stok tidak aktif.");
+        }
+
+        return location.OutletId;
+    }
+
+    private async Task EnsureEnabledAsync(Guid stockLocationId, CancellationToken ct)
+    {
+        if (_capabilityEvaluator is null)
         {
             return;
         }
 
-        if (_currentUserService.OutletId != targetOutletId)
-        {
-            throw new UnauthorizedAccessException("Approve atau reject transfer hanya bisa dilakukan oleh outlet tujuan.");
-        }
+        var outletId = await ResolveLocationOutletAsync(stockLocationId, ct);
+        await _capabilityEvaluator.EnsureEnabledAsync(CapabilityCodes.InventoryTransfer, outletId, ct);
     }
-
-    private Task EnsureEnabledAsync(Guid outletId, CancellationToken ct)
-        => _capabilityEvaluator?.EnsureEnabledAsync(CapabilityCodes.InventoryTransfer, outletId, ct)
-            ?? Task.CompletedTask;
 }

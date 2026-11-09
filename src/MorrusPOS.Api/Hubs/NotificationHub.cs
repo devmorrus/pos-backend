@@ -30,6 +30,7 @@ public class NotificationHub : Hub
             throw new HubException("Outlet tidak dapat diakses.");
 
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(businessId, outletId));
+        await Groups.AddToGroupAsync(Context.ConnectionId, StockLocationGroupName(businessId, outletId));
     }
 
     public async Task LeaveOutletGroup(Guid outletId)
@@ -37,8 +38,40 @@ public class NotificationHub : Hub
         var businessId = _currentUser.BusinessId
             ?? throw new HubException("Business context tidak tersedia.");
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupName(businessId, outletId));
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, StockLocationGroupName(businessId, outletId));
+    }
+
+    public async Task JoinStockLocationGroup(Guid stockLocationId)
+    {
+        var businessId = _currentUser.BusinessId
+            ?? throw new HubException("Business context tidak tersedia.");
+        var userId = _currentUser.UserId ?? throw new HubException("User context tidak tersedia.");
+
+        var location = await _db.StockLocations.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == stockLocationId && x.IsActive);
+        if (location is null)
+            throw new HubException("Lokasi stok tidak dapat diakses.");
+
+        var hasAccess = _currentUser.Role is "Owner" or "Admin"
+            || location.OutletId == _currentUser.OutletId
+            || await _db.UserStockLocationAccesses.AnyAsync(
+                x => x.UserId == userId && x.StockLocationId == stockLocationId);
+        if (!hasAccess)
+            throw new HubException("Lokasi stok tidak dapat diakses.");
+
+        await Groups.AddToGroupAsync(Context.ConnectionId, StockLocationGroupName(businessId, stockLocationId));
+    }
+
+    public async Task LeaveStockLocationGroup(Guid stockLocationId)
+    {
+        var businessId = _currentUser.BusinessId
+            ?? throw new HubException("Business context tidak tersedia.");
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, StockLocationGroupName(businessId, stockLocationId));
     }
 
     internal static string GroupName(Guid businessId, Guid outletId)
         => $"Business_{businessId}_Outlet_{outletId}";
+
+    internal static string StockLocationGroupName(Guid businessId, Guid stockLocationId)
+        => $"Business_{businessId}_StockLocation_{stockLocationId}";
 }

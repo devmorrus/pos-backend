@@ -1,7 +1,7 @@
 namespace MorrusPOS.Application.Features.Stock;
 
-public record PreviewStockReconciliationRequest(Guid OutletId);
-public record RepairStockReconciliationRequest(Guid OutletId, string Reason);
+public record PreviewStockReconciliationRequest(Guid StockLocationId);
+public record RepairStockReconciliationRequest(Guid StockLocationId, string Reason);
 
 public record StockReconciliationMismatchDto(
     Guid ProductId,
@@ -20,7 +20,7 @@ public record StockReconciliationMismatchDto(
 
 public record StockReconciliationResultDto(
     Guid? RunId,
-    Guid OutletId,
+    Guid StockLocationId,
     string Mode,
     string Status,
     int ScannedCount,
@@ -34,8 +34,8 @@ public record StockReconciliationResultDto(
 
 public record StockReconciliationRunDto(
     Guid Id,
-    Guid OutletId,
-    string OutletName,
+    Guid StockLocationId,
+    string StockLocationName,
     Guid RequestedBy,
     string RequestedByName,
     string Mode,
@@ -53,9 +53,9 @@ public record StockReconciliationRunDto(
 
 public interface IStockReconciliationService
 {
-    Task<StockReconciliationResultDto> PreviewAsync(Guid userId, Guid outletId, CancellationToken ct = default);
-    Task<StockReconciliationResultDto> RepairAsync(Guid userId, Guid outletId, string reason, CancellationToken ct = default);
-    Task<IReadOnlyList<StockReconciliationRunDto>> GetRunsAsync(Guid outletId, int take, CancellationToken ct = default);
+    Task<StockReconciliationResultDto> PreviewAsync(Guid userId, Guid stockLocationId, CancellationToken ct = default);
+    Task<StockReconciliationResultDto> RepairAsync(Guid userId, Guid stockLocationId, string reason, CancellationToken ct = default);
+    Task<IReadOnlyList<StockReconciliationRunDto>> GetRunsAsync(Guid stockLocationId, int take, CancellationToken ct = default);
     Task<StockReconciliationResultDto> GetRunAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<StockReconciliationMismatchDto>> GetRunItemsAsync(Guid id, int page, int pageSize, CancellationToken ct = default);
 }

@@ -157,7 +157,7 @@ public class ProductServiceTests
         });
         _dbContext.ProductSerials.Add(new ProductSerial
         {
-            Id = Guid.NewGuid(), ProductId = prodId, OutletId = outletId,
+            Id = Guid.NewGuid(), ProductId = prodId, StockLocationId = outletId,
             SerialNumber = "IMEI-1", NormalizedSerialNumber = "IMEI-1",
             Status = ProductSerialStatuses.Available
         });
@@ -188,17 +188,17 @@ public class ProductServiceTests
         _dbContext.ProductBatches.AddRange(
             new ProductBatch
             {
-                Id = Guid.NewGuid(), ProductId = productId, OutletId = outletId,
+                Id = Guid.NewGuid(), ProductId = productId, StockLocationId = outletId,
                 BatchNumber = "ACTIVE", ExpiryDate = DateTime.UtcNow.AddDays(10), QtyProduction = 2, QtyRemaining = 2
             },
             new ProductBatch
             {
-                Id = Guid.NewGuid(), ProductId = productId, OutletId = outletId,
+                Id = Guid.NewGuid(), ProductId = productId, StockLocationId = outletId,
                 BatchNumber = "EXPIRED", ExpiryDate = DateTime.UtcNow.AddDays(-1), QtyProduction = 2, QtyRemaining = 1
             },
             new ProductBatch
             {
-                Id = Guid.NewGuid(), ProductId = productId, OutletId = outletId,
+                Id = Guid.NewGuid(), ProductId = productId, StockLocationId = outletId,
                 BatchNumber = "EMPTY", ExpiryDate = null, QtyProduction = 2, QtyRemaining = 0
             });
         await _dbContext.SaveChangesAsync();
@@ -231,8 +231,8 @@ public class ProductServiceTests
             new ProductVariant { Id = smallId, ProductId = productId, Sku = "SHIRT-S", BasePrice = 100, IsActive = true },
             new ProductVariant { Id = largeId, ProductId = productId, Sku = "SHIRT-L", BasePrice = 120, IsActive = true });
         _dbContext.InventoryStocks.AddRange(
-            new InventoryStock { Id = Guid.NewGuid(), ProductId = productId, ProductVariantId = smallId, OutletId = outletId, QtyOnHand = 2 },
-            new InventoryStock { Id = Guid.NewGuid(), ProductId = productId, ProductVariantId = largeId, OutletId = outletId, QtyOnHand = 3 });
+            new InventoryStock { Id = Guid.NewGuid(), ProductId = productId, ProductVariantId = smallId, StockLocationId = outletId, QtyOnHand = 2 },
+            new InventoryStock { Id = Guid.NewGuid(), ProductId = productId, ProductVariantId = largeId, StockLocationId = outletId, QtyOnHand = 3 });
         await _dbContext.SaveChangesAsync();
 
         var result = (await new ProductService(_dbContext, _currentUserMock).GetByOutletAsync(outletId)).Single();

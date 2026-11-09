@@ -15,23 +15,28 @@ public class CashierSessionService : ICashierSessionService
     private readonly ICurrentUserService _currentUserService;
     private readonly ICapabilityEvaluator? _capabilities;
     private readonly IAccountingIntegrationService? _accountingIntegrationService;
+    private readonly IPosDeviceContext? _posDeviceContext;
 
     public CashierSessionService(
         AppDbContext dbContext,
         ICurrentUserService currentUserService,
         ICapabilityEvaluator? capabilities = null,
-        IAccountingIntegrationService? accountingIntegrationService = null)
+        IAccountingIntegrationService? accountingIntegrationService = null,
+        IPosDeviceContext? posDeviceContext = null)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
         _capabilities = capabilities;
         _accountingIntegrationService = accountingIntegrationService;
+        _posDeviceContext = posDeviceContext;
     }
 
     public async Task<CashierSessionDto> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         var session = await _dbContext.CashierSessions
             .Include(s => s.Outlet)
+            .Include(s => s.Register)
+            .Include(s => s.Device)
             .Include(s => s.User)
             .FirstOrDefaultAsync(s => s.Id == id, ct);
 
@@ -52,6 +57,8 @@ public class CashierSessionService : ICashierSessionService
 
         var session = await _dbContext.CashierSessions
             .Include(s => s.Outlet)
+            .Include(s => s.Register)
+            .Include(s => s.Device)
             .Include(s => s.User)
             .FirstOrDefaultAsync(s => s.UserId == userId && s.OutletId == outletId && s.Status == CashierSessionStatus.Open, ct);
 
@@ -61,14 +68,56 @@ public class CashierSessionService : ICashierSessionService
     public async Task<CashierSessionDto> OpenSessionAsync(Guid userId, Guid outletId, OpenSessionRequest request, CancellationToken ct = default)
     {
         await EnsureOperationalRoleAsync();
+
+        if (request.RegisterId.HasValue && _posDeviceContext?.RegisterId != request.RegisterId)
+            throw new UnauthorizedAccessException("Register hanya dapat dipilih oleh perangkat yang sudah dipasangkan.");
+
+        var registerId = _posDeviceContext?.RegisterId;
+        PosRegister? register = null;
+        if (registerId.HasValue)
+        {
+            register = await _dbContext.PosRegisters
+                .Include(r => r.Outlet)
+                .FirstOrDefaultAsync(r => r.Id == registerId.Value, ct);
+            if (register is null || !register.IsActive || !register.Outlet.IsActive)
+                throw new InvalidOperationException("Register tidak valid atau tidak aktif.");
+            if (register.OutletId != outletId)
+            {
+                if (_posDeviceContext?.RegisterId != register.Id)
+                    throw new UnauthorizedAccessException("Register tidak berada pada outlet kerja Anda.");
+                outletId = register.OutletId;
+            }
+
+            if (_posDeviceContext?.RegisterId is { } deviceRegisterId && deviceRegisterId != register.Id)
+                throw new UnauthorizedAccessException("Sesi harus dibuka pada register perangkat ini.");
+        }
+
         await EnsureOutletAccessibleAsync(outletId, ct);
         await EnsureSalesPosAsync(outletId, ct);
 
-        // Check if there is already an active session for this user at this outlet
-        var existing = await GetActiveSessionAsync(userId, outletId, ct);
-        if (existing != null)
+        if (register is not null)
         {
-            throw new InvalidOperationException("Anda masih memiliki sesi kasir yang aktif di outlet ini. Harap tutup sesi terlebih dahulu.");
+            var registerInUse = await _dbContext.CashierSessions
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.Status == CashierSessionStatus.Open
+                                          && s.RegisterId == register.Id, ct);
+            if (registerInUse is not null)
+                throw new InvalidOperationException(
+                    $"Register {register.Name} sedang digunakan oleh {registerInUse.User?.Name ?? "kasir lain"}. Tutup sesi tersebut terlebih dahulu.");
+
+            var userInUse = await _dbContext.CashierSessions
+                .AnyAsync(s => s.Status == CashierSessionStatus.Open
+                               && s.UserId == userId
+                               && s.RegisterId != null, ct);
+            if (userInUse)
+                throw new InvalidOperationException("Anda masih memiliki sesi kasir aktif. Harap tutup sesi terlebih dahulu.");
+        }
+        else
+        {
+            // Legacy path (klien lama tanpa device): tetap satu sesi per user per outlet.
+            var existing = await GetActiveSessionAsync(userId, outletId, ct);
+            if (existing != null)
+                throw new InvalidOperationException("Anda masih memiliki sesi kasir yang aktif di outlet ini. Harap tutup sesi terlebih dahulu.");
         }
 
         var newSession = new CashierSession
@@ -76,6 +125,9 @@ public class CashierSessionService : ICashierSessionService
             Id = Guid.NewGuid(),
             OutletId = outletId,
             UserId = userId,
+            RegisterId = register?.Id,
+            DeviceId = register is not null ? _posDeviceContext?.DeviceId : null,
+            StockLocationId = register?.StockLocationId ?? outletId,
             OpeningTime = DateTime.UtcNow,
             OpeningCash = request.OpeningCash,
             ExpectedCash = request.OpeningCash,
@@ -96,6 +148,8 @@ public class CashierSessionService : ICashierSessionService
 
         var session = await _dbContext.CashierSessions
             .Include(s => s.Outlet)
+            .Include(s => s.Register)
+            .Include(s => s.Device)
             .Include(s => s.User)
             .FirstOrDefaultAsync(s => s.Id == sessionId, ct);
 
@@ -108,6 +162,8 @@ public class CashierSessionService : ICashierSessionService
         {
             throw new InvalidOperationException("Sesi kasir sudah ditutup.");
         }
+
+        EnsureSessionDevice(session);
 
         if (_currentUserService.Role != "Owner")
         {
@@ -156,6 +212,8 @@ public class CashierSessionService : ICashierSessionService
         {
             throw new InvalidOperationException("Tidak dapat mencatat pengeluaran pada sesi kasir yang sudah ditutup.");
         }
+
+        EnsureSessionDevice(session);
 
         if (_currentUserService.Role != "Owner")
         {
@@ -293,7 +351,14 @@ public class CashierSessionService : ICashierSessionService
             totalCashReceived,
             totalPettyCashExpenses,
             summary
-        );
+        )
+        {
+            RegisterId = session.RegisterId,
+            RegisterName = session.Register?.Name,
+            DeviceId = session.DeviceId,
+            DeviceName = session.Device?.Name,
+            StockLocationId = session.StockLocationId,
+        };
     }
 
     private Task EnsureSalesPosAsync(Guid outletId, CancellationToken ct)
@@ -324,6 +389,16 @@ public class CashierSessionService : ICashierSessionService
         }
 
         throw new UnauthorizedAccessException("Role Anda tidak memiliki akses ke POS kasir.");
+    }
+
+    private void EnsureSessionDevice(CashierSession session)
+    {
+        if (session.DeviceId.HasValue && _posDeviceContext?.DeviceId != session.DeviceId)
+            throw new UnauthorizedAccessException("Sesi kasir terikat pada perangkat lain.");
+        if (session.RegisterId.HasValue
+            && _posDeviceContext?.RegisterId is { } registerId
+            && registerId != session.RegisterId)
+            throw new UnauthorizedAccessException("Sesi kasir terikat pada register lain.");
     }
 
     private async Task EnsureOutletAccessibleAsync(Guid outletId, CancellationToken ct)

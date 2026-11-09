@@ -45,6 +45,15 @@ public class PurchaseOrderServiceTests
     private async Task SeedBaseDataAsync(decimal initialCostPrice = 8000m)
     {
         _dbContext.Outlets.Add(new Outlet { Id = _outletId, Code = "OUT-1", Name = "Main Outlet", IsActive = true });
+        _dbContext.StockLocations.Add(new StockLocation
+        {
+            Id = _outletId,
+            Type = StockLocationTypes.Outlet,
+            Code = "OUT-1",
+            Name = "Main Outlet",
+            OutletId = _outletId,
+            IsActive = true,
+        });
         _dbContext.Suppliers.Add(new Supplier { Id = _supplierId, Name = "PT Maju Jaya", IsActive = true });
         _dbContext.Users.Add(new User { Id = _userId, Name = "Admin", Email = "a@test.com", PasswordHash = "hash", RoleId = _roleId });
         _dbContext.Categories.Add(new Category { Id = _catId, Name = "Minuman" });
@@ -62,7 +71,7 @@ public class PurchaseOrderServiceTests
         _dbContext.InventoryStocks.Add(new InventoryStock
         {
             Id = Guid.NewGuid(),
-            OutletId = _outletId,
+            StockLocationId = _outletId,
             ProductId = _prodId,
             QtyOnHand = 0,
             MinStockAlert = 0
@@ -96,6 +105,8 @@ public class PurchaseOrderServiceTests
         result.PoNumber.Should().StartWith("PO-");
         result.TotalAmount.Should().Be(45000); // 10 * 4500
         result.Items.Should().HaveCount(1);
+        result.DestinationStockLocationId.Should().Be(_outletId);
+        result.DestinationStockLocationName.Should().Be("Main Outlet");
     }
 
     [Fact]
@@ -146,7 +157,7 @@ public class PurchaseOrderServiceTests
         // Assert: stock service was called to add purchase_in movement
         await _stockServiceMock.Received(1).AddMovementAsync(
             productId: _prodId,
-            outletId: _outletId,
+            stockLocationId: _outletId,
             qtyChange: 20,
             movementType: "purchase_in",
             referenceType: "purchase_order",

@@ -245,6 +245,8 @@ public class SupplierReturnService : ISupplierReturnService
         }
 
         await EnsureOutletAccessibleAsync(supplierReturn.PurchaseOrder.OutletId, ct);
+        var stockLocationId = supplierReturn.PurchaseOrder.DestinationStockLocationId
+            ?? supplierReturn.PurchaseOrder.OutletId;
 
         var targetStatus = request.Status.Trim().ToLowerInvariant();
         if (targetStatus == SupplierReturnStatus.Sent)
@@ -267,7 +269,7 @@ public class SupplierReturnService : ISupplierReturnService
 
                     await _stockService.AddMovementAsync(
                         item.ProductId,
-                        supplierReturn.PurchaseOrder.OutletId,
+                        stockLocationId,
                         -item.Qty,
                         StockMovementType.ConsignmentReturn,
                         "supplier_return",
@@ -303,7 +305,7 @@ public class SupplierReturnService : ISupplierReturnService
                     await _accountingIntegrationService.EnsureSupplierReturnPostedAsync(supplierReturn.Id, ct);
                 }
                 await _stockEvents.EnqueueCurrentStockAsync(
-                    supplierReturn.PurchaseOrder.OutletId,
+                    stockLocationId,
                     supplierReturn.Items.Select(item => new StockEventKey(item.ProductId)).ToArray(),
                     $"stock:supplier-return:{supplierReturn.Id:N}:sent",
                     ct);

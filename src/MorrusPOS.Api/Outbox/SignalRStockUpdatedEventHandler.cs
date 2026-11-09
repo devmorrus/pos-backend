@@ -41,13 +41,20 @@ public sealed class SignalRStockUpdatedEventHandler : IOutboxEventHandler
             item.ProductVariantId,
             Qty = item.QtyOnHand,
         }).ToArray();
-        await _hubContext.Clients.Group(NotificationHub.GroupName(message.BusinessId, payload.OutletId))
-            .SendAsync("ReceiveStockUpdateV2", new
+        var group = _hubContext.Clients.Group(NotificationHub.GroupName(message.BusinessId, payload.OutletId));
+        await group.SendAsync("ReceiveStockUpdate", new
+        {
+            payload.OutletId,
+            Updates = updates,
+        }, cancellationToken: ct);
+        await group.SendAsync("ReceiveStockUpdateV2", new
             {
                 EventId = message.Id,
                 Sequence = message.SequenceNo,
                 message.OccurredAtUtc,
+                StockLocationId = payload.OutletId,
                 payload.OutletId,
+                LocationType = "outlet",
                 IsAbsolute = true,
                 Updates = updates,
             }, cancellationToken: ct);

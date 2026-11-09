@@ -18,8 +18,9 @@ public record StockOpnameItemDto(
 
 public record StockOpnameDto(
     Guid Id,
-    Guid OutletId,
-    string OutletName,
+    Guid StockLocationId,
+    string StockLocationName,
+    string StockLocationType,
     Guid PerformedBy,
     string PerformedByName,
     string Status,
@@ -39,13 +40,13 @@ public record StockOpnameItemRequest(
 }
 
 public record CreateStockOpnameRequest(
-    Guid OutletId,
+    Guid StockLocationId,
     List<StockOpnameItemRequest> Items
 );
 
 public interface IStockOpnameService
 {
     Task<StockOpnameDto> GetByIdAsync(Guid id, CancellationToken ct = default);
-    Task<IReadOnlyList<StockOpnameDto>> GetByOutletAsync(Guid outletId, CancellationToken ct = default);
+    Task<IReadOnlyList<StockOpnameDto>> GetByStockLocationAsync(Guid stockLocationId, CancellationToken ct = default);
     Task<StockOpnameDto> CreateAsync(Guid userId, CreateStockOpnameRequest request, CancellationToken ct = default);
 }

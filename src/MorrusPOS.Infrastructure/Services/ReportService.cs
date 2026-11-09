@@ -1332,8 +1332,8 @@ public class ReportService : IReportService
             .AsNoTracking()
             .Include(sl => sl.Product)
             .Include(sl => sl.ProductVariant)
-            .Include(sl => sl.Outlet)
-            .Where(sl => sl.OutletId == outletId.Value && sl.ProductId == product.Id);
+            .Include(sl => sl.StockLocation)
+            .Where(sl => sl.StockLocationId == outletId.Value && sl.ProductId == product.Id);
 
         if (filters.ProductVariantId.HasValue)
         {
@@ -1410,7 +1410,7 @@ public class ReportService : IReportService
                 qtyIn,
                 qtyOut,
                 runningBalance,
-                sl.Outlet?.Name ?? outletName));
+                sl.StockLocation?.Name ?? outletName));
         }
 
         var summary = new StockCardReportSummaryDto(

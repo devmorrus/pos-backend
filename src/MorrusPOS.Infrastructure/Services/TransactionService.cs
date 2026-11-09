@@ -23,6 +23,7 @@ public class TransactionService : ITransactionService
     private readonly IAccountingIntegrationService? _accountingIntegrationService;
     private readonly ICapabilityEvaluator? _capabilityEvaluator;
     private readonly IIdempotencyService? _idempotencyService;
+    private readonly IPosDeviceContext? _posDeviceContext;
 
     public TransactionService(
         AppDbContext dbContext,
@@ -30,7 +31,8 @@ public class TransactionService : ITransactionService
         ICurrentUserService currentUserService,
         IStockEventPublisher stockEvents,
         IAccountingIntegrationService? accountingIntegrationService = null,
-        IIdempotencyService? idempotencyService = null)
+        IIdempotencyService? idempotencyService = null,
+        IPosDeviceContext? posDeviceContext = null)
         : this(
             dbContext,
             stockService,
@@ -39,7 +41,8 @@ public class TransactionService : ITransactionService
             new PricingService(dbContext),
             accountingIntegrationService,
             null,
-            idempotencyService)
+            idempotencyService,
+            posDeviceContext)
     {
     }
 
@@ -51,7 +54,8 @@ public class TransactionService : ITransactionService
         IPricingService pricingService,
         IAccountingIntegrationService? accountingIntegrationService = null,
         ICapabilityEvaluator? capabilityEvaluator = null,
-        IIdempotencyService? idempotencyService = null)
+        IIdempotencyService? idempotencyService = null,
+        IPosDeviceContext? posDeviceContext = null)
     {
         _dbContext = dbContext;
         _stockService = stockService;
@@ -61,6 +65,7 @@ public class TransactionService : ITransactionService
         _accountingIntegrationService = accountingIntegrationService;
         _capabilityEvaluator = capabilityEvaluator;
         _idempotencyService = idempotencyService;
+        _posDeviceContext = posDeviceContext;
     }
 
     public async Task<IReadOnlyList<TransactionListItemDto>> GetRecentByOutletAsync(
@@ -159,7 +164,7 @@ public class TransactionService : ITransactionService
         {
             foreach (var item in transaction.Items)
             {
-                await RestoreTrackedStockAsync(item, transaction.OutletId, item.Qty,
+                await RestoreTrackedStockAsync(item, transaction.StockLocationId ?? transaction.OutletId, item.Qty,
                     transaction.Id, item.Id, "transaction_void",
                     $"Void transaksi {transaction.TransactionNumber}", null, null, item.Id, ct);
 
@@ -227,7 +232,7 @@ public class TransactionService : ITransactionService
             if (_accountingIntegrationService != null)
                 await _accountingIntegrationService.EnsureVoidPostedAsync(transaction.Id, ct);
             await _stockEvents.EnqueueCurrentStockAsync(
-                transaction.OutletId,
+                transaction.StockLocationId ?? transaction.OutletId,
                 transaction.Items.Select(item => new StockEventKey(item.ProductId, item.ProductVariantId)).ToArray(),
                 $"stock:void:{transaction.Id:N}",
                 ct);
@@ -366,7 +371,7 @@ public class TransactionService : ITransactionService
 
                 _dbContext.Returns.Add(newReturn);
 
-                await RestoreTrackedStockAsync(transactionItem, transaction.OutletId, refundItem.Qty,
+                await RestoreTrackedStockAsync(transactionItem, transaction.StockLocationId ?? transaction.OutletId, refundItem.Qty,
                     transaction.Id, transactionItem.Id, "transaction_refund",
                     $"Refund transaksi {transaction.TransactionNumber}",
                     refundItem.BatchAllocations, refundItem.SerialIds, newReturn.Id, ct);
@@ -453,7 +458,7 @@ public class TransactionService : ITransactionService
             if (_accountingIntegrationService != null)
                 await _accountingIntegrationService.EnsureRefundPostedAsync(transaction.Id, request.Id, ct);
             await _stockEvents.EnqueueCurrentStockAsync(
-                transaction.OutletId,
+                transaction.StockLocationId ?? transaction.OutletId,
                 request.Items.Select(item => new StockEventKey(item.ProductId, item.ProductVariantId)).ToArray(),
                 $"stock:refund:{request.Id:N}",
                 ct);
@@ -523,6 +528,8 @@ public class TransactionService : ITransactionService
         if (existing != null)
         {
             await EnsureOutletAccessibleAsync(existing.OutletId, ct);
+            if (existing.DeviceId.HasValue && _posDeviceContext?.DeviceId != existing.DeviceId)
+                throw new UnauthorizedAccessException("Transaksi checkout ini terikat pada perangkat lain.");
             if (!string.IsNullOrWhiteSpace(existing.RequestHash) &&
                 !string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal))
                 throw new IdempotencyException(IdempotencyErrorCodes.KeyReused,
@@ -537,11 +544,18 @@ public class TransactionService : ITransactionService
         }
         if (idempotencyClaim is { Replayed: true })
         {
+            var replayDeviceId = await _dbContext.Transactions
+                .Where(x => x.Id == idempotencyClaim.ResourceId!.Value)
+                .Select(x => x.DeviceId)
+                .FirstOrDefaultAsync(ct);
+            if (replayDeviceId.HasValue && _posDeviceContext?.DeviceId != replayDeviceId)
+                throw new UnauthorizedAccessException("Transaksi checkout ini terikat pada perangkat lain.");
             await dbTx.CommitAsync(ct);
             return await GetByIdAsync(idempotencyClaim.ResourceId!.Value, ct);
         }
 
         var session = await _dbContext.CashierSessions
+            .Include(s => s.Register)
             .FirstOrDefaultAsync(s => s.Id == request.CashierSessionId, ct);
 
         if (session == null || session.Status != CashierSessionStatus.Open)
@@ -553,6 +567,22 @@ public class TransactionService : ITransactionService
         {
             throw new InvalidOperationException("Sesi kasir tidak cocok dengan outlet transaksi.");
         }
+
+        if (session.DeviceId.HasValue && _posDeviceContext?.DeviceId != session.DeviceId)
+        {
+            throw new UnauthorizedAccessException("Sesi kasir terikat pada perangkat lain.");
+        }
+
+        if (session.RegisterId.HasValue
+            && _posDeviceContext?.RegisterId is { } activeRegisterId
+            && activeRegisterId != session.RegisterId)
+        {
+            throw new UnauthorizedAccessException("Sesi kasir terikat pada register lain.");
+        }
+
+        var stockLocationId = session.StockLocationId
+            ?? session.Register?.StockLocationId
+            ?? session.OutletId;
 
         if (_currentUserService.Role != "Owner")
         {
@@ -596,7 +626,7 @@ public class TransactionService : ITransactionService
                 // Aggregate stock remains the fast availability check for every tracked mode.
                 var stock = product.TrackingMode == ProductTrackingModes.None ? null : await _dbContext.InventoryStocks
                     .FirstOrDefaultAsync(s => s.ProductId == itemReq.ProductId &&
-                        s.ProductVariantId == itemReq.ProductVariantId && s.OutletId == request.OutletId, ct);
+                        s.ProductVariantId == itemReq.ProductVariantId && s.StockLocationId == stockLocationId, ct);
 
                 if (product.TrackingMode != ProductTrackingModes.None && (stock == null || stock.QtyOnHand < itemReq.Qty))
                 {
@@ -669,6 +699,9 @@ public class TransactionService : ITransactionService
             {
                 Id = request.Id,
                 OutletId = request.OutletId,
+                RegisterId = session.RegisterId,
+                DeviceId = session.DeviceId,
+                StockLocationId = stockLocationId,
                 UserId = _currentUserService.UserId.Value,
                 CashierSessionId = request.CashierSessionId,
                 CustomerId = selectedCustomer?.Id,
@@ -837,7 +870,7 @@ public class TransactionService : ITransactionService
                     }
                 }
 
-                await DeductTrackedStockAsync(product, itemReq, request.OutletId,
+                await DeductTrackedStockAsync(product, itemReq, stockLocationId,
                     newTrx.Id, transactionItemId, $"Penjualan kasir {trxNumber}", ct);
             }
 
@@ -889,7 +922,7 @@ public class TransactionService : ITransactionService
                 await _accountingIntegrationService.EnsureTransactionPostedAsync(newTrx.Id, ct);
             }
             await _stockEvents.EnqueueCurrentStockAsync(
-                request.OutletId,
+                stockLocationId,
                 request.Items.Select(item => new StockEventKey(item.ProductId, item.ProductVariantId)).ToArray(),
                 $"stock:checkout:{request.Id:N}",
                 ct);
@@ -931,7 +964,7 @@ public class TransactionService : ITransactionService
                 ? await _dbContext.ProductBatches.Where(x => requested.Select(r => r.ProductBatchId).Contains(x.Id)).ToListAsync(ct)
                 : await _dbContext.ProductBatches
                     .Where(x => x.ProductId == product.Id && x.ProductVariantId == request.ProductVariantId &&
-                                x.OutletId == outletId && x.QtyRemaining > 0 &&
+                                x.StockLocationId == outletId && x.QtyRemaining > 0 &&
                                 (!x.ExpiryDate.HasValue || x.ExpiryDate.Value.Date >= DateTime.UtcNow.Date))
                     .OrderBy(x => x.ExpiryDate == null).ThenBy(x => x.ExpiryDate).ThenBy(x => x.CreatedAt)
                     .ToListAsync(ct);
@@ -943,7 +976,7 @@ public class TransactionService : ITransactionService
                     : Math.Min(remaining, batch.QtyRemaining);
                 if (wanted <= 0) continue;
                 if (batch.ProductId != product.Id || batch.ProductVariantId != request.ProductVariantId ||
-                    batch.OutletId != outletId || batch.QtyRemaining < wanted ||
+                    batch.StockLocationId != outletId || batch.QtyRemaining < wanted ||
                     batch.ExpiryDate?.Date < DateTime.UtcNow.Date)
                     throw new TrackingValidationException(TrackingErrorCodes.BatchStockInsufficient,
                         $"Batch {batch.BatchNumber} tidak tersedia atau stoknya tidak cukup.");
@@ -969,7 +1002,7 @@ public class TransactionService : ITransactionService
                 "Jumlah serial harus sama dengan qty dan qty serial harus bilangan bulat.");
         var serials = await _dbContext.ProductSerials.Where(x => ids.Contains(x.Id)).ToListAsync(ct);
         if (serials.Count != ids.Count || serials.Any(x => x.ProductId != product.Id ||
-            x.ProductVariantId != request.ProductVariantId || x.OutletId != outletId ||
+            x.ProductVariantId != request.ProductVariantId || x.StockLocationId != outletId ||
             x.Status != ProductSerialStatuses.Available))
             throw new TrackingValidationException(TrackingErrorCodes.SerialNotAvailable,
                 "Satu atau lebih serial tidak tersedia untuk produk dan outlet ini.");
@@ -1037,7 +1070,7 @@ public class TransactionService : ITransactionService
             {
                 var batch = await _dbContext.ProductBatches.SingleOrDefaultAsync(x => x.Id == batchId &&
                     x.ProductId == item.ProductId && x.ProductVariantId == item.ProductVariantId &&
-                    x.OutletId == outletId, ct);
+                    x.StockLocationId == outletId, ct);
                 if (batch == null)
                     throw new TrackingValidationException(TrackingErrorCodes.BatchNotFound,
                         "Batch return tidak ditemukan untuk produk dan outlet transaksi.");

@@ -15,11 +15,16 @@ public class StockOpnamesController : ControllerBase
 {
     private readonly IStockOpnameService _opnameService;
     private readonly ICurrentUserService _currentUser;
+    private readonly StockLocationAccessResolver _locations;
 
-    public StockOpnamesController(IStockOpnameService opnameService, ICurrentUserService currentUser)
+    public StockOpnamesController(
+        IStockOpnameService opnameService,
+        ICurrentUserService currentUser,
+        StockLocationAccessResolver locations)
     {
         _opnameService = opnameService;
         _currentUser = currentUser;
+        _locations = locations;
     }
 
     [HttpGet("{id}")]
@@ -27,20 +32,19 @@ public class StockOpnamesController : ControllerBase
     public async Task<ActionResult<StockOpnameDto>> GetById(Guid id, CancellationToken ct)
     {
         var result = await _opnameService.GetByIdAsync(id, ct);
+        await _locations.EnsureAsync(result.StockLocationId, ct);
         return Ok(result);
     }
 
     [HttpGet]
     [HasPermission("stock.manage")]
-    public async Task<ActionResult<IReadOnlyList<StockOpnameDto>>> GetByOutlet([FromQuery] Guid? outletId, CancellationToken ct)
+    public async Task<ActionResult<IReadOnlyList<StockOpnameDto>>> GetByOutlet(
+        [FromQuery] Guid? stockLocationId,
+        [FromQuery] Guid? outletId,
+        CancellationToken ct)
     {
-        var resolvedOutletId = ResolveTargetOutletId(outletId);
-        if (resolvedOutletId == null)
-        {
-            return BadRequest("Data outlet tidak valid.");
-        }
-
-        var result = await _opnameService.GetByOutletAsync(resolvedOutletId.Value, ct);
+        var resolvedLocationId = await _locations.ResolveAsync(stockLocationId, outletId, ct);
+        var result = await _opnameService.GetByStockLocationAsync(resolvedLocationId, ct);
         return Ok(result);
     }
 
@@ -54,22 +58,8 @@ public class StockOpnamesController : ControllerBase
             return BadRequest("User tidak valid.");
         }
 
+        await _locations.EnsureAsync(request.StockLocationId, ct);
         var result = await _opnameService.CreateAsync(userId.Value, request, ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
-    }
-
-    private Guid? ResolveTargetOutletId(Guid? requestedOutletId)
-    {
-        if (_currentUser.Role == "Owner")
-        {
-            return requestedOutletId;
-        }
-
-        if (requestedOutletId.HasValue && requestedOutletId != _currentUser.OutletId)
-        {
-            throw new UnauthorizedAccessException("Anda tidak memiliki akses ke outlet tersebut.");
-        }
-
-        return _currentUser.OutletId;
     }
 }

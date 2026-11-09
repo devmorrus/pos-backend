@@ -61,7 +61,7 @@ public class SupplierReturnServiceTests
         _dbContext.InventoryStocks.Add(new InventoryStock
         {
             Id = Guid.NewGuid(),
-            OutletId = _outletId,
+            StockLocationId = _outletId,
             ProductId = _productId,
             QtyOnHand = 10,
             MinStockAlert = 0
@@ -164,7 +164,7 @@ public class SupplierReturnServiceTests
         result.Status.Should().Be("sent");
         await _stockServiceMock.Received(1).AddMovementAsync(
             productId: _productId,
-            outletId: _outletId,
+            stockLocationId: _outletId,
             qtyChange: -2,
             movementType: StockMovementType.ConsignmentReturn,
             referenceType: "supplier_return",
