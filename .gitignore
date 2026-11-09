@@ -3,6 +3,7 @@ bin/
 obj/
 TestResults/
 artifacts/
+.deploy-state/
 
 # IDE and editor files
 *.user

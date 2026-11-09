@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MorrusPOS.Api.Files;
 using MorrusPOS.Api.Security;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Products;
@@ -94,7 +95,7 @@ public class ProductsController : ControllerBase
 
     [HttpPost("upload-image")]
     [HasPermission("product.manage")]
-    public async Task<IActionResult> UploadImage(Microsoft.AspNetCore.Http.IFormFile file)
+    public async Task<IActionResult> UploadImage(Microsoft.AspNetCore.Http.IFormFile file, CancellationToken ct)
     {
         if (file == null || file.Length == 0)
         {
@@ -115,20 +116,12 @@ public class ProductsController : ControllerBase
             return BadRequest("Hanya diperbolehkan format PNG, JPG, JPEG, atau WEBP.");
         }
 
-        // Target path: wwwroot/uploads/
         var uploadsFolder = Path.Combine(_env.ContentRootPath, "wwwroot", "uploads");
-        if (!Directory.Exists(uploadsFolder))
-        {
-            Directory.CreateDirectory(uploadsFolder);
-        }
-
         var fileName = $"{Guid.NewGuid()}{extension}";
         var filePath = Path.Combine(uploadsFolder, fileName);
 
-        using (var stream = new FileStream(filePath, FileMode.Create))
-        {
-            await file.CopyToAsync(stream);
-        }
+        await using var source = file.OpenReadStream();
+        await AtomicFileWriter.WriteAsync(source, filePath, ct);
 
         var relativeUrl = $"/uploads/{fileName}";
         return Ok(new { url = relativeUrl });

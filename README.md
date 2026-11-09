@@ -2,6 +2,8 @@
 
 Backend POS berbasis ASP.NET Core dengan pola Clean Architecture.
 
+Operasional production untuk backup terenkripsi, restore drill, retention, monitoring, dan disaster recovery didokumentasikan di [docs/backup-recovery.md](docs/backup-recovery.md).
+
 README ini ditulis untuk orang yang baru clone project dari GitHub dan ingin menjalankannya dari nol sampai API hidup dengan `dotnet run`.
 
 ## Stack

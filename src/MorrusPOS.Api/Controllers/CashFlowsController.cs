@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MorrusPOS.Api.Files;
 using MorrusPOS.Api.Security;
 using MorrusPOS.Application.Features.Accounting;
 using MorrusPOS.Domain.Entities;
@@ -75,16 +76,11 @@ public class CashFlowsController : ControllerBase
         }
 
         var uploadsFolder = Path.Combine(_env.ContentRootPath, "wwwroot", "uploads", "cash-flows");
-        if (!Directory.Exists(uploadsFolder))
-        {
-            Directory.CreateDirectory(uploadsFolder);
-        }
-
         var fileName = $"{Guid.NewGuid()}{extension}";
         var filePath = Path.Combine(uploadsFolder, fileName);
 
-        await using var stream = new FileStream(filePath, FileMode.Create);
-        await file.CopyToAsync(stream, ct);
+        await using var source = file.OpenReadStream();
+        await AtomicFileWriter.WriteAsync(source, filePath, ct);
 
         var relativeUrl = $"/uploads/cash-flows/{fileName}";
         return Ok(new { url = relativeUrl });

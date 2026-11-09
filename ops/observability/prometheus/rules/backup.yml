@@ -1,0 +1,79 @@
+groups:
+  - name: morruspos-backup-recovery
+    rules:
+      - alert: MorrusPosBackupFailed
+        expr: morrus_backup_last_result == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: Backup MorrusPOS terakhir gagal
+          description: Periksa PostgreSQL, kapasitas staging, credential, dan repository Restic.
+          runbook_url: docs/runbooks/backup-failure.md
+
+      - alert: MorrusPosBackupStale
+        expr: absent(morrus_backup_last_success_timestamp_seconds) or (time() - morrus_backup_last_success_timestamp_seconds > 28800)
+        for: 15m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: Backup MorrusPOS melewati RPO
+          description: Tidak ada backup offsite sukses dalam delapan jam terakhir.
+          runbook_url: docs/runbooks/backup-failure.md
+
+      - alert: MorrusPosBackupSizeUnexpected
+        expr: morrus_backup_last_dump_size_bytes <= 0
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: Ukuran database dump MorrusPOS tidak valid
+          description: Backup melaporkan dump kosong; snapshot tidak boleh dipakai untuk pemulihan.
+          runbook_url: docs/runbooks/backup-failure.md
+
+      - alert: MorrusPosRestoreDrillFailed
+        expr: morrus_restore_drill_last_result == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: Uji restore MorrusPOS gagal
+          description: Backup terbaru tidak berhasil melewati restore dan integrity verification terisolasi.
+          runbook_url: docs/runbooks/restore-drill-failure.md
+
+      - alert: MorrusPosRestoreDrillStale
+        expr: absent(morrus_restore_drill_last_success_timestamp_seconds) or (time() - morrus_restore_drill_last_success_timestamp_seconds > 691200)
+        for: 30m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: Uji restore MorrusPOS melewati jadwal
+          description: Tidak ada restore drill sukses selama lebih dari delapan hari.
+          runbook_url: docs/runbooks/restore-drill-failure.md
+
+      - alert: MorrusPosBackupRepositoryCheckFailed
+        expr: morrus_backup_repository_check_last_result == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: Pemeriksaan repository backup gagal
+          description: Retention, prune, atau integrity check Restic gagal.
+          runbook_url: docs/runbooks/backup-failure.md
+
+      - alert: MorrusPosBackupRepositoryCheckStale
+        expr: absent(morrus_backup_repository_check_last_success_timestamp_seconds) or (time() - morrus_backup_repository_check_last_success_timestamp_seconds > 691200)
+        for: 30m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: Repository backup belum diperiksa
+          description: Tidak ada repository check sukses selama lebih dari delapan hari.
+          runbook_url: docs/runbooks/backup-failure.md

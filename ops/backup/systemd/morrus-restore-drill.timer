@@ -1,0 +1,11 @@
+[Unit]
+Description=Run weekly MorrusPOS isolated restore drill
+
+[Timer]
+OnCalendar=Sun *-*-* 02:30:00 UTC
+Persistent=true
+RandomizedDelaySec=10m
+Unit=morrus-restore-drill.service
+
+[Install]
+WantedBy=timers.target

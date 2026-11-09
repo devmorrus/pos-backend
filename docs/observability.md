@@ -39,6 +39,8 @@ GoBiz inbox berjalan dalam mode report-only secara default (`QUEUE_EVALUATE_BACK
 
 Dashboard awal diprovision sebagai **MorrusPOS Platform Overview**. Alert rules berada di `ops/observability/prometheus/rules/` dan seluruh alert menyertakan runbook.
 
+Backup dan restore drill diekspos oleh internal `backup-exporter`. Dashboard **MorrusPOS Backup & Recovery** menampilkan umur, hasil, durasi, dan ukuran. Alert critical aktif bila backup gagal atau lebih tua dari delapan jam; restore drill dan repository check wajib sukses setidaknya sekali dalam delapan hari. Setup lengkap ada di `docs/backup-recovery.md`.
+
 ## Validasi
 
 ```bash

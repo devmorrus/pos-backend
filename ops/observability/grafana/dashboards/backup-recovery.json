@@ -1,0 +1,77 @@
+{
+  "title": "MorrusPOS Backup & Recovery",
+  "uid": "morruspos-backup-recovery",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": { "from": "now-30d", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Backup Age (hours)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "(time() - morrus_backup_last_success_timestamp_seconds) / 3600", "refId": "A" }],
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Last Backup Result",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "morrus_backup_last_result", "refId": "A" }],
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Restore Drill Age (days)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "(time() - morrus_restore_drill_last_success_timestamp_seconds) / 86400", "refId": "A" }],
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Repository Check",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "morrus_backup_repository_check_last_result", "refId": "A" }],
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Backup Duration (seconds)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "morrus_backup_last_duration_seconds", "refId": "A" }],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Database and Dump Size",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "morrus_backup_last_database_size_bytes", "legendFormat": "database", "refId": "A" },
+        { "expr": "morrus_backup_last_dump_size_bytes", "legendFormat": "dump", "refId": "B" }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Upload Size",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "morrus_backup_last_upload_size_bytes", "refId": "A" }],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Restore Drill Duration (seconds)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "morrus_restore_drill_last_duration_seconds", "refId": "A" }],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 }
+    }
+  ]
+}

@@ -12,7 +12,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16-alpine
+        image: postgres:15-alpine
         env:
           POSTGRES_DB: morrusposs
           POSTGRES_USER: morrus
@@ -69,7 +69,12 @@ jobs:
             grafana/tempo:2.6.1 -config.file=/etc/tempo/config.yml -config.verify=true
           python3 -m json.tool ops/observability/grafana/dashboards/platform-overview.json >/dev/null
           python3 -m json.tool ops/observability/grafana/dashboards/queue-operations.json >/dev/null
+          python3 -m json.tool ops/observability/grafana/dashboards/backup-recovery.json >/dev/null
           bash -n scripts/check-platform-health.sh
+          bash -n deploy.sh scripts/backup/*.sh
+          mapfile -t BACKUP_SCRIPTS < <(printf '/mnt/%s\n' scripts/backup/*.sh)
+          docker run --rm -v "$PWD:/mnt:ro" koalaman/shellcheck:v0.10.0 \
+            --severity=warning /mnt/deploy.sh /mnt/scripts/check-platform-health.sh "${BACKUP_SCRIPTS[@]}"
           rm -f "$ALERT_WEBHOOK_FILE"
 
       - name: Prepare tenancy database
@@ -108,6 +113,37 @@ jobs:
           --collect:"XPlat Code Coverage"
           --logger "trx;LogFileName=integration-tests.trx"
           --results-directory artifacts/integration
+
+      - name: Test backup and isolated restore
+        env:
+          MORRUS_PROJECT_DIR: ${{ github.workspace }}
+          UPLOADS_VOLUME_NAME: morrus-ci-uploads
+          RESTIC_REPOSITORY: /repository
+          RESTIC_REPOSITORY_MOUNT: ${{ runner.temp }}/morrus-restic-repository
+          RESTIC_PASSWORD_FILE: ${{ runner.temp }}/morrus-restic-password
+          BACKUP_STAGING_DIR: ${{ runner.temp }}/morrus-backup-staging
+          BACKUP_METRICS_DIR: ${{ runner.temp }}/morrus-backup-metrics
+          RESTIC_CACHE_DIR: ${{ runner.temp }}/morrus-restic-cache
+          BACKUP_LOCK_FILE: ${{ runner.temp }}/morrus-backup.lock
+          BACKUP_HOST_ID: morrus-ci
+          POSTGRES_IMAGE: postgres:15-alpine
+          RESTORE_SKIP_APPLICATION_SMOKE: "true"
+        run: |
+          set -euo pipefail
+          export DATABASE_CONTAINER_NAME="$(docker ps --format '{{.ID}} {{.Image}}' | awk '$2 ~ /^postgres:15-alpine/ {print $1; exit}')"
+          test -n "$DATABASE_CONTAINER_NAME"
+          mkdir -p "$RESTIC_REPOSITORY_MOUNT" "$BACKUP_STAGING_DIR" "$BACKUP_METRICS_DIR" "$RESTIC_CACHE_DIR"
+          printf '%s\n' 'ci-only-restic-password' > "$RESTIC_PASSWORD_FILE"
+          chmod 600 "$RESTIC_PASSWORD_FILE"
+          docker volume create "$UPLOADS_VOLUME_NAME" >/dev/null
+          trap 'docker volume rm "$UPLOADS_VOLUME_NAME" >/dev/null 2>&1 || true' EXIT
+          docker run --rm -v "$UPLOADS_VOLUME_NAME:/uploads" alpine:3.20 \
+            sh -c "mkdir -p /uploads/cash-flows && printf 'ci-image' > /uploads/product.jpg && printf 'ci-receipt' > /uploads/cash-flows/receipt.pdf"
+          scripts/backup/init-repository.sh --confirm-new-repository
+          scripts/backup/create-backup.sh ci
+          scripts/backup/check-backup-freshness.sh 8
+          scripts/backup/restore-drill.sh latest
+          scripts/backup/repository-maintenance.sh
 
       - name: Upload test results and coverage
         if: always()

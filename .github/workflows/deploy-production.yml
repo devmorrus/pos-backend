@@ -8,7 +8,7 @@ on:
 
 concurrency:
   group: deploy-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -34,7 +34,7 @@ jobs:
           key: ${{ secrets.PRODUCTION_SSH_KEY }}
           port: ${{ secrets.PRODUCTION_PORT }}
           timeout: 60s
-          command_timeout: 30m
+          command_timeout: 90m
           script: |
             cd /home/morrusdigital/pos-backend
             git -c pack.threads=1 -c fetch.unpackLimit=1 fetch --prune --no-tags origin main

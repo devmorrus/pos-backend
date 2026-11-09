@@ -1,0 +1,11 @@
+[Unit]
+Description=Run weekly MorrusPOS backup maintenance
+
+[Timer]
+OnCalendar=Sun *-*-* 05:00:00 UTC
+Persistent=true
+RandomizedDelaySec=10m
+Unit=morrus-backup-maintenance.service
+
+[Install]
+WantedBy=timers.target

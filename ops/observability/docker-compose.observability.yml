@@ -21,7 +21,18 @@ services:
       - ./ops/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./ops/observability/prometheus/rules:/etc/prometheus/rules:ro
       - prometheus-data:/prometheus
-    depends_on: [otel-collector, alertmanager]
+    depends_on: [otel-collector, alertmanager, backup-exporter]
+    restart: unless-stopped
+    networks: [observability]
+
+  backup-exporter:
+    image: prom/node-exporter:v1.8.2
+    command:
+      - --collector.disable-defaults
+      - --collector.textfile
+      - --collector.textfile.directory=/var/lib/node_exporter/textfile_collector
+    volumes:
+      - ${BACKUP_METRICS_PATH:-/var/lib/morrus-pos/backup-metrics}:/var/lib/node_exporter/textfile_collector:ro
     restart: unless-stopped
     networks: [observability]
 

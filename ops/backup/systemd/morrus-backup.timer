@@ -1,0 +1,11 @@
+[Unit]
+Description=Run MorrusPOS backup every six hours
+
+[Timer]
+OnCalendar=*-*-* 00,06,12,18:15:00 UTC
+Persistent=true
+RandomizedDelaySec=5m
+Unit=morrus-backup.service
+
+[Install]
+WantedBy=timers.target

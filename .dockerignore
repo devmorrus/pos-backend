@@ -1,0 +1,14 @@
+.git
+.github
+.deploy-state
+.env
+.env.*
+!.env.example
+.opencode-*
+**/bin
+**/obj
+TestResults
+artifacts
+ops/observability/secrets
+src/MorrusPOS.Api/wwwroot/uploads
+*.tar
