@@ -23,6 +23,7 @@ Grafana hanya bind ke `127.0.0.1:3000`. Akses melalui SSH tunnel atau reverse pr
 - `/health/live`: process hidup.
 - `/health/ready`: PostgreSQL dapat diakses.
 - `/health`: alias readiness untuk kompatibilitas deployment.
+- `/health/queues`: status monitor antrean; backlog tidak memblokir readiness POS.
 
 Semua response membawa `X-Request-ID`. Caller boleh mengirim request ID berisi huruf, angka, titik, underscore, atau strip dengan panjang maksimal 64 karakter.
 
@@ -32,6 +33,9 @@ Semua response membawa `X-Request-ID`. Caller boleh mengirim request ID berisi h
 - `morrus.api.info` dan `morrus.readiness`;
 - `morrus.checkout.attempts` dan `morrus.checkout.duration`;
 - `morrus.exceptions` dan `morrus.stock.integrity_errors`.
+- `morrus.queue.depth`, `morrus.queue.oldest_age`, dan `morrus.queue.monitor_up`.
+
+GoBiz inbox berjalan dalam mode report-only secara default (`QUEUE_EVALUATE_BACKLOG=false`) karena lifecycle consumer belum diimplementasikan. Audit data existing dan aktifkan evaluasi backlog hanya setelah arti status `received` disepakati.
 
 Dashboard awal diprovision sebagai **MorrusPOS Platform Overview**. Alert rules berada di `ops/observability/prometheus/rules/` dan seluruh alert menyertakan runbook.
 

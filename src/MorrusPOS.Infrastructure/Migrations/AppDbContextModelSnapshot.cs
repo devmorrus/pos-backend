@@ -1978,8 +1978,6 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BusinessId");
-
                     b.HasIndex("GoBizOrderId")
                         .IsUnique();
 
@@ -1989,7 +1987,14 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("TransactionId");
 
-                    b.ToTable("gobiz_order_inboxes", (string)null);
+                    b.HasIndex("Status", "ReceivedAtUtc");
+
+                    b.HasIndex("BusinessId", "OutletId", "Status", "ReceivedAtUtc");
+
+                    b.ToTable("gobiz_order_inboxes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_gobiz_order_inboxes_Status", "\"Status\" IN ('received','processing','processed','failed','dead_letter')");
+                        });
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.GoBizProductMapping", b =>

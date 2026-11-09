@@ -8,6 +8,7 @@ using MorrusPOS.Application.Features.Capabilities;
 using MorrusPOS.Application.Features.Channels;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
+using MorrusPOS.Application.Common.Observability;
 
 namespace MorrusPOS.Infrastructure.Services;
 
@@ -85,8 +86,7 @@ public sealed class GoBizOrderWebhookService : IGoBizOrderWebhookService
         var existing = await _systemDb.GoBizOrderInboxes.FirstOrDefaultAsync(x => x.GoBizOrderId == orderId, ct);
         if (existing is not null)
         {
-            existing.ProcessedAtUtc ??= DateTime.UtcNow;
-            await _systemDb.SaveChangesAsync(ct);
+            MorrusTelemetry.RecordGoBizWebhook("duplicate");
             return;
         }
 
@@ -97,7 +97,7 @@ public sealed class GoBizOrderWebhookService : IGoBizOrderWebhookService
             OutletId = integration.OutletId,
             EventType = eventType,
             RawPayloadJson = rawBody,
-            Status = "received",
+            Status = GoBizOrderInboxStatus.Received,
             ReceivedAtUtc = DateTime.UtcNow
         });
 
@@ -116,6 +116,7 @@ public sealed class GoBizOrderWebhookService : IGoBizOrderWebhookService
 
         await _dbContext.SaveChangesAsync(ct);
         await _systemDb.SaveChangesAsync(ct);
+        MorrusTelemetry.RecordGoBizWebhook("received");
     }
 
     private static string? ReadString(JsonElement root, string propertyName)

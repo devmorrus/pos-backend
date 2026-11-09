@@ -41,6 +41,8 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using MorrusPOS.Api.Health;
 using MorrusPOS.Api.Observability;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using MorrusPOS.Api.Monitoring;
+using MorrusPOS.Application.Common.Monitoring;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddMorrusObservability();
@@ -108,9 +110,14 @@ builder.Services.AddScoped<CurrentUserService>();
 builder.Services.AddScoped<ICurrentUserService>(sp => sp.GetRequiredService<CurrentUserService>());
 builder.Services.AddScoped<ITenantContextSetter>(sp => sp.GetRequiredService<CurrentUserService>());
 builder.Services.AddScoped<IPosNotificationService, PosNotificationService>();
+builder.Services.Configure<QueueMonitoringOptions>(
+    builder.Configuration.GetSection(QueueMonitoringOptions.SectionName));
+builder.Services.AddSingleton<QueueMonitoringState>();
+builder.Services.AddHostedService<QueueMonitoringBackgroundService>();
 builder.Services.AddHealthChecks()
     .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(), tags: ["live"])
-    .AddCheck<DatabaseReadinessHealthCheck>("postgresql", tags: ["ready"]);
+    .AddCheck<DatabaseReadinessHealthCheck>("postgresql", tags: ["ready"])
+    .AddCheck<QueueBacklogHealthCheck>("queues", tags: ["queue"]);
 builder.Services.AddSingleton<IHealthCheckPublisher, ReadinessHealthCheckPublisher>();
 builder.Services.Configure<HealthCheckPublisherOptions>(options =>
 {
@@ -323,6 +330,17 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 {
     Predicate = registration => registration.Tags.Contains("ready"),
     ResponseWriter = HealthResponseWriter.WriteAsync,
+});
+app.MapHealthChecks("/health/queues", new HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("queue"),
+    ResponseWriter = QueueHealthResponseWriter.WriteAsync,
+    ResultStatusCodes =
+    {
+        [HealthStatus.Healthy] = StatusCodes.Status200OK,
+        [HealthStatus.Degraded] = StatusCodes.Status200OK,
+        [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable,
+    },
 });
 
 app.Run();

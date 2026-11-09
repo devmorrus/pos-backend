@@ -1,16 +1,45 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using MorrusPOS.Application.Common.Interfaces;
 
 namespace MorrusPOS.IntegrationTests;
 
 public class ObservabilityApiTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly HttpClient _client;
+    private readonly WebApplicationFactory<Program> _factory;
 
     public ObservabilityApiTests(WebApplicationFactory<Program> factory)
     {
+        _factory = factory;
         _client = factory.CreateClient();
+    }
+
+    [Fact]
+    public async Task QueueHealth_ReturnsAggregateWithoutTenantOrPayloadData()
+    {
+        var response = await _client.GetAsync("/health/queues");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("BusinessId", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("RawPayload", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("GoBizOrderId", body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GoBizQueueMonitor_ReturnsEmptySnapshotForCleanDatabase()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var monitor = scope.ServiceProvider.GetServices<IQueueMonitor>().Single();
+
+        var snapshot = await monitor.GetSnapshotAsync();
+
+        Assert.Equal("gobiz_order_inbox", snapshot.QueueName);
+        Assert.Equal(0, snapshot.PendingCount);
+        Assert.Equal(0, snapshot.FailedCount);
     }
 
     [Theory]

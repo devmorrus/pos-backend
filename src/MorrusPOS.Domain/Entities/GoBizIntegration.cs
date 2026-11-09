@@ -76,6 +76,15 @@ public class GoBizProductMapping : AuditableEntity
     public string? LastSyncError { get; set; }
 }
 
+public static class GoBizOrderInboxStatus
+{
+    public const string Received = "received";
+    public const string Processing = "processing";
+    public const string Processed = "processed";
+    public const string Failed = "failed";
+    public const string DeadLetter = "dead_letter";
+}
+
 public class GoBizOrderInbox : BaseEntity
 {
     // Tenant scope: row milik business ini; FK businesses via konvensi EF
@@ -86,7 +95,7 @@ public class GoBizOrderInbox : BaseEntity
     public Outlet Outlet { get; set; } = default!;
     public string EventType { get; set; } = default!;
     public string RawPayloadJson { get; set; } = default!;
-    public string Status { get; set; } = "received";
+    public string Status { get; set; } = GoBizOrderInboxStatus.Received;
     public Guid? TransactionId { get; set; }
     public Transaction? Transaction { get; set; }
     public string? ErrorMessage { get; set; }

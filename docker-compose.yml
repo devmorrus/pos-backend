@@ -44,6 +44,9 @@ services:
       - Observability__OtlpEndpoint=http://otel-collector:4317
       - Observability__TraceSampleRatio=${OTEL_TRACE_SAMPLE_RATIO:-1}
       - SERVICE_VERSION=${SERVICE_VERSION:-local}
+      - QueueMonitoring__Enabled=${QUEUE_MONITORING_ENABLED:-true}
+      - QueueMonitoring__EvaluateBacklog=${QUEUE_EVALUATE_BACKLOG:-false}
+      - QueueMonitoring__PollIntervalSeconds=${QUEUE_POLL_INTERVAL_SECONDS:-30}
     logging:
       driver: json-file
       options:

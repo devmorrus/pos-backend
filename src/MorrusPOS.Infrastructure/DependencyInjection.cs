@@ -20,6 +20,7 @@ using MorrusPOS.Application.Features.Capabilities;
 using MorrusPOS.Infrastructure.Persistence;
 using MorrusPOS.Infrastructure.Options;
 using MorrusPOS.Infrastructure.Services;
+using MorrusPOS.Infrastructure.Monitoring;
 
 namespace MorrusPOS.Infrastructure;
 
@@ -87,6 +88,7 @@ public static class DependencyInjection
         services.AddHttpClient<IGoBizApiClient, GoBizApiClient>();
         services.AddScoped<IGoBizDirectIntegrationService, GoBizDirectIntegrationService>();
         services.AddScoped<IGoBizOrderWebhookService, GoBizOrderWebhookService>();
+        services.AddScoped<IQueueMonitor, GoBizInboxQueueMonitor>();
 
         // Fase 8 — Dashboard & Laporan
         services.AddScoped<IDashboardService, DashboardService>();

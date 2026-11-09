@@ -1,0 +1,74 @@
+{
+  "title": "MorrusPOS Queue Operations",
+  "uid": "morruspos-queues",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Queue Monitor Up",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "min(morrus_queue_monitor_up)", "refId": "A" }],
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "GoBiz Received",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "morrus_queue_depth{queue_name=\"gobiz_order_inbox\",queue_status=\"received\"}", "refId": "A" }],
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Oldest Pending (seconds)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "morrus_queue_oldest_age_seconds{queue_name=\"gobiz_order_inbox\"}", "refId": "A" }],
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Backlog Alert Enabled",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "morrus_queue_backlog_evaluation_enabled{queue_name=\"gobiz_order_inbox\"}", "refId": "A" }],
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Queue Depth by Status",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "morrus_queue_depth{queue_name=\"gobiz_order_inbox\"}", "legendFormat": "{{queue_status}}", "refId": "A" }],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "OTel Exporter Queue Utilization",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "otelcol_exporter_queue_size / clamp_min(otelcol_exporter_queue_capacity, 1)", "legendFormat": "{{exporter}}", "refId": "A" }],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": ".NET ThreadPool Queue",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "dotnet_thread_pool_queue_length", "refId": "A" }],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 }
+    },
+    {
+      "id": 8,
+      "type": "logs",
+      "title": "Queue Monitoring Logs",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{ "expr": "{service_name=\"morruspos-api\"} |~ \"QueueHealthChanged|QueueMonitoringFailed\"", "refId": "A" }],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 }
+    }
+  ]
+}

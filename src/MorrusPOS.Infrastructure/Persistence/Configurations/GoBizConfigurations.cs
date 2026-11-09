@@ -138,7 +138,9 @@ public class GoBizOrderInboxConfiguration : IEntityTypeConfiguration<GoBizOrderI
 {
     public void Configure(EntityTypeBuilder<GoBizOrderInbox> builder)
     {
-        builder.ToTable("gobiz_order_inboxes");
+        builder.ToTable("gobiz_order_inboxes", table => table.HasCheckConstraint(
+            "CK_gobiz_order_inboxes_Status",
+            "\"Status\" IN ('received','processing','processed','failed','dead_letter')"));
         builder.HasKey(x => x.Id);
         builder.Property(x => x.GoBizOrderId).HasMaxLength(200).IsRequired();
         builder.Property(x => x.EventType).HasMaxLength(100).IsRequired();
@@ -147,6 +149,8 @@ public class GoBizOrderInboxConfiguration : IEntityTypeConfiguration<GoBizOrderI
         builder.Property(x => x.ErrorMessage).HasMaxLength(1000);
         builder.HasIndex(x => x.GoBizOrderId).IsUnique();
         builder.HasIndex(x => x.Status);
+        builder.HasIndex(x => new { x.Status, x.ReceivedAtUtc });
+        builder.HasIndex(x => new { x.BusinessId, x.OutletId, x.Status, x.ReceivedAtUtc });
 
         builder.HasOne(x => x.Outlet)
             .WithMany()

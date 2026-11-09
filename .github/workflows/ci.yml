@@ -67,6 +67,9 @@ jobs:
           docker run --rm \
             -v "$PWD/ops/observability/tempo/config.yml:/etc/tempo/config.yml:ro" \
             grafana/tempo:2.6.1 -config.file=/etc/tempo/config.yml -config.verify=true
+          python3 -m json.tool ops/observability/grafana/dashboards/platform-overview.json >/dev/null
+          python3 -m json.tool ops/observability/grafana/dashboards/queue-operations.json >/dev/null
+          bash -n scripts/check-platform-health.sh
           rm -f "$ALERT_WEBHOOK_FILE"
 
       - name: Prepare tenancy database

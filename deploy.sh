@@ -115,6 +115,7 @@ for attempt in {1..30}; do
   if curl --fail --silent --show-error --location --max-time 10 "${HEALTHCHECK_URL}" >/dev/null; then
     "${COMPOSE[@]}" exec -T database psql -U morrus -d morrusposs -v ON_ERROR_STOP=1 \
       < db/tenant-verify.sql
+    bash scripts/check-platform-health.sh
     echo "Health check passed."
     exit 0
   fi

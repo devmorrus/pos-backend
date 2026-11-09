@@ -1,0 +1,77 @@
+groups:
+  - name: morruspos-queues
+    rules:
+      - alert: MorrusPosQueueMonitorDown
+        expr: morrus_queue_monitor_up{queue_name="gobiz_order_inbox"} == 0 or absent(morrus_queue_monitor_up{queue_name="gobiz_order_inbox"})
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: Queue monitor MorrusPOS gagal
+          description: Snapshot antrean GoBiz tidak berhasil diperbarui selama dua menit.
+          runbook_url: docs/runbooks/queue-backlog.md
+
+      - alert: MorrusPosGoBizInboxBacklog
+        expr: |
+          (morrus_queue_depth{queue_name="gobiz_order_inbox",queue_status="received"} >= 50)
+          and on(queue_name)
+          (morrus_queue_backlog_evaluation_enabled{queue_name="gobiz_order_inbox"} == 1)
+        for: 5m
+        labels:
+          severity: warning
+          team: integration
+        annotations:
+          summary: GoBiz inbox mulai menumpuk
+          description: Jumlah order berstatus received melewati warning threshold.
+          runbook_url: docs/runbooks/queue-backlog.md
+
+      - alert: MorrusPosGoBizInboxOldestCritical
+        expr: |
+          (morrus_queue_oldest_age_seconds{queue_name="gobiz_order_inbox"} >= 600)
+          and on(queue_name)
+          (morrus_queue_backlog_evaluation_enabled{queue_name="gobiz_order_inbox"} == 1)
+        for: 2m
+        labels:
+          severity: critical
+          team: integration
+        annotations:
+          summary: GoBiz inbox mempunyai item sangat lama
+          description: Item received tertua belum diproses selama sedikitnya sepuluh menit.
+          runbook_url: docs/runbooks/queue-backlog.md
+
+      - alert: MorrusPosGoBizInboxFailedItems
+        expr: |
+          (sum by (queue_name) (morrus_queue_depth{queue_name="gobiz_order_inbox",queue_status=~"failed|dead_letter"}) > 0)
+          and on(queue_name)
+          (morrus_queue_backlog_evaluation_enabled{queue_name="gobiz_order_inbox"} == 1)
+        for: 1m
+        labels:
+          severity: critical
+          team: integration
+        annotations:
+          summary: GoBiz inbox mempunyai failed atau dead-letter item
+          description: Periksa error processing dan tentukan replay yang aman; jangan menghapus inbox.
+          runbook_url: docs/runbooks/queue-backlog.md
+
+      - alert: MorrusPosTelemetryQueueHigh
+        expr: otelcol_exporter_queue_size / clamp_min(otelcol_exporter_queue_capacity, 1) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: OpenTelemetry sending queue di atas 80 persen
+          description: Loki atau Tempo lambat/tidak tersedia, periksa persistent queue dan disk.
+          runbook_url: docs/runbooks/queue-backlog.md
+
+      - alert: MorrusPosThreadPoolQueueHigh
+        expr: dotnet_thread_pool_queue_length > 100
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: .NET ThreadPool queue tinggi
+          description: Periksa blocking I/O, database latency, active request, CPU, dan trace lambat.
+          runbook_url: docs/runbooks/high-error-rate.md
