@@ -7,3 +7,5 @@
 5. Untuk OTel queue tinggi, cek Loki, Tempo, collector retry, persistent queue volume, dan kapasitas disk.
 6. Untuk ThreadPool queue tinggi, korelasikan dengan CPU, database latency, active request, dan trace lambat.
 7. Jangan menghapus inbox atau persistent queue untuk menghilangkan alert. Simpan bukti dan tentukan replay/backfill yang aman.
+
+Untuk queue `outbox`, gunakan prosedur khusus di `docs/runbooks/outbox-delivery.md`. GoBiz inbox tetap report-only, sedangkan outbox backlog evaluation aktif.

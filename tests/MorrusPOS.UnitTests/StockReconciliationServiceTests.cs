@@ -14,7 +14,7 @@ public class StockReconciliationServiceTests
 {
     private readonly AppDbContext _db;
     private readonly ICurrentUserService _user;
-    private readonly IPosNotificationService _notifications;
+    private readonly IStockEventPublisher _notifications;
     private readonly Guid _outletId = Guid.NewGuid();
     private readonly Guid _productId = Guid.NewGuid();
     private readonly Guid _userId = Guid.NewGuid();
@@ -24,7 +24,7 @@ public class StockReconciliationServiceTests
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options, TestTenant.CurrentUser);
         _user = Substitute.For<ICurrentUserService>();
-        _notifications = Substitute.For<IPosNotificationService>();
+        _notifications = Substitute.For<IStockEventPublisher>();
         _user.UserId.Returns(_userId);
         _user.Role.Returns("Admin");
         _user.OutletId.Returns(_outletId);

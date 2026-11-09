@@ -69,8 +69,9 @@ BEGIN
               'fn_prevent_idempotency_mutation',
               'fn_validate_journal_balance','fn_validate_journal_line_trigger',
               'fn_validate_journal_header_trigger','fn_prevent_posted_journal_mutation',
-              'fn_mark_journal_reversed',
-              'app_current_business_id','app_prevent_business_change')
+               'fn_mark_journal_reversed',
+               'fn_guard_outbox_immutable_payload',
+               'app_current_business_id','app_prevent_business_change')
     LOOP
         EXECUTE format('ALTER FUNCTION %s OWNER TO morrus_migration',r.signature);
     END LOOP;
@@ -111,6 +112,12 @@ BEGIN
             REVOKE ALL ON idempotency_records FROM morrus_app;
             GRANT SELECT, INSERT ON idempotency_records TO morrus_app;
         END IF;
+        IF to_regclass('public.outbox_messages') IS NOT NULL THEN
+            REVOKE ALL ON outbox_messages FROM morrus_app, morrus_system;
+            GRANT INSERT ON outbox_messages TO morrus_app;
+            GRANT SELECT ("BusinessId","EventType","DeduplicationKey") ON outbox_messages TO morrus_app;
+            GRANT SELECT, UPDATE, DELETE ON outbox_messages TO morrus_system;
+        END IF;
         IF to_regclass('public.journal_entries') IS NOT NULL THEN
             REVOKE UPDATE, DELETE ON journal_entries, account_transactions FROM morrus_app;
             GRANT SELECT, INSERT ON journal_entries, account_transactions TO morrus_app;
@@ -121,7 +128,7 @@ BEGIN
         END IF;
 
         -- Cross-tenant system role is deliberately narrow: auth/provisioning,
-        -- public directory and GoBiz webhook resolution only.
+        -- public directory, GoBiz webhook resolution, and outbox dispatch only.
         GRANT SELECT ON businesses, outlets, users, roles, permissions, role_permissions,
             refresh_tokens, gobiz_direct_integrations, gobiz_order_inboxes,
             gobiz_client_configs TO morrus_system;

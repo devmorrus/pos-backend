@@ -17,6 +17,7 @@ public sealed class GoBizInboxQueueMonitor : IQueueMonitor
     }
 
     public string QueueName => Queue;
+    public string PendingStatus => "received";
 
     public async Task<QueueSnapshot> GetSnapshotAsync(CancellationToken ct = default)
     {

@@ -5,6 +5,7 @@ using MorrusPOS.Application.Features.Stock;
 using MorrusPOS.Application.Features.Capabilities;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
+using MorrusPOS.Application.Common.Events;
 
 namespace MorrusPOS.Infrastructure.Services;
 
@@ -12,20 +13,20 @@ public class StockTransferService : IStockTransferService
 {
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockService;
-    private readonly IPosNotificationService _notificationService;
+    private readonly IStockEventPublisher _stockEvents;
     private readonly ICurrentUserService _currentUserService;
     private readonly ICapabilityEvaluator? _capabilityEvaluator;
 
     public StockTransferService(
         AppDbContext dbContext,
         IStockService stockService,
-        IPosNotificationService notificationService,
+        IStockEventPublisher stockEvents,
         ICurrentUserService currentUserService,
         ICapabilityEvaluator? capabilityEvaluator = null)
     {
         _dbContext = dbContext;
         _stockService = stockService;
-        _notificationService = notificationService;
+        _stockEvents = stockEvents;
         _currentUserService = currentUserService;
         _capabilityEvaluator = capabilityEvaluator;
     }
@@ -131,13 +132,12 @@ public class StockTransferService : IStockTransferService
             }
 
             await _dbContext.SaveChangesAsync(ct);
+            await _stockEvents.EnqueueCurrentStockAsync(
+                request.FromOutletId,
+                request.Items.Select(item => new StockEventKey(item.ProductId, item.ProductVariantId)).ToArray(),
+                $"stock:transfer:{transfer.Id:N}:created",
+                ct);
             await dbTx.CommitAsync(ct);
-
-            var fromUpdates = request.Items
-                .GroupBy(i => i.ProductId)
-                .Select(group => new StockUpdateItem(group.Key, -group.Sum(i => Math.Abs(i.Qty))))
-                .ToList();
-            await _notificationService.SendStockUpdateAsync(request.FromOutletId, fromUpdates, ct);
 
             return await GetByIdAsync(transfer.Id, ct);
         }
@@ -200,13 +200,12 @@ public class StockTransferService : IStockTransferService
             transfer.UpdatedAt = DateTime.UtcNow;
 
             await _dbContext.SaveChangesAsync(ct);
+            await _stockEvents.EnqueueCurrentStockAsync(
+                transfer.ToOutletId,
+                transfer.Items.Select(item => new StockEventKey(item.ProductId, item.ProductVariantId)).ToArray(),
+                $"stock:transfer:{transfer.Id:N}:approved",
+                ct);
             await dbTx.CommitAsync(ct);
-
-            var toUpdates = transfer.Items
-                .GroupBy(i => (i.ProductId, i.ProductVariantId))
-                .Select(group => new StockUpdateItem(group.Key.ProductId, group.Sum(i => i.Qty), group.Key.ProductVariantId))
-                .ToList();
-            await _notificationService.SendStockUpdateAsync(transfer.ToOutletId, toUpdates, ct);
 
             return await GetByIdAsync(transfer.Id, ct);
         }
@@ -289,13 +288,12 @@ public class StockTransferService : IStockTransferService
             transfer.UpdatedAt = DateTime.UtcNow;
 
             await _dbContext.SaveChangesAsync(ct);
+            await _stockEvents.EnqueueCurrentStockAsync(
+                transfer.FromOutletId,
+                transfer.Items.Select(item => new StockEventKey(item.ProductId, item.ProductVariantId)).ToArray(),
+                $"stock:transfer:{transfer.Id:N}:rejected",
+                ct);
             await dbTx.CommitAsync(ct);
-
-            var fromUpdates = transfer.Items
-                .GroupBy(i => (i.ProductId, i.ProductVariantId))
-                .Select(group => new StockUpdateItem(group.Key.ProductId, group.Sum(i => i.Qty), group.Key.ProductVariantId))
-                .ToList();
-            await _notificationService.SendStockUpdateAsync(transfer.FromOutletId, fromUpdates, ct);
 
             return await GetByIdAsync(transfer.Id, ct);
         }

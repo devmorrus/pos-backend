@@ -6,6 +6,7 @@ using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Stock;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
+using MorrusPOS.Application.Common.Events;
 
 namespace MorrusPOS.Infrastructure.Services;
 
@@ -13,16 +14,16 @@ public class StockReconciliationService : IStockReconciliationService
 {
     private readonly AppDbContext _dbContext;
     private readonly ICurrentUserService _currentUser;
-    private readonly IPosNotificationService _notificationService;
+    private readonly IStockEventPublisher _stockEvents;
 
     public StockReconciliationService(
         AppDbContext dbContext,
         ICurrentUserService currentUser,
-        IPosNotificationService notificationService)
+        IStockEventPublisher stockEvents)
     {
         _dbContext = dbContext;
         _currentUser = currentUser;
-        _notificationService = notificationService;
+        _stockEvents = stockEvents;
     }
 
     public async Task<StockReconciliationResultDto> PreviewAsync(
@@ -64,17 +65,19 @@ public class StockReconciliationService : IStockReconciliationService
             var repaired = await GetRowsAsync(outletId, apply: true, ct);
             var run = await SaveRunAsync(userId, outletId, normalizedReason,
                 StockReconciliationStatus.Completed, scanned, repaired, ct);
-            if (transaction is not null) await transaction.CommitAsync(ct);
-
-            if (repaired.Count > 0)
+            var repairedKeys = repaired
+                .Where(x => x.Action is "updated_balance" or "inserted_balance")
+                .Select(x => new StockEventKey(x.ProductId, x.ProductVariantId))
+                .ToArray();
+            if (repairedKeys.Length > 0)
             {
-                var updates = repaired
-                    .Where(x => x.Action is "updated_balance" or "inserted_balance")
-                    .Select(x => new StockUpdateItem(x.ProductId, x.LedgerQty - x.StoredQty, x.ProductVariantId))
-                    .ToList();
-                if (updates.Count > 0)
-                    await _notificationService.SendStockUpdateAsync(outletId, updates, ct);
+                await _stockEvents.EnqueueCurrentStockAsync(
+                    outletId,
+                    repairedKeys,
+                    $"stock:reconciliation:{run.Id:N}",
+                    ct);
             }
+            if (transaction is not null) await transaction.CommitAsync(ct);
 
             return MapResult(run.Id, outletId, StockReconciliationMode.Repair,
                 run.Status, scanned, repaired, startedAt, run.CompletedAt);

@@ -6,6 +6,7 @@ using MorrusPOS.Application.Features.Accounting;
 using MorrusPOS.Application.Features.Stock;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
+using MorrusPOS.Application.Common.Events;
 
 namespace MorrusPOS.Infrastructure.Services;
 
@@ -13,20 +14,20 @@ public class StockOpnameService : IStockOpnameService
 {
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockService;
-    private readonly IPosNotificationService _notificationService;
+    private readonly IStockEventPublisher _stockEvents;
     private readonly ICapabilityEvaluator? _capabilities;
     private readonly IAccountingIntegrationService? _accountingIntegrationService;
 
     public StockOpnameService(
         AppDbContext dbContext,
         IStockService stockService,
-        IPosNotificationService notificationService,
+        IStockEventPublisher stockEvents,
         ICapabilityEvaluator? capabilities = null,
         IAccountingIntegrationService? accountingIntegrationService = null)
     {
         _dbContext = dbContext;
         _stockService = stockService;
-        _notificationService = notificationService;
+        _stockEvents = stockEvents;
         _capabilities = capabilities;
         _accountingIntegrationService = accountingIntegrationService;
     }
@@ -79,7 +80,7 @@ public class StockOpnameService : IStockOpnameService
 
             _dbContext.StockOpnames.Add(opname);
 
-            var stockUpdates = new List<StockUpdateItem>();
+            var stockUpdates = new List<StockEventKey>();
             var seenRows = new HashSet<(Guid ProductId, Guid? VariantId, Guid? BatchId)>();
             var seenSerialIds = new HashSet<Guid>();
 
@@ -129,13 +130,15 @@ public class StockOpnameService : IStockOpnameService
             await _dbContext.SaveChangesAsync(ct);
             if (_accountingIntegrationService != null)
                 await _accountingIntegrationService.EnsureStockOpnamePostedAsync(opname.Id, ct);
-            await dbTx.CommitAsync(ct);
-
-            // Broadcast changes via SignalR
             if (stockUpdates.Count > 0)
             {
-                await _notificationService.SendStockUpdateAsync(request.OutletId, stockUpdates, ct);
+                await _stockEvents.EnqueueCurrentStockAsync(
+                    request.OutletId,
+                    stockUpdates,
+                    $"stock:opname:{opname.Id:N}:completed",
+                    ct);
             }
+            await dbTx.CommitAsync(ct);
 
             return await GetByIdAsync(opname.Id, ct);
         }
@@ -151,7 +154,7 @@ public class StockOpnameService : IStockOpnameService
         Product product,
         StockOpnameItemRequest itemReq,
         Guid outletId,
-        List<StockUpdateItem> stockUpdates,
+        List<StockEventKey> stockUpdates,
         CancellationToken ct)
     {
         if (itemReq.ProductBatchId.HasValue || itemReq.ProductSerialIds is { Count: > 0 })
@@ -187,7 +190,7 @@ public class StockOpnameService : IStockOpnameService
                 operationId: opnameItem.Id
             );
 
-            stockUpdates.Add(new StockUpdateItem(itemReq.ProductId, variance, itemReq.ProductVariantId));
+            stockUpdates.Add(new StockEventKey(itemReq.ProductId, itemReq.ProductVariantId));
         }
     }
 
@@ -196,7 +199,7 @@ public class StockOpnameService : IStockOpnameService
         Product product,
         StockOpnameItemRequest itemReq,
         Guid outletId,
-        List<StockUpdateItem> stockUpdates,
+        List<StockEventKey> stockUpdates,
         CancellationToken ct)
     {
         if (!itemReq.ProductBatchId.HasValue)
@@ -257,7 +260,7 @@ public class StockOpnameService : IStockOpnameService
             operationId: opnameItem.Id
         );
 
-        stockUpdates.Add(new StockUpdateItem(itemReq.ProductId, variance, itemReq.ProductVariantId));
+        stockUpdates.Add(new StockEventKey(itemReq.ProductId, itemReq.ProductVariantId));
     }
 
     private async Task AddSerialItemsAsync(
@@ -265,7 +268,7 @@ public class StockOpnameService : IStockOpnameService
         Product product,
         StockOpnameItemRequest itemReq,
         Guid outletId,
-        List<StockUpdateItem> stockUpdates,
+        List<StockEventKey> stockUpdates,
         HashSet<Guid> seenSerialIds,
         CancellationToken ct)
     {
@@ -342,7 +345,7 @@ public class StockOpnameService : IStockOpnameService
                 operationId: opnameItem.Id
             );
 
-            stockUpdates.Add(new StockUpdateItem(itemReq.ProductId, -1, itemReq.ProductVariantId));
+            stockUpdates.Add(new StockEventKey(itemReq.ProductId, itemReq.ProductVariantId));
         }
     }
 

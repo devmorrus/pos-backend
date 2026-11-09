@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Common.Events;
 using MorrusPOS.Application.Common.Exceptions;
 using MorrusPOS.Application.Features.Transactions;
 using MorrusPOS.Domain.Entities;
@@ -16,7 +17,7 @@ public class TransactionServiceTests
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockServiceMock;
     private readonly ICurrentUserService _currentUserMock;
-    private readonly IPosNotificationService _notificationServiceMock;
+    private readonly IStockEventPublisher _notificationServiceMock;
 
     public TransactionServiceTests()
     {
@@ -28,7 +29,7 @@ public class TransactionServiceTests
         _dbContext = new AppDbContext(options, TestTenant.CurrentUser);
         _stockServiceMock = Substitute.For<IStockService>();
         _currentUserMock = Substitute.For<ICurrentUserService>();
-        _notificationServiceMock = Substitute.For<IPosNotificationService>();
+        _notificationServiceMock = Substitute.For<IStockEventPublisher>();
         _currentUserMock.Role.Returns("Admin");
         _currentUserMock.BusinessId.Returns(TestTenant.BusinessId);
     }
@@ -109,12 +110,11 @@ public class TransactionServiceTests
             documentItemId: Arg.Is<Guid?>(value => value.HasValue)
         );
 
-        // Verify SignalR broadcast
-        await _notificationServiceMock.Received(1).SendStockUpdateAsync(
-            outletId: outletId,
-            updates: Arg.Is<List<StockUpdateItem>>(list => list != null && list.Count == 1 && list[0].ProductId == prodId && list[0].Qty == 2),
-            ct: Arg.Any<CancellationToken>()
-        );
+        await _notificationServiceMock.Received(1).EnqueueCurrentStockAsync(
+            outletId,
+            Arg.Is<IReadOnlyCollection<StockEventKey>>(items => items != null && items.Count == 1 && items.Single().ProductId == prodId),
+            $"stock:checkout:{checkoutId:N}",
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

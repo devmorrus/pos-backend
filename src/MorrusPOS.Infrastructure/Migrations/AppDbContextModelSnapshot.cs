@@ -3691,6 +3691,137 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.ToTable("ModifierOptions");
                 });
 
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.OutboxMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("AvailableAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("DeadLetteredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeduplicationKey")
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime?>("LastAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("LastErrorMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("LastReplayReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("LastReplayedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastReplayedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid?>("LockId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("LockedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LockedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<int>("ManualReplayCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MaxAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("OutletId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTime?>("ProcessedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<short>("SchemaVersion")
+                        .HasColumnType("smallint");
+
+                    b.Property<long>("SequenceNo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("SequenceNo"));
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OutletId");
+
+                    b.HasIndex("SequenceNo")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "LockedAtUtc")
+                        .HasFilter("\"Status\" = 'processing'");
+
+                    b.HasIndex("Status", "OccurredAtUtc");
+
+                    b.HasIndex("BusinessId", "EventType", "DeduplicationKey")
+                        .IsUnique()
+                        .HasFilter("\"DeduplicationKey\" IS NOT NULL");
+
+                    b.HasIndex("BusinessId", "OutletId", "OccurredAtUtc");
+
+                    b.HasIndex("Status", "AvailableAtUtc", "SequenceNo")
+                        .HasFilter("\"Status\" IN ('pending','failed')");
+
+                    b.ToTable("outbox_messages", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_outbox_messages_Attempts", "\"AttemptCount\" BETWEEN 0 AND \"MaxAttempts\" AND \"MaxAttempts\" BETWEEN 1 AND 20 AND \"ManualReplayCount\" >= 0");
+
+                            t.HasCheckConstraint("CK_outbox_messages_CompletedState", "(\"Status\" <> 'processed' OR \"ProcessedAtUtc\" IS NOT NULL) AND (\"Status\" <> 'dead_letter' OR \"DeadLetteredAtUtc\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_outbox_messages_LockState", "(\"Status\" = 'processing' AND \"LockId\" IS NOT NULL AND \"LockedAtUtc\" IS NOT NULL AND \"LockedBy\" IS NOT NULL) OR (\"Status\" <> 'processing' AND \"LockId\" IS NULL AND \"LockedAtUtc\" IS NULL AND \"LockedBy\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_outbox_messages_PayloadSize", "octet_length(\"PayloadJson\"::text) <= 262144");
+
+                            t.HasCheckConstraint("CK_outbox_messages_Status", "\"Status\" IN ('pending','processing','processed','failed','dead_letter')");
+                        });
+                });
+
             modelBuilder.Entity("MorrusPOS.Domain.Entities.Outlet", b =>
                 {
                     b.Property<Guid>("Id")
@@ -7209,6 +7340,24 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("Business");
 
                     b.Navigation("ModifierGroup");
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.OutboxMessage", b =>
+                {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.Outlet", "Outlet")
+                        .WithMany()
+                        .HasForeignKey("OutletId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Business");
+
+                    b.Navigation("Outlet");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.Outlet", b =>

@@ -9,6 +9,7 @@ using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
 using System.Security.Cryptography;
 using System.Text;
+using MorrusPOS.Application.Common.Events;
 
 namespace MorrusPOS.Infrastructure.Services;
 
@@ -17,7 +18,7 @@ public class TransactionService : ITransactionService
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockService;
     private readonly ICurrentUserService _currentUserService;
-    private readonly IPosNotificationService _notificationService;
+    private readonly IStockEventPublisher _stockEvents;
     private readonly IPricingService _pricingService;
     private readonly IAccountingIntegrationService? _accountingIntegrationService;
     private readonly ICapabilityEvaluator? _capabilityEvaluator;
@@ -27,14 +28,14 @@ public class TransactionService : ITransactionService
         AppDbContext dbContext,
         IStockService stockService,
         ICurrentUserService currentUserService,
-        IPosNotificationService notificationService,
+        IStockEventPublisher stockEvents,
         IAccountingIntegrationService? accountingIntegrationService = null,
         IIdempotencyService? idempotencyService = null)
         : this(
             dbContext,
             stockService,
             currentUserService,
-            notificationService,
+            stockEvents,
             new PricingService(dbContext),
             accountingIntegrationService,
             null,
@@ -46,7 +47,7 @@ public class TransactionService : ITransactionService
         AppDbContext dbContext,
         IStockService stockService,
         ICurrentUserService currentUserService,
-        IPosNotificationService notificationService,
+        IStockEventPublisher stockEvents,
         IPricingService pricingService,
         IAccountingIntegrationService? accountingIntegrationService = null,
         ICapabilityEvaluator? capabilityEvaluator = null,
@@ -55,7 +56,7 @@ public class TransactionService : ITransactionService
         _dbContext = dbContext;
         _stockService = stockService;
         _currentUserService = currentUserService;
-        _notificationService = notificationService;
+        _stockEvents = stockEvents;
         _pricingService = pricingService;
         _accountingIntegrationService = accountingIntegrationService;
         _capabilityEvaluator = capabilityEvaluator;
@@ -225,12 +226,12 @@ public class TransactionService : ITransactionService
             await _dbContext.SaveChangesAsync(ct);
             if (_accountingIntegrationService != null)
                 await _accountingIntegrationService.EnsureVoidPostedAsync(transaction.Id, ct);
+            await _stockEvents.EnqueueCurrentStockAsync(
+                transaction.OutletId,
+                transaction.Items.Select(item => new StockEventKey(item.ProductId, item.ProductVariantId)).ToArray(),
+                $"stock:void:{transaction.Id:N}",
+                ct);
             await dbTx.CommitAsync(ct);
-
-            var stockUpdates = transaction.Items
-                .Select(item => new StockUpdateItem(item.ProductId, item.Qty))
-                .ToList();
-            await _notificationService.SendStockUpdateAsync(transaction.OutletId, stockUpdates, ct);
 
             return await GetByIdAsync(transaction.Id, ct);
         }
@@ -451,12 +452,12 @@ public class TransactionService : ITransactionService
             await _dbContext.SaveChangesAsync(ct);
             if (_accountingIntegrationService != null)
                 await _accountingIntegrationService.EnsureRefundPostedAsync(transaction.Id, request.Id, ct);
+            await _stockEvents.EnqueueCurrentStockAsync(
+                transaction.OutletId,
+                request.Items.Select(item => new StockEventKey(item.ProductId, item.ProductVariantId)).ToArray(),
+                $"stock:refund:{request.Id:N}",
+                ct);
             await dbTx.CommitAsync(ct);
-
-            var stockUpdates = request.Items
-                .Select(item => new StockUpdateItem(item.ProductId, item.Qty))
-                .ToList();
-            await _notificationService.SendStockUpdateAsync(transaction.OutletId, stockUpdates, ct);
 
             return await GetByIdAsync(transaction.Id, ct);
         }
@@ -887,10 +888,12 @@ public class TransactionService : ITransactionService
             {
                 await _accountingIntegrationService.EnsureTransactionPostedAsync(newTrx.Id, ct);
             }
+            await _stockEvents.EnqueueCurrentStockAsync(
+                request.OutletId,
+                request.Items.Select(item => new StockEventKey(item.ProductId, item.ProductVariantId)).ToArray(),
+                $"stock:checkout:{request.Id:N}",
+                ct);
             await dbTx.CommitAsync(ct);
-
-            var stockUpdates = request.Items.Select(i => new StockUpdateItem(i.ProductId, i.Qty)).ToList();
-            await _notificationService.SendStockUpdateAsync(request.OutletId, stockUpdates, ct);
 
             var result = await GetTransactionAggregateAsync(newTrx.Id, ct)
                 ?? throw new InvalidOperationException("Transaksi tidak ditemukan setelah checkout.");

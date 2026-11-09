@@ -34,8 +34,11 @@ Semua response membawa `X-Request-ID`. Caller boleh mengirim request ID berisi h
 - `morrus.checkout.attempts` dan `morrus.checkout.duration`;
 - `morrus.exceptions` dan `morrus.stock.integrity_errors`.
 - `morrus.queue.depth`, `morrus.queue.oldest_age`, dan `morrus.queue.monitor_up`.
+- `morrus.outbox.enqueue_attempts`, `morrus.outbox.deliveries`, `morrus.outbox.delivery_duration`, dan lease recovery.
 
 GoBiz inbox berjalan dalam mode report-only secara default (`QUEUE_EVALUATE_BACKLOG=false`) karena lifecycle consumer belum diimplementasikan. Audit data existing dan aktifkan evaluasi backlog hanya setelah arti status `received` disepakati.
+
+Transactional outbox dievaluasi aktif secara terpisah (`OUTBOX_EVALUATE_BACKLOG=true`). Ia mengirim `pos.stock.updated` secara at-least-once melalui SignalR V2; detail lifecycle dan replay ada di `docs/outbox.md` dan `docs/runbooks/outbox-delivery.md`.
 
 Dashboard awal diprovision sebagai **MorrusPOS Platform Overview**. Alert rules berada di `ops/observability/prometheus/rules/` dan seluruh alert menyertakan runbook.
 

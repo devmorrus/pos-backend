@@ -31,24 +31,25 @@ public sealed class QueueBacklogHealthCheck : IHealthCheck
 
         var now = DateTime.UtcNow;
         var staleAfter = TimeSpan.FromSeconds(Math.Max(15, _options.StaleAfterSeconds));
-        var stale = entries.Any(entry => !entry.Value.LastSuccessfulSampleAtUtc.HasValue ||
-            now - entry.Value.LastSuccessfulSampleAtUtc.Value > staleAfter);
-        var level = stale
+        bool IsStale(KeyValuePair<string, QueueMonitoringEntry> entry) =>
+            !entry.Value.LastSuccessfulSampleAtUtc.HasValue ||
+            now - entry.Value.LastSuccessfulSampleAtUtc.Value > staleAfter;
+        var level = entries.Max(entry => IsStale(entry)
             ? QueueHealthLevel.Unhealthy
-            : entries.Max(entry => entry.Value.HealthLevel);
+            : entry.Value.HealthLevel);
         var data = entries.ToDictionary(
             entry => entry.Key,
             entry => (object)new
             {
-                status = stale ? QueueHealthLevel.Unhealthy.ToString() : entry.Value.HealthLevel.ToString(),
+                status = IsStale(entry) ? QueueHealthLevel.Unhealthy.ToString() : entry.Value.HealthLevel.ToString(),
                 pending = entry.Value.Snapshot?.PendingCount ?? 0,
                 processing = entry.Value.Snapshot?.ProcessingCount ?? 0,
                 failed = entry.Value.Snapshot?.FailedCount ?? 0,
                 deadLetter = entry.Value.Snapshot?.DeadLetterCount ?? 0,
                 oldestPendingAgeSeconds = entry.Value.Snapshot?.OldestPendingAgeSeconds ?? 0,
                 lastSuccessfulSampleAtUtc = entry.Value.LastSuccessfulSampleAtUtc,
-                monitorStale = stale,
-                backlogEvaluationEnabled = _options.EvaluateBacklog,
+                monitorStale = IsStale(entry),
+                backlogEvaluationEnabled = _options.GetPolicy(entry.Key).EvaluateBacklog,
             });
 
         return Task.FromResult(level switch

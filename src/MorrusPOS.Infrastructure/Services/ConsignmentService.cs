@@ -9,6 +9,7 @@ using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Consignments;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
+using MorrusPOS.Application.Common.Events;
 
 namespace MorrusPOS.Infrastructure.Services;
 
@@ -16,18 +17,18 @@ public class ConsignmentService : IConsignmentService
 {
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockService;
-    private readonly IPosNotificationService _notificationService;
+    private readonly IStockEventPublisher _stockEvents;
     private readonly ICurrentUserService _currentUser;
 
     public ConsignmentService(
         AppDbContext dbContext,
         IStockService stockService,
-        IPosNotificationService notificationService,
+        IStockEventPublisher stockEvents,
         ICurrentUserService currentUser)
     {
         _dbContext = dbContext;
         _stockService = stockService;
-        _notificationService = notificationService;
+        _stockEvents = stockEvents;
         _currentUser = currentUser;
     }
 
@@ -183,7 +184,7 @@ public class ConsignmentService : IConsignmentService
         using var dbTx = await _dbContext.Database.BeginTransactionAsync(ct);
         try
         {
-            var stockUpdates = new List<StockUpdateItem>();
+            var stockUpdates = new List<StockEventKey>();
 
             if (sanitizedStatus == ConsignmentStatus.Received)
             {
@@ -260,7 +261,7 @@ public class ConsignmentService : IConsignmentService
                         operationId: item.Id
                     );
 
-                    stockUpdates.Add(new StockUpdateItem(item.ProductId, item.Qty));
+                    stockUpdates.Add(new StockEventKey(item.ProductId));
                 }
             }
 
@@ -268,13 +269,15 @@ public class ConsignmentService : IConsignmentService
             consignment.UpdatedAt = DateTime.UtcNow;
 
             await _dbContext.SaveChangesAsync(ct);
-            await dbTx.CommitAsync(ct);
-
-            // Broadcast real-time stock updates
-            if (stockUpdates.Any())
+            if (stockUpdates.Count > 0)
             {
-                await _notificationService.SendStockUpdateAsync(consignment.OutletId, stockUpdates, ct);
+                await _stockEvents.EnqueueCurrentStockAsync(
+                    consignment.OutletId,
+                    stockUpdates,
+                    $"stock:consignment:{consignment.Id:N}:received",
+                    ct);
             }
+            await dbTx.CommitAsync(ct);
 
             return await GetByIdAsync(consignment.Id, ct);
         }

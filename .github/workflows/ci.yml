@@ -71,10 +71,10 @@ jobs:
           python3 -m json.tool ops/observability/grafana/dashboards/queue-operations.json >/dev/null
           python3 -m json.tool ops/observability/grafana/dashboards/backup-recovery.json >/dev/null
           bash -n scripts/check-platform-health.sh
-          bash -n deploy.sh scripts/backup/*.sh
+          bash -n deploy.sh scripts/check-platform-health.sh scripts/requeue-outbox.sh scripts/backup/*.sh
           mapfile -t BACKUP_SCRIPTS < <(printf '/mnt/%s\n' scripts/backup/*.sh)
           docker run --rm -v "$PWD:/mnt:ro" koalaman/shellcheck:v0.10.0 \
-            --severity=warning /mnt/deploy.sh /mnt/scripts/check-platform-health.sh "${BACKUP_SCRIPTS[@]}"
+            --severity=warning /mnt/deploy.sh /mnt/scripts/check-platform-health.sh /mnt/scripts/requeue-outbox.sh "${BACKUP_SCRIPTS[@]}"
           rm -f "$ALERT_WEBHOOK_FILE"
 
       - name: Prepare tenancy database

@@ -17,6 +17,11 @@ public static class MorrusTelemetry
     private static readonly Counter<long> StockIntegrityErrors = Meter.CreateCounter<long>("morrus.stock.integrity_errors");
     private static readonly Counter<long> GoBizWebhooks = Meter.CreateCounter<long>("morrus.gobiz.webhooks");
     private static readonly Histogram<double> QueuePollDuration = Meter.CreateHistogram<double>("morrus.queue.poll_duration", "ms");
+    private static readonly Counter<long> OutboxEnqueued = Meter.CreateCounter<long>("morrus.outbox.enqueue_attempts");
+    private static readonly Counter<long> OutboxDeliveries = Meter.CreateCounter<long>("morrus.outbox.deliveries");
+    private static readonly Counter<long> OutboxClaimed = Meter.CreateCounter<long>("morrus.outbox.claimed");
+    private static readonly Counter<long> OutboxLeaseRecovered = Meter.CreateCounter<long>("morrus.outbox.lease_recovered");
+    private static readonly Histogram<double> OutboxDeliveryDuration = Meter.CreateHistogram<double>("morrus.outbox.delivery_duration", "ms");
     private static readonly ConcurrentDictionary<(string Queue, string Status), long> QueueDepths = new();
     private static readonly ConcurrentDictionary<string, double> QueueOldestAge = new();
     private static readonly ConcurrentDictionary<string, int> QueueMonitorUp = new();
@@ -59,9 +64,13 @@ public static class MorrusTelemetry
     public static void RecordGoBizWebhook(string outcome)
         => GoBizWebhooks.Add(1, new TagList { { "outcome", outcome } });
 
-    public static void RecordQueueSnapshot(QueueSnapshot snapshot, bool evaluateBacklog, double durationMs)
+    public static void RecordQueueSnapshot(
+        QueueSnapshot snapshot,
+        bool evaluateBacklog,
+        double durationMs,
+        string pendingStatus = "received")
     {
-        QueueDepths[(snapshot.QueueName, "received")] = snapshot.PendingCount;
+        QueueDepths[(snapshot.QueueName, pendingStatus)] = snapshot.PendingCount;
         QueueDepths[(snapshot.QueueName, "processing")] = snapshot.ProcessingCount;
         QueueDepths[(snapshot.QueueName, "failed")] = snapshot.FailedCount;
         QueueDepths[(snapshot.QueueName, "dead_letter")] = snapshot.DeadLetterCount;
@@ -75,5 +84,26 @@ public static class MorrusTelemetry
     {
         QueueMonitorUp[queueName] = 0;
         QueueBacklogEvaluation[queueName] = evaluateBacklog ? 1 : 0;
+    }
+
+    public static void RecordOutboxEnqueued(string eventType)
+        => OutboxEnqueued.Add(1, new TagList { { "event.type", eventType } });
+
+    public static void RecordOutboxClaimed(int count)
+    {
+        if (count > 0) OutboxClaimed.Add(count);
+    }
+
+    public static void RecordOutboxLeaseRecovery(int count)
+    {
+        if (count > 0) OutboxLeaseRecovered.Add(count);
+    }
+
+    public static void RecordOutboxDelivery(string eventType, string outcome, string? errorCode, double durationMs)
+    {
+        var tags = new TagList { { "event.type", eventType }, { "outcome", outcome } };
+        if (!string.IsNullOrWhiteSpace(errorCode)) tags.Add("error.code", errorCode);
+        OutboxDeliveries.Add(1, tags);
+        OutboxDeliveryDuration.Record(durationMs, new TagList { { "event.type", eventType }, { "outcome", outcome } });
     }
 }

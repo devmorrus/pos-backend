@@ -46,6 +46,7 @@ public class AppDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     // Fase 1 — Core POS
@@ -216,6 +217,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<IntegrationLog>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<RefreshToken>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<IdempotencyRecord>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<OutboxMessage>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
 
         modelBuilder.Entity<TaxRule>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<ServiceChargeRule>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));

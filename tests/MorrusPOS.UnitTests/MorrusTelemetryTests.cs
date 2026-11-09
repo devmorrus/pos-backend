@@ -66,4 +66,31 @@ public class MorrusTelemetryTests
             Assert.DoesNotContain("order.id", depth.Tags);
         });
     }
+
+    [Fact]
+    public void OutboxMetrics_UseOnlyBoundedDeliveryTags()
+    {
+        var measurements = new List<(string Instrument, string[] Tags)>();
+        using var listener = new MeterListener
+        {
+            InstrumentPublished = (instrument, currentListener) =>
+            {
+                if (instrument.Meter.Name == MorrusTelemetry.Name)
+                    currentListener.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((instrument, _, tags, _) =>
+            measurements.Add((instrument.Name, tags.ToArray().Select(tag => tag.Key).ToArray())));
+        listener.Start();
+
+        MorrusTelemetry.RecordOutboxDelivery("pos.stock.updated", "retry", "OUTBOX_HANDLER_TIMEOUT", 50);
+
+        var delivery = Assert.Single(measurements, measurement => measurement.Instrument == "morrus.outbox.deliveries");
+        Assert.Contains("event.type", delivery.Tags);
+        Assert.Contains("outcome", delivery.Tags);
+        Assert.Contains("error.code", delivery.Tags);
+        Assert.DoesNotContain("business.id", delivery.Tags);
+        Assert.DoesNotContain("outlet.id", delivery.Tags);
+        Assert.DoesNotContain("event.id", delivery.Tags);
+    }
 }

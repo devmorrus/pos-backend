@@ -21,6 +21,8 @@ using MorrusPOS.Infrastructure.Persistence;
 using MorrusPOS.Infrastructure.Options;
 using MorrusPOS.Infrastructure.Services;
 using MorrusPOS.Infrastructure.Monitoring;
+using MorrusPOS.Infrastructure.Outbox;
+using MorrusPOS.Application.Common.Events;
 
 namespace MorrusPOS.Infrastructure;
 
@@ -36,6 +38,19 @@ public static class DependencyInjection
         services.AddDbContext<SystemDbContext>(options =>
             options.UseNpgsql(config.GetConnectionString("SystemConnection")
                 ?? throw new InvalidOperationException("SystemConnection wajib dikonfigurasi dengan role morrus_system.")));
+        services.AddOptions<OutboxOptions>()
+            .Bind(config.GetSection(OutboxOptions.SectionName))
+            .Validate(options => options.PollIntervalMilliseconds >= 100, "Outbox poll interval minimal 100ms.")
+            .Validate(options => options.BatchSize is >= 1 and <= 200, "Outbox batch size harus 1-200.")
+            .Validate(options => options.MaxAttempts is >= 1 and <= 20, "Outbox max attempts harus 1-20.")
+            .Validate(options => options.BaseRetrySeconds >= 1 && options.MaxRetrySeconds >= options.BaseRetrySeconds,
+                "Outbox retry interval tidak valid.")
+            .Validate(options => options.HandlerTimeoutSeconds >= 1 && options.LeaseSeconds > options.HandlerTimeoutSeconds,
+                "Outbox lease harus lebih panjang dari handler timeout.")
+            .Validate(options => options.ProcessedRetentionDays >= 1, "Outbox retention minimal satu hari.")
+            .Validate(options => options.MaxPayloadBytes is >= 1024 and <= 262_144,
+                "Outbox payload limit harus 1KB-256KB.")
+            .ValidateOnStart();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped(typeof(IRepository<>), typeof(GenericRepository<>));
@@ -89,6 +104,10 @@ public static class DependencyInjection
         services.AddScoped<IGoBizDirectIntegrationService, GoBizDirectIntegrationService>();
         services.AddScoped<IGoBizOrderWebhookService, GoBizOrderWebhookService>();
         services.AddScoped<IQueueMonitor, GoBizInboxQueueMonitor>();
+        services.AddScoped<IQueueMonitor, OutboxQueueMonitor>();
+        services.AddScoped<IOutboxWriter, OutboxWriter>();
+        services.AddScoped<IOutboxStore, OutboxStore>();
+        services.AddScoped<IStockEventPublisher, StockEventPublisher>();
 
         // Fase 8 — Dashboard & Laporan
         services.AddScoped<IDashboardService, DashboardService>();

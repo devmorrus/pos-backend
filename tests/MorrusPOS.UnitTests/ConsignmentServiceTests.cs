@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Common.Events;
 using MorrusPOS.Application.Features.Consignments;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -19,7 +20,7 @@ public class ConsignmentServiceTests
 {
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockServiceMock;
-    private readonly IPosNotificationService _notificationServiceMock;
+    private readonly IStockEventPublisher _notificationServiceMock;
     private readonly ICurrentUserService _currentUserMock;
 
     private readonly Guid _supplierId = Guid.NewGuid();
@@ -38,7 +39,7 @@ public class ConsignmentServiceTests
 
         _dbContext = new AppDbContext(options, TestTenant.CurrentUser);
         _stockServiceMock = Substitute.For<IStockService>();
-        _notificationServiceMock = Substitute.For<IPosNotificationService>();
+        _notificationServiceMock = Substitute.For<IStockEventPublisher>();
         _currentUserMock = Substitute.For<ICurrentUserService>();
         _currentUserMock.OutletId.Returns((Guid?)null);
     }
@@ -135,11 +136,10 @@ public class ConsignmentServiceTests
             operationId: Arg.Any<Guid?>()
         );
 
-        // Assert SignalR broadcast sent
-        await _notificationServiceMock.Received(1).SendStockUpdateAsync(
-            outletId: _outletId,
-            updates: Arg.Is<List<StockUpdateItem>>(list => list != null && list.Count == 1 && list[0].ProductId == _productId && list[0].Qty == 15),
-            ct: Arg.Any<CancellationToken>()
-        );
+        await _notificationServiceMock.Received(1).EnqueueCurrentStockAsync(
+            _outletId,
+            Arg.Is<IReadOnlyCollection<StockEventKey>>(items => items != null && items.Count == 1 && items.Single().ProductId == _productId),
+            $"stock:consignment:{consignment.Id:N}:received",
+            Arg.Any<CancellationToken>());
     }
 }

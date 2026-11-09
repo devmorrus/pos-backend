@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Common.Events;
 using MorrusPOS.Application.Features.Stock;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -14,7 +15,7 @@ public class StockTransferServiceTests
 {
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockServiceMock;
-    private readonly IPosNotificationService _notificationServiceMock;
+    private readonly IStockEventPublisher _notificationServiceMock;
     private readonly ICurrentUserService _currentUserServiceMock;
 
     public StockTransferServiceTests()
@@ -26,7 +27,7 @@ public class StockTransferServiceTests
 
         _dbContext = new AppDbContext(options, TestTenant.CurrentUser);
         _stockServiceMock = Substitute.For<IStockService>();
-        _notificationServiceMock = Substitute.For<IPosNotificationService>();
+        _notificationServiceMock = Substitute.For<IStockEventPublisher>();
         _currentUserServiceMock = Substitute.For<ICurrentUserService>();
         _currentUserServiceMock.Role.Returns("Admin");
     }
@@ -172,12 +173,11 @@ public class StockTransferServiceTests
             documentItemId: Arg.Any<Guid?>()
         );
 
-        // Verify notification sent to destination outlet
-        await _notificationServiceMock.Received(1).SendStockUpdateAsync(
-            outletId: toOutletId,
-            updates: Arg.Is<List<StockUpdateItem>>(list => list != null && list.Count == 1 && list[0].ProductId == prodId && list[0].Qty == 4),
-            ct: Arg.Any<CancellationToken>()
-        );
+        await _notificationServiceMock.Received(1).EnqueueCurrentStockAsync(
+            toOutletId,
+            Arg.Is<IReadOnlyCollection<StockEventKey>>(items => items != null && items.Count == 1 && items.Single().ProductId == prodId),
+            $"stock:transfer:{transfer.Id:N}:approved",
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

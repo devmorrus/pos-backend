@@ -4,6 +4,7 @@ using MorrusPOS.Application.Features.Accounting;
 using MorrusPOS.Application.Features.Suppliers;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
+using MorrusPOS.Application.Common.Events;
 
 namespace MorrusPOS.Infrastructure.Services;
 
@@ -12,20 +13,20 @@ public class SupplierReturnService : ISupplierReturnService
     private readonly AppDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
     private readonly IStockService _stockService;
-    private readonly IPosNotificationService _notificationService;
+    private readonly IStockEventPublisher _stockEvents;
     private readonly IAccountingIntegrationService? _accountingIntegrationService;
 
     public SupplierReturnService(
         AppDbContext dbContext,
         ICurrentUserService currentUserService,
         IStockService stockService,
-        IPosNotificationService notificationService,
+        IStockEventPublisher stockEvents,
         IAccountingIntegrationService? accountingIntegrationService = null)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
         _stockService = stockService;
-        _notificationService = notificationService;
+        _stockEvents = stockEvents;
         _accountingIntegrationService = accountingIntegrationService;
     }
 
@@ -301,23 +302,17 @@ public class SupplierReturnService : ISupplierReturnService
                 {
                     await _accountingIntegrationService.EnsureSupplierReturnPostedAsync(supplierReturn.Id, ct);
                 }
+                await _stockEvents.EnqueueCurrentStockAsync(
+                    supplierReturn.PurchaseOrder.OutletId,
+                    supplierReturn.Items.Select(item => new StockEventKey(item.ProductId)).ToArray(),
+                    $"stock:supplier-return:{supplierReturn.Id:N}:sent",
+                    ct);
                 await dbTx.CommitAsync(ct);
             }
             catch
             {
                 await dbTx.RollbackAsync(ct);
                 throw;
-            }
-
-            var stockUpdates = await _dbContext.InventoryStocks
-                .Where(stock => stock.OutletId == supplierReturn.PurchaseOrder.OutletId
-                    && supplierReturn.Items.Select(item => item.ProductId).Contains(stock.ProductId))
-                .Select(stock => new StockUpdateItem(stock.ProductId, stock.QtyOnHand))
-                .ToListAsync(ct);
-
-            if (stockUpdates.Count > 0)
-            {
-                await _notificationService.SendStockUpdateAsync(supplierReturn.PurchaseOrder.OutletId, stockUpdates, ct);
             }
         }
         else if (targetStatus == SupplierReturnStatus.Completed)

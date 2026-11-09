@@ -19,7 +19,7 @@ public class ConsignmentReturnServiceTests
 {
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockServiceMock;
-    private readonly IPosNotificationService _notificationServiceMock;
+    private readonly IStockEventPublisher _notificationServiceMock;
     private readonly ICurrentUserService _currentUserMock;
 
     private readonly Guid _supplierId = Guid.NewGuid();
@@ -38,7 +38,7 @@ public class ConsignmentReturnServiceTests
 
         _dbContext = new AppDbContext(options, TestTenant.CurrentUser);
         _stockServiceMock = Substitute.For<IStockService>();
-        _notificationServiceMock = Substitute.For<IPosNotificationService>();
+        _notificationServiceMock = Substitute.For<IStockEventPublisher>();
         _currentUserMock = Substitute.For<ICurrentUserService>();
         _currentUserMock.OutletId.Returns((Guid?)null);
     }

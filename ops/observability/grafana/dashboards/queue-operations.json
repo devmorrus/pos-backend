@@ -69,6 +69,38 @@
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [{ "expr": "{service_name=\"morruspos-api\"} |~ \"QueueHealthChanged|QueueMonitoringFailed\"", "refId": "A" }],
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Outbox Depth by Status",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "morrus_queue_depth{queue_name=\"outbox\"}", "legendFormat": "{{queue_status}}", "refId": "A" }],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Outbox Oldest Pending (seconds)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "morrus_queue_oldest_age_seconds{queue_name=\"outbox\"}", "refId": "A" }],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Outbox Delivery Outcomes",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum by (outcome) (rate(morrus_outbox_deliveries_total[5m]))", "legendFormat": "{{outcome}}", "refId": "A" }],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 }
+    },
+    {
+      "id": 12,
+      "type": "logs",
+      "title": "Outbox Delivery Logs",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{ "expr": "{service_name=\"morruspos-api\"} |~ \"OutboxDeliveryFailed|OutboxLeasesRecovered|OutboxDispatcherLoopFailed\"", "refId": "A" }],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 }
     }
   ]
 }

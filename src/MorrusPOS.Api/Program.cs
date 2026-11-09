@@ -7,7 +7,6 @@ using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Api.Middleware;
 using MorrusPOS.Api.Security;
 using MorrusPOS.Api.Hubs;
-using MorrusPOS.Api.Services;
 using FluentValidation;
 using MorrusPOS.Api.Filters;
 using MorrusPOS.Application.Common.Interfaces;
@@ -43,6 +42,8 @@ using MorrusPOS.Api.Observability;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using MorrusPOS.Api.Monitoring;
 using MorrusPOS.Application.Common.Monitoring;
+using MorrusPOS.Application.Common.Events;
+using MorrusPOS.Api.Outbox;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddMorrusObservability();
@@ -109,7 +110,8 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentUserService>();
 builder.Services.AddScoped<ICurrentUserService>(sp => sp.GetRequiredService<CurrentUserService>());
 builder.Services.AddScoped<ITenantContextSetter>(sp => sp.GetRequiredService<CurrentUserService>());
-builder.Services.AddScoped<IPosNotificationService, PosNotificationService>();
+builder.Services.AddScoped<IOutboxEventHandler, SignalRStockUpdatedEventHandler>();
+builder.Services.AddHostedService<OutboxDispatcherBackgroundService>();
 builder.Services.Configure<QueueMonitoringOptions>(
     builder.Configuration.GetSection(QueueMonitoringOptions.SectionName));
 builder.Services.AddSingleton<QueueMonitoringState>();

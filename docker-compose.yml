@@ -47,6 +47,18 @@ services:
       - QueueMonitoring__Enabled=${QUEUE_MONITORING_ENABLED:-true}
       - QueueMonitoring__EvaluateBacklog=${QUEUE_EVALUATE_BACKLOG:-false}
       - QueueMonitoring__PollIntervalSeconds=${QUEUE_POLL_INTERVAL_SECONDS:-30}
+      - QueueMonitoring__Queues__gobiz_order_inbox__EvaluateBacklog=${QUEUE_EVALUATE_BACKLOG:-false}
+      - QueueMonitoring__Queues__outbox__EvaluateBacklog=${OUTBOX_EVALUATE_BACKLOG:-true}
+      - Outbox__Enabled=${OUTBOX_ENABLED:-true}
+      - Outbox__PollIntervalMilliseconds=${OUTBOX_POLL_INTERVAL_MS:-1000}
+      - Outbox__BatchSize=${OUTBOX_BATCH_SIZE:-50}
+      - Outbox__MaxAttempts=${OUTBOX_MAX_ATTEMPTS:-8}
+      - Outbox__BaseRetrySeconds=${OUTBOX_BASE_RETRY_SECONDS:-5}
+      - Outbox__MaxRetrySeconds=${OUTBOX_MAX_RETRY_SECONDS:-900}
+      - Outbox__HandlerTimeoutSeconds=${OUTBOX_HANDLER_TIMEOUT_SECONDS:-30}
+      - Outbox__LeaseSeconds=${OUTBOX_LEASE_SECONDS:-120}
+      - Outbox__ProcessedRetentionDays=${OUTBOX_PROCESSED_RETENTION_DAYS:-14}
+      - Outbox__MaxPayloadBytes=${OUTBOX_MAX_PAYLOAD_BYTES:-262144}
     logging:
       driver: json-file
       options:

@@ -75,3 +75,89 @@ groups:
           summary: .NET ThreadPool queue tinggi
           description: Periksa blocking I/O, database latency, active request, CPU, dan trace lambat.
           runbook_url: docs/runbooks/high-error-rate.md
+
+      - alert: MorrusPosOutboxMonitorDown
+        expr: morrus_queue_monitor_up{queue_name="outbox"} == 0 or absent(morrus_queue_monitor_up{queue_name="outbox"})
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: Outbox monitor MorrusPOS gagal
+          description: Status durable event queue tidak dapat diambil selama dua menit.
+          runbook_url: docs/runbooks/outbox-delivery.md
+
+      - alert: MorrusPosOutboxBacklog
+        expr: |
+          (morrus_queue_depth{queue_name="outbox",queue_status="pending"} >= 100)
+          and on(queue_name)
+          (morrus_queue_backlog_evaluation_enabled{queue_name="outbox"} == 1)
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: Outbox MorrusPOS mulai menumpuk
+          description: Sedikitnya seratus event pending belum dikirim selama lima menit.
+          runbook_url: docs/runbooks/outbox-delivery.md
+
+      - alert: MorrusPosOutboxOldestCritical
+        expr: |
+          (morrus_queue_oldest_age_seconds{queue_name="outbox"} >= 300)
+          and on(queue_name)
+          (morrus_queue_backlog_evaluation_enabled{queue_name="outbox"} == 1)
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: Event outbox tertunda lebih dari lima menit
+          description: Periksa dispatcher, database, SignalR handler, dan retry errors.
+          runbook_url: docs/runbooks/outbox-delivery.md
+
+      - alert: MorrusPosOutboxBacklogCritical
+        expr: |
+          (morrus_queue_depth{queue_name="outbox",queue_status="pending"} >= 1000)
+          and on(queue_name)
+          (morrus_queue_backlog_evaluation_enabled{queue_name="outbox"} == 1)
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: Outbox MorrusPOS mempunyai backlog kritis
+          description: Sedikitnya seribu durable event menunggu delivery.
+          runbook_url: docs/runbooks/outbox-delivery.md
+
+      - alert: MorrusPosOutboxRetrying
+        expr: morrus_queue_depth{queue_name="outbox",queue_status="failed"} > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: Outbox MorrusPOS terus melakukan retry
+          description: Transient delivery failure bertahan sedikitnya lima menit.
+          runbook_url: docs/runbooks/outbox-delivery.md
+
+      - alert: MorrusPosOutboxDeadLetter
+        expr: morrus_queue_depth{queue_name="outbox",queue_status="dead_letter"} > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: Outbox MorrusPOS mempunyai dead-letter event
+          description: Jangan menghapus atau replay sebelum error producer/handler diperbaiki.
+          runbook_url: docs/runbooks/outbox-delivery.md
+
+      - alert: MorrusPosOutboxDeliveryFailureRate
+        expr: sum(rate(morrus_outbox_deliveries_total{outcome=~"retry|dead_letter"}[10m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: Failure rate delivery outbox meningkat
+          description: Lebih dari rata-rata 0.1 delivery gagal per detik selama sepuluh menit.
+          runbook_url: docs/runbooks/outbox-delivery.md

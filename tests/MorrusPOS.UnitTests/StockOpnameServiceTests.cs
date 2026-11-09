@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Common.Events;
 using MorrusPOS.Application.Features.Stock;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
@@ -14,7 +15,7 @@ public class StockOpnameServiceTests
 {
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockServiceMock;
-    private readonly IPosNotificationService _notificationServiceMock;
+    private readonly IStockEventPublisher _notificationServiceMock;
 
     public StockOpnameServiceTests()
     {
@@ -25,7 +26,7 @@ public class StockOpnameServiceTests
 
         _dbContext = new AppDbContext(options, TestTenant.CurrentUser);
         _stockServiceMock = Substitute.For<IStockService>();
-        _notificationServiceMock = Substitute.For<IPosNotificationService>();
+        _notificationServiceMock = Substitute.For<IStockEventPublisher>();
     }
 
     [Fact]
@@ -79,12 +80,11 @@ public class StockOpnameServiceTests
             operationId: Arg.Any<Guid?>()
         );
 
-        // Verify SignalR notification call
-        await _notificationServiceMock.Received(1).SendStockUpdateAsync(
-            outletId: outletId,
-            updates: Arg.Is<List<StockUpdateItem>>(list => list != null && list.Count == 1 && list[0].ProductId == prodId && list[0].Qty == 5),
-            ct: Arg.Any<CancellationToken>()
-        );
+        await _notificationServiceMock.Received(1).EnqueueCurrentStockAsync(
+            outletId,
+            Arg.Is<IReadOnlyCollection<StockEventKey>>(items => items != null && items.Count == 1 && items.Single().ProductId == prodId),
+            $"stock:opname:{result.Id:N}:completed",
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -132,11 +132,8 @@ public class StockOpnameServiceTests
             ct: default
         );
 
-        await _notificationServiceMock.DidNotReceiveWithAnyArgs().SendStockUpdateAsync(
-            outletId: default,
-            updates: default!,
-            ct: default
-        );
+        await _notificationServiceMock.DidNotReceiveWithAnyArgs().EnqueueCurrentStockAsync(
+            default, default!, default!, default);
     }
 
     [Fact]

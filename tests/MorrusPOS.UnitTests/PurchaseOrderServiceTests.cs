@@ -15,7 +15,7 @@ public class PurchaseOrderServiceTests
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockServiceMock;
     private readonly ICurrentUserService _currentUserServiceMock;
-    private readonly IPosNotificationService _notificationServiceMock;
+    private readonly IStockEventPublisher _notificationServiceMock;
 
     // Fixed seed data
     private readonly Guid _supplierId = Guid.NewGuid();
@@ -34,7 +34,7 @@ public class PurchaseOrderServiceTests
 
         _stockServiceMock = Substitute.For<IStockService>();
         _currentUserServiceMock = Substitute.For<ICurrentUserService>();
-        _notificationServiceMock = Substitute.For<IPosNotificationService>();
+        _notificationServiceMock = Substitute.For<IStockEventPublisher>();
         _currentUserServiceMock.BusinessId.Returns(TestTenant.BusinessId);
         _currentUserServiceMock.Role.Returns("Owner");
         _currentUserServiceMock.OutletId.Returns((Guid?)null);

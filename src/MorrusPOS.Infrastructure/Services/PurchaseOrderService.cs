@@ -6,6 +6,7 @@ using MorrusPOS.Application.Features.Suppliers;
 using MorrusPOS.Application.Features.Capabilities;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
+using MorrusPOS.Application.Common.Events;
 
 namespace MorrusPOS.Infrastructure.Services;
 
@@ -14,7 +15,7 @@ public class PurchaseOrderService : IPurchaseOrderService
     private readonly AppDbContext _dbContext;
     private readonly IStockService _stockService;
     private readonly ICurrentUserService _currentUserService;
-    private readonly IPosNotificationService _notificationService;
+    private readonly IStockEventPublisher _stockEvents;
     private readonly IAccountingIntegrationService? _accountingIntegrationService;
     private readonly ICapabilityEvaluator? _capabilities;
 
@@ -22,14 +23,14 @@ public class PurchaseOrderService : IPurchaseOrderService
         AppDbContext dbContext,
         IStockService stockService,
         ICurrentUserService currentUserService,
-        IPosNotificationService notificationService,
+        IStockEventPublisher stockEvents,
         IAccountingIntegrationService? accountingIntegrationService = null,
         ICapabilityEvaluator? capabilities = null)
     {
         _dbContext = dbContext;
         _stockService = stockService;
         _currentUserService = currentUserService;
-        _notificationService = notificationService;
+        _stockEvents = stockEvents;
         _accountingIntegrationService = accountingIntegrationService;
         _capabilities = capabilities;
     }
@@ -323,23 +324,13 @@ public class PurchaseOrderService : IPurchaseOrderService
                 await _accountingIntegrationService.EnsurePurchaseOrderPostedAsync(po.Id, ct);
             }
 
-            // After SaveChangesAsync, PostgreSQL trigger has already updated InventoryStock.
-            // Now query the latest stock values and broadcast to connected POS clients via SignalR.
             if (request.Status == PurchaseOrderStatus.Completed)
             {
-                var productIds = po.Items.Select(i => i.ProductId).ToList();
-                var stocks = await _dbContext.InventoryStocks
-                    .Where(s => s.OutletId == po.OutletId && productIds.Contains(s.ProductId))
-                    .ToListAsync(ct);
-
-                var stockUpdates = stocks
-                    .Select(s => new StockUpdateItem(s.ProductId, s.QtyOnHand))
-                    .ToList();
-
-                if (stockUpdates.Any())
-                {
-                    await _notificationService.SendStockUpdateAsync(po.OutletId, stockUpdates, ct);
-                }
+                await _stockEvents.EnqueueCurrentStockAsync(
+                    po.OutletId,
+                    po.Items.Select(item => new StockEventKey(item.ProductId, item.ProductVariantId)).ToArray(),
+                    $"stock:purchase-order:{po.Id:N}:completed",
+                    ct);
             }
 
             await dbTx.CommitAsync(ct);
@@ -442,19 +433,11 @@ public class PurchaseOrderService : IPurchaseOrderService
                 await _accountingIntegrationService.EnsureReceivingNotePostedAsync(receivingNote.Id, ct);
             }
 
-            var productIds = request.Items.Select(i => i.ProductId).ToList();
-            var stocks = await _dbContext.InventoryStocks
-                .Where(s => s.OutletId == po.OutletId && productIds.Contains(s.ProductId))
-                .ToListAsync(ct);
-
-            var stockUpdates = stocks
-                .Select(s => new StockUpdateItem(s.ProductId, s.QtyOnHand))
-                .ToList();
-
-            if (stockUpdates.Any())
-            {
-                await _notificationService.SendStockUpdateAsync(po.OutletId, stockUpdates, ct);
-            }
+            await _stockEvents.EnqueueCurrentStockAsync(
+                po.OutletId,
+                request.Items.Select(item => new StockEventKey(item.ProductId, item.ProductVariantId)).ToArray(),
+                $"stock:receiving-note:{receivingNote.Id:N}",
+                ct);
 
             await dbTx.CommitAsync(ct);
 

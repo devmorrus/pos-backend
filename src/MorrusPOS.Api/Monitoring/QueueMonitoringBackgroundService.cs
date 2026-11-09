@@ -48,9 +48,14 @@ public sealed class QueueMonitoringBackgroundService : BackgroundService
             {
                 var snapshot = await monitor.GetSnapshotAsync(ct);
                 stopwatch.Stop();
-                var level = QueueHealthEvaluator.Evaluate(snapshot, _options);
+                var policy = _options.GetPolicy(snapshot.QueueName);
+                var level = QueueHealthEvaluator.Evaluate(snapshot, policy);
                 var previous = _state.SetSuccess(snapshot, level);
-                MorrusTelemetry.RecordQueueSnapshot(snapshot, _options.EvaluateBacklog, stopwatch.Elapsed.TotalMilliseconds);
+                MorrusTelemetry.RecordQueueSnapshot(
+                    snapshot,
+                    policy.EvaluateBacklog,
+                    stopwatch.Elapsed.TotalMilliseconds,
+                    monitor.PendingStatus);
                 if (previous != level)
                 {
                     _logger.Log(
@@ -60,7 +65,7 @@ public sealed class QueueMonitoringBackgroundService : BackgroundService
                         snapshot.QueueName, previous?.ToString() ?? "Unknown", level,
                         snapshot.PendingCount, snapshot.ProcessingCount, snapshot.FailedCount,
                         snapshot.DeadLetterCount, Math.Round(snapshot.OldestPendingAgeSeconds, 2),
-                        _options.EvaluateBacklog);
+                        policy.EvaluateBacklog);
                 }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -70,7 +75,9 @@ public sealed class QueueMonitoringBackgroundService : BackgroundService
             catch (Exception exception)
             {
                 _state.SetFailure(monitor.QueueName, exception);
-                MorrusTelemetry.RecordQueueMonitorFailure(monitor.QueueName, _options.EvaluateBacklog);
+                MorrusTelemetry.RecordQueueMonitorFailure(
+                    monitor.QueueName,
+                    _options.GetPolicy(monitor.QueueName).EvaluateBacklog);
                 _logger.LogError(exception, "QueueMonitoringFailed QueueName={QueueName}", monitor.QueueName);
             }
         }

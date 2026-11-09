@@ -9,6 +9,7 @@ using MorrusPOS.Application.Features.Channels;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
 using MorrusPOS.Application.Common.Observability;
+using Npgsql;
 
 namespace MorrusPOS.Infrastructure.Services;
 
@@ -73,6 +74,9 @@ public sealed class GoBizOrderWebhookService : IGoBizOrderWebhookService
 
         _tenantContext.SetBusinessOverride(businessId);
 
+        var tenantIntegration = await _dbContext.GoBizDirectIntegrations
+            .SingleAsync(x => x.Id == integration.Id, ct);
+
         if (!await _capabilities.IsEnabledAsync(CapabilityCodes.ChannelsGoBiz, integration.OutletId, ct))
         {
             _logger.LogInformation("GoBiz webhook ignored because capability is disabled for outlet {OutletId}.", integration.OutletId);
@@ -101,21 +105,34 @@ public sealed class GoBizOrderWebhookService : IGoBizOrderWebhookService
             ReceivedAtUtc = DateTime.UtcNow
         });
 
-        integration.LastWebhookAtUtc = DateTime.UtcNow;
-        integration.UpdatedAt = DateTime.UtcNow;
+        tenantIntegration.LastWebhookAtUtc = DateTime.UtcNow;
+        tenantIntegration.UpdatedAt = DateTime.UtcNow;
 
         _dbContext.IntegrationLogs.Add(new IntegrationLog
         {
             Id = Guid.NewGuid(),
             ServiceName = "GoBiz Webhook - order",
-            RequestPayload = rawBody.Length <= 8000 ? rawBody : rawBody[..8000],
+            RequestPayload = null,
             StatusCode = "200",
             IsSuccess = true,
             CreatedAt = DateTime.UtcNow
         });
 
-        await _dbContext.SaveChangesAsync(ct);
-        await _systemDb.SaveChangesAsync(ct);
+        try
+        {
+            await _dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException exception) when (
+            exception.InnerException is PostgresException
+            {
+                SqlState: PostgresErrorCodes.UniqueViolation,
+                ConstraintName: "IX_gobiz_order_inboxes_GoBizOrderId",
+            })
+        {
+            _dbContext.ChangeTracker.Clear();
+            MorrusTelemetry.RecordGoBizWebhook("duplicate");
+            return;
+        }
         MorrusTelemetry.RecordGoBizWebhook("received");
     }
 

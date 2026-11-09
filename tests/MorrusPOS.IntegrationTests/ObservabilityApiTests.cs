@@ -33,13 +33,29 @@ public class ObservabilityApiTests : IClassFixture<WebApplicationFactory<Program
     public async Task GoBizQueueMonitor_ReturnsEmptySnapshotForCleanDatabase()
     {
         using var scope = _factory.Services.CreateScope();
-        var monitor = scope.ServiceProvider.GetServices<IQueueMonitor>().Single();
+        var monitor = scope.ServiceProvider.GetServices<IQueueMonitor>()
+            .Single(item => item.QueueName == "gobiz_order_inbox");
 
         var snapshot = await monitor.GetSnapshotAsync();
 
         Assert.Equal("gobiz_order_inbox", snapshot.QueueName);
         Assert.Equal(0, snapshot.PendingCount);
         Assert.Equal(0, snapshot.FailedCount);
+    }
+
+    [Fact]
+    public async Task OutboxQueueMonitor_IsRegisteredAndDoesNotExposePayload()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var monitor = scope.ServiceProvider.GetServices<IQueueMonitor>()
+            .Single(item => item.QueueName == "outbox");
+
+        var snapshot = await monitor.GetSnapshotAsync();
+
+        Assert.Equal("outbox", snapshot.QueueName);
+        var response = await _client.GetAsync("/health/queues");
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("PayloadJson", body, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]

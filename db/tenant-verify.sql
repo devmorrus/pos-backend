@@ -239,6 +239,42 @@ BEGIN
         RAISE EXCEPTION 'Idempotency verification failed: business operation key uniqueness is missing';
     END IF;
 
+    IF to_regclass('public.outbox_messages') IS NOT NULL AND (
+        has_table_privilege('morrus_app','public.outbox_messages','SELECT') OR
+        has_table_privilege('morrus_app','public.outbox_messages','UPDATE') OR
+        has_table_privilege('morrus_app','public.outbox_messages','DELETE') OR
+        NOT has_table_privilege('morrus_app','public.outbox_messages','INSERT'))
+    THEN
+        RAISE EXCEPTION 'Outbox verification failed: runtime role must be insert-only';
+    END IF;
+
+    IF to_regclass('public.outbox_messages') IS NOT NULL AND (
+        NOT has_column_privilege('morrus_app','public.outbox_messages','BusinessId','SELECT') OR
+        NOT has_column_privilege('morrus_app','public.outbox_messages','EventType','SELECT') OR
+        NOT has_column_privilege('morrus_app','public.outbox_messages','DeduplicationKey','SELECT') OR
+        has_column_privilege('morrus_app','public.outbox_messages','PayloadJson','SELECT'))
+    THEN
+        RAISE EXCEPTION 'Outbox verification failed: runtime conflict-key column privileges are invalid';
+    END IF;
+
+    IF to_regclass('public.outbox_messages') IS NOT NULL AND (
+        NOT has_table_privilege('morrus_system','public.outbox_messages','SELECT') OR
+        NOT has_table_privilege('morrus_system','public.outbox_messages','UPDATE') OR
+        NOT has_table_privilege('morrus_system','public.outbox_messages','DELETE'))
+    THEN
+        RAISE EXCEPTION 'Outbox verification failed: system dispatcher privileges are incomplete';
+    END IF;
+
+    IF to_regclass('public.outbox_messages') IS NOT NULL AND (
+        NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='trg_guard_outbox_immutable_payload' AND NOT tgisinternal) OR
+        NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND tablename='outbox_messages'
+                    AND indexname='IX_outbox_messages_Status_AvailableAtUtc_SequenceNo') OR
+        NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND tablename='outbox_messages'
+                    AND indexname='IX_outbox_messages_BusinessId_EventType_DeduplicationKey'))
+    THEN
+        RAISE EXCEPTION 'Outbox verification failed: immutable trigger or queue indexes are missing';
+    END IF;
+
     IF to_regclass('public.journal_entries') IS NOT NULL AND EXISTS (
         SELECT 1 FROM journal_entries j
         LEFT JOIN LATERAL (

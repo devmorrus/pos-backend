@@ -236,6 +236,7 @@ if [[ "${RESTORE_SKIP_APPLICATION_SMOKE}" != "true" ]]; then
     -e Frontend__Url=http://restore.invalid \
     -e Observability__Enabled=false \
     -e QueueMonitoring__Enabled=true \
+    -e QueueMonitoring__Queues__outbox__EvaluateBacklog=false \
     -v "${UPLOADS_VOLUME}:/app/wwwroot/uploads:ro" \
     "${BACKEND_IMAGE}" >/dev/null
 
