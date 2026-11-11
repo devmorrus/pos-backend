@@ -70,7 +70,7 @@ public class StockTransferServiceTests
 
         // Assert
         result.Should().NotBeNull();
-        result.Status.Should().Be("pending");
+        result.Status.Should().Be(StockTransferStatus.InTransit);
         result.TransferNumber.Should().StartWith("TRF-");
         result.Items.Should().HaveCount(1);
 
@@ -161,7 +161,7 @@ public class StockTransferServiceTests
         var result = await service.ApproveAsync(userId, transfer.Id);
 
         // Assert
-        result.Status.Should().Be("approved");
+        result.Status.Should().Be(StockTransferStatus.Received);
 
         // Verify destination addition movement
         await _stockServiceMock.Received(1).AddMovementAsync(
@@ -182,7 +182,7 @@ public class StockTransferServiceTests
         await _notificationServiceMock.Received(1).EnqueueCurrentStockAsync(
             toOutletId,
             Arg.Is<IReadOnlyCollection<StockEventKey>>(items => items != null && items.Count == 1 && items.Single().ProductId == prodId),
-            $"stock:transfer:{transfer.Id:N}:approved",
+            $"stock:transfer:{transfer.Id:N}:received",
             Arg.Any<CancellationToken>());
     }
 
@@ -221,7 +221,7 @@ public class StockTransferServiceTests
         var result = await service.RejectAsync(userId, transfer.Id);
 
         // Assert
-        result.Status.Should().Be("rejected");
+        result.Status.Should().Be(StockTransferStatus.Returned);
 
         // Verify stock was restored/returned to FromOutlet (so it receives TransferIn of 4)
         await _stockServiceMock.Received(1).AddMovementAsync(
@@ -286,10 +286,55 @@ public class StockTransferServiceTests
 
         var approved = await service.ApproveAsync(userId, transfer.Id);
 
-        approved.Status.Should().Be(StockTransferStatus.Approved);
+        approved.Status.Should().Be(StockTransferStatus.Received);
         var destinationBatch = await _dbContext.ProductBatches.SingleAsync(x =>
             x.StockLocationId == toOutletId && x.ProductId == prodId && x.BatchNumber == "B-001");
         destinationBatch.QtyRemaining.Should().Be(3);
         destinationBatch.QtyProduction.Should().Be(3);
+    }
+
+    [Fact]
+    public async Task ReceiveAsync_Should_PostActualQty_And_RecordVariance()
+    {
+        var userId = Guid.NewGuid();
+        var fromId = Guid.NewGuid();
+        var toId = Guid.NewGuid();
+        var productId = Guid.NewGuid();
+        var categoryId = Guid.NewGuid();
+        _dbContext.Outlets.AddRange(
+            new Outlet { Id = fromId, Code = "SRC", Name = "Source", IsActive = true },
+            new Outlet { Id = toId, Code = "DST", Name = "Destination", IsActive = true });
+        _dbContext.StockLocations.AddRange(
+            new StockLocation { Id = fromId, Type = StockLocationTypes.Outlet, Code = "SRC", Name = "Source", OutletId = fromId },
+            new StockLocation { Id = toId, Type = StockLocationTypes.Outlet, Code = "DST", Name = "Destination", OutletId = toId });
+        _dbContext.Users.Add(new User { Id = userId, Name = "Receiver", Email = "receiver@test.local", PasswordHash = "hash", RoleId = Guid.NewGuid() });
+        _dbContext.Categories.Add(new Category { Id = categoryId, Name = "Produk" });
+        _dbContext.Products.Add(new Product
+        {
+            Id = productId, CategoryId = categoryId, Sku = "VAR-1", Name = "Produk Selisih",
+            BasePrice = 10, CostPrice = 7, Unit = "pcs", IsActive = true
+        });
+        _dbContext.InventoryStocks.Add(new InventoryStock
+        {
+            Id = Guid.NewGuid(), StockLocationId = fromId, ProductId = productId, QtyOnHand = 10
+        });
+        await _dbContext.SaveChangesAsync();
+
+        var service = new StockTransferService(_dbContext, _stockServiceMock, _notificationServiceMock, _currentUserServiceMock);
+        var sent = await service.CreateAsync(userId, new CreateStockTransferRequest(
+            fromId, toId, [new StockTransferItemRequest(productId, 4)]));
+
+        var received = await service.ReceiveAsync(userId, sent.Id, new ReceiveStockTransferRequest(
+            Guid.NewGuid(),
+            [new ReceiveStockTransferItemRequest(sent.Items.Single().Id, 3, "short_shipped", "Satu unit tidak ada.")]));
+
+        received.Status.Should().Be(StockTransferStatus.ReceivedWithVariance);
+        received.HasVariance.Should().BeTrue();
+        received.Items.Single().ReceivedQty.Should().Be(3);
+        received.Items.Single().DifferenceQty.Should().Be(-1);
+        await _stockServiceMock.Received(1).AddMovementAsync(
+            productId, toId, 3, StockMovementType.TransferIn, "stock_transfer", sent.Id,
+            Arg.Any<string>(), Arg.Any<CancellationToken>(), Arg.Any<Guid?>(), Arg.Any<Guid?>(),
+            Arg.Any<Guid?>(), sent.Items.Single().Id, Arg.Any<Guid?>());
     }
 }

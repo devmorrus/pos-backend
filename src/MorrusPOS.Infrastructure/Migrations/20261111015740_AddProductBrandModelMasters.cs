@@ -202,9 +202,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                 END IF;
             END $check$;
             INSERT INTO product_identifiers (""Id"", ""BusinessId"", ""IdentifierType"", ""NormalizedValue"", ""ProductId"", ""ProductVariantId"", ""CreatedAt"", ""UpdatedAt"")
-            SELECT gen_random_uuid(), ""BusinessId"", 'sku', upper(trim(""Sku"")), ""Id"", NULL, now(), now() FROM products
+            SELECT gen_random_uuid(), ""BusinessId"", 'sku', upper(trim(""Sku"")), ""Id"", NULL::uuid, now(), now() FROM products
             UNION ALL
-            SELECT gen_random_uuid(), ""BusinessId"", 'barcode', trim(""Barcode""), ""Id"", NULL, now(), now() FROM products WHERE ""Barcode"" IS NOT NULL AND trim(""Barcode"") <> ''
+            SELECT gen_random_uuid(), ""BusinessId"", 'barcode', trim(""Barcode""), ""Id"", NULL::uuid, now(), now() FROM products WHERE ""Barcode"" IS NOT NULL AND trim(""Barcode"") <> ''
             UNION ALL
             SELECT gen_random_uuid(), ""BusinessId"", 'sku', upper(trim(v.""Sku"")), v.""ProductId"", v.""Id"", now(), now() FROM ""ProductVariants"" v
             UNION ALL

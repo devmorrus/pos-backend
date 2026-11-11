@@ -185,6 +185,13 @@ public class OutletsController : ControllerBase
             {
                 return Conflict("Cabang tidak dapat dinonaktifkan karena masih memiliki pengguna aktif.");
             }
+            var hasTransferInTransit = await _dbContext.StockTransfers.AnyAsync(t =>
+                (t.FromStockLocationId == id || t.ToStockLocationId == id) &&
+                (t.Status == StockTransferStatus.InTransit || t.Status == StockTransferStatus.Pending), ct);
+            if (hasTransferInTransit)
+            {
+                return Conflict("Cabang tidak dapat dinonaktifkan karena masih memiliki transfer dalam perjalanan.");
+            }
         }
 
         outlet.Code = normalized.Code;

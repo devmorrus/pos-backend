@@ -419,7 +419,7 @@ public class DashboardService : IDashboardService
         // 5. Pending stock transfers
         var transferQuery = _dbContext.StockTransfers
             .AsNoTracking()
-            .Where(t => t.Status == StockTransferStatus.Pending);
+            .Where(t => t.Status == StockTransferStatus.InTransit || t.Status == StockTransferStatus.Pending);
 
         if (outletId.HasValue)
         {

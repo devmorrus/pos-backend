@@ -11,6 +11,7 @@ public class StockRequestValidatorsTests
 {
     private readonly CreateStockOpnameRequestValidator _opnameValidator = new();
     private readonly CreateStockTransferRequestValidator _transferValidator = new();
+    private readonly ReceiveStockTransferRequestValidator _receiveTransferValidator = new();
 
     // ---- Stock Opname ----
 
@@ -141,5 +142,24 @@ public class StockRequestValidatorsTests
 
         var result = _transferValidator.TestValidate(request);
         result.ShouldHaveValidationErrorFor(x => x.Items);
+    }
+
+    [Fact]
+    public void ReceiveStockTransfer_ValidInput_Should_Pass()
+    {
+        var request = new ReceiveStockTransferRequest(Guid.NewGuid(),
+            [new ReceiveStockTransferItemRequest(Guid.NewGuid(), 2)]);
+        _receiveTransferValidator.TestValidate(request).ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    public void ReceiveStockTransfer_DuplicateOrNegativeItems_Should_Fail()
+    {
+        var itemId = Guid.NewGuid();
+        var request = new ReceiveStockTransferRequest(Guid.NewGuid(),
+            [new ReceiveStockTransferItemRequest(itemId, -1), new ReceiveStockTransferItemRequest(itemId, 1)]);
+        var result = _receiveTransferValidator.TestValidate(request);
+        result.ShouldHaveValidationErrorFor(x => x.Items);
+        result.ShouldHaveValidationErrorFor("Items[0].ReceivedQty");
     }
 }

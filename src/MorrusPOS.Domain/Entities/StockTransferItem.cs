@@ -22,4 +22,9 @@ public class StockTransferItem : BaseEntity
     public ProductSerial? ProductSerial { get; set; }
 
     public decimal Qty { get; set; }
+    public decimal? ReceivedQty { get; set; }
+    public decimal? DifferenceQty { get; set; }
+    public string? VarianceReasonCode { get; set; }
+    public string? VarianceNote { get; set; }
+    public decimal UnitCostSnapshot { get; set; }
 }

@@ -10,6 +10,12 @@ public static class StockIntegrityErrorCodes
     public const string BatchProjectionMismatch = "STOCK_BATCH_PROJECTION_MISMATCH";
     public const string SerialProjectionMismatch = "STOCK_SERIAL_PROJECTION_MISMATCH";
     public const string ReconciliationScopeInvalid = "STOCK_RECONCILIATION_SCOPE_INVALID";
+    public const string TransferStatusInvalid = "STOCK_TRANSFER_STATUS_INVALID";
+    public const string TransferAlreadyReceived = "STOCK_TRANSFER_ALREADY_RECEIVED";
+    public const string TransferItemMismatch = "STOCK_TRANSFER_ITEM_MISMATCH";
+    public const string TransferVarianceReasonRequired = "STOCK_TRANSFER_VARIANCE_REASON_REQUIRED";
+    public const string TransferVarianceReasonInvalid = "STOCK_TRANSFER_VARIANCE_REASON_INVALID";
+    public const string TransferSerialReceiptInvalid = "STOCK_TRANSFER_SERIAL_RECEIPT_INVALID";
 }
 
 public sealed class StockIntegrityException : InvalidOperationException

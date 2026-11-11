@@ -264,11 +264,15 @@ public class StockTransferConfiguration : IEntityTypeConfiguration<StockTransfer
 {
     public void Configure(EntityTypeBuilder<StockTransfer> builder)
     {
-        builder.ToTable("stock_transfers");
+        builder.ToTable("stock_transfers", t => t.HasCheckConstraint(
+            "CK_stock_transfers_Status", "\"Status\" IN ('in_transit','received','received_with_variance','returned','cancelled','pending','approved','rejected')"));
         builder.HasKey(x => x.Id);
         builder.Property(x => x.TransferNumber).HasMaxLength(30).IsRequired();
         builder.HasIndex(x => new { x.BusinessId, x.TransferNumber }).IsUnique();
-        builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.Status).HasMaxLength(30).IsRequired();
+        builder.Property(x => x.ReceiptNote).HasMaxLength(500);
+        builder.HasIndex(x => new { x.BusinessId, x.FromStockLocationId, x.Status, x.CreatedAt });
+        builder.HasIndex(x => new { x.BusinessId, x.ToStockLocationId, x.Status, x.CreatedAt });
 
         builder.HasOne(x => x.FromStockLocation)
             .WithMany()
@@ -296,11 +300,22 @@ public class StockTransferItemConfiguration : IEntityTypeConfiguration<StockTran
 {
     public void Configure(EntityTypeBuilder<StockTransferItem> builder)
     {
-        builder.ToTable("stock_transfer_items", t => t.HasCheckConstraint(
-            "CK_stock_transfer_items_TrackingReference",
-            "NOT (\"ProductBatchId\" IS NOT NULL AND \"ProductSerialId\" IS NOT NULL)"));
+        builder.ToTable("stock_transfer_items", t =>
+        {
+            t.HasCheckConstraint("CK_stock_transfer_items_TrackingReference",
+                "NOT (\"ProductBatchId\" IS NOT NULL AND \"ProductSerialId\" IS NOT NULL)");
+            t.HasCheckConstraint("CK_stock_transfer_items_Quantities",
+                "\"Qty\" > 0 AND (\"ReceivedQty\" IS NULL OR (\"ReceivedQty\" >= 0 AND \"DifferenceQty\" = \"ReceivedQty\" - \"Qty\"))");
+            t.HasCheckConstraint("CK_stock_transfer_items_Variance",
+                "\"ReceivedQty\" IS NULL OR (\"DifferenceQty\" = 0 AND \"VarianceReasonCode\" IS NULL) OR (\"DifferenceQty\" <> 0 AND \"VarianceReasonCode\" IS NOT NULL AND \"VarianceNote\" IS NOT NULL)");
+        });
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Qty).HasColumnType("decimal(12,2)");
+        builder.Property(x => x.ReceivedQty).HasColumnType("decimal(12,2)");
+        builder.Property(x => x.DifferenceQty).HasColumnType("decimal(12,2)");
+        builder.Property(x => x.VarianceReasonCode).HasMaxLength(30);
+        builder.Property(x => x.VarianceNote).HasMaxLength(500);
+        builder.Property(x => x.UnitCostSnapshot).HasColumnType("decimal(14,2)");
 
         builder.HasOne(x => x.StockTransfer)
             .WithMany(t => t.Items)

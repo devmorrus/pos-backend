@@ -52,7 +52,8 @@ public class ExceptionHandlingMiddleware
         catch (StockIntegrityException ex)
         {
             var status = ex.Code is StockIntegrityErrorCodes.PostingConflict or
-                StockIntegrityErrorCodes.ReconciliationBlocked or StockIntegrityErrorCodes.LedgerImmutable
+                StockIntegrityErrorCodes.ReconciliationBlocked or StockIntegrityErrorCodes.LedgerImmutable or
+                StockIntegrityErrorCodes.TransferStatusInvalid or StockIntegrityErrorCodes.TransferAlreadyReceived
                 ? HttpStatusCode.Conflict
                 : HttpStatusCode.BadRequest;
             await WriteError(context, status, ex.Message, ex.Code);

@@ -7,10 +7,12 @@ public static class IdempotencyOperation
     public const string Checkout = "checkout";
     public const string Refund = "refund";
     public const string SupplierPayment = "supplier_payment";
+    public const string StockTransferSend = "stock_transfer_send";
+    public const string StockTransferReceive = "stock_transfer_receive";
 
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
-        Checkout, Refund, SupplierPayment
+        Checkout, Refund, SupplierPayment, StockTransferSend, StockTransferReceive
     };
 }
 

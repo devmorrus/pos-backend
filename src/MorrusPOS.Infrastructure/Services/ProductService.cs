@@ -816,7 +816,8 @@ public class ProductService : IProductService
             throw new InvalidOperationException("Tracking mode tidak dapat diubah karena masih ada stok aktif.");
 
         if (await _dbContext.StockTransfers.AnyAsync(t =>
-                t.Status == StockTransferStatus.Pending && t.Items.Any(i => i.ProductId == product.Id), ct))
+                (t.Status == StockTransferStatus.InTransit || t.Status == StockTransferStatus.Pending) &&
+                t.Items.Any(i => i.ProductId == product.Id), ct))
             throw new InvalidOperationException("Tracking mode tidak dapat diubah karena masih ada transfer stok yang menunggu.");
 
         if (await _dbContext.StockOpnames.AnyAsync(o =>

@@ -165,6 +165,11 @@ public class StockLocationsController : ControllerBase
                 .AnyAsync(x => x.StockLocationId == id && x.QtyOnHand != 0, ct);
             if (hasStock)
                 return Conflict("Gudang tidak dapat dinonaktifkan karena masih memiliki stok.");
+            var hasTransferInTransit = await _db.StockTransfers.AnyAsync(x =>
+                (x.FromStockLocationId == id || x.ToStockLocationId == id) &&
+                (x.Status == StockTransferStatus.InTransit || x.Status == StockTransferStatus.Pending), ct);
+            if (hasTransferInTransit)
+                return Conflict("Gudang tidak dapat dinonaktifkan karena masih memiliki transfer dalam perjalanan.");
         }
 
         location.Code = code;

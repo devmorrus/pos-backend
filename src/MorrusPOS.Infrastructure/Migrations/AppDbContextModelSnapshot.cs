@@ -2130,7 +2130,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.ToTable("idempotency_records", null, t =>
                         {
-                            t.HasCheckConstraint("CK_idempotency_records_Operation", "\"Operation\" IN ('checkout','refund','supplier_payment')");
+                            t.HasCheckConstraint("CK_idempotency_records_Operation", "\"Operation\" IN ('checkout','refund','supplier_payment','stock_transfer_send','stock_transfer_receive')");
 
                             t.HasCheckConstraint("CK_idempotency_records_RequestHash", "length(\"RequestHash\") = 64");
                         });
@@ -3656,7 +3656,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("BusinessId");
 
-                    b.ToTable("ModifierGroups");
+                    b.ToTable("ModifierGroups", (string)null);
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ModifierGroupProduct", b =>
@@ -3707,7 +3707,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("ModifierGroupId");
 
-                    b.ToTable("ModifierOptions");
+                    b.ToTable("ModifierOptions", (string)null);
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.OutboxMessage", b =>
@@ -4455,7 +4455,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("BusinessId");
 
-                    b.ToTable("ProductAttributes");
+                    b.ToTable("ProductAttributes", (string)null);
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductAttributeValue", b =>
@@ -4485,7 +4485,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("ProductVariantId");
 
-                    b.ToTable("ProductAttributeValues");
+                    b.ToTable("ProductAttributeValues", (string)null);
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductBatch", b =>
@@ -4825,7 +4825,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("ProductId");
 
-                    b.ToTable("ProductVariants");
+                    b.ToTable("ProductVariants", (string)null);
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.PromoCampaign", b =>
@@ -5084,7 +5084,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("ReceivedByUserId");
 
-                    b.ToTable("ReceivingNotes");
+                    b.ToTable("ReceivingNotes", (string)null);
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ReceivingNoteItem", b =>
@@ -5124,7 +5124,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("ReceivingNoteId");
 
-                    b.ToTable("ReceivingNoteItems");
+                    b.ToTable("ReceivingNoteItems", (string)null);
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.RefreshToken", b =>
@@ -6048,13 +6048,20 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<Guid>("FromStockLocationId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ReceiptNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid>("RequestedBy")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.Property<Guid>("ToStockLocationId")
                         .HasColumnType("uuid");
@@ -6080,7 +6087,14 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.HasIndex("BusinessId", "TransferNumber")
                         .IsUnique();
 
-                    b.ToTable("stock_transfers", (string)null);
+                    b.HasIndex("BusinessId", "FromStockLocationId", "Status", "CreatedAt");
+
+                    b.HasIndex("BusinessId", "ToStockLocationId", "Status", "CreatedAt");
+
+                    b.ToTable("stock_transfers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_stock_transfers_Status", "\"Status\" IN ('in_transit','received','received_with_variance','returned','cancelled','pending','approved','rejected')");
+                        });
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.StockTransferItem", b =>
@@ -6091,6 +6105,9 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal?>("DifferenceQty")
+                        .HasColumnType("decimal(12,2)");
 
                     b.Property<Guid?>("ProductBatchId")
                         .HasColumnType("uuid");
@@ -6107,8 +6124,22 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<decimal>("Qty")
                         .HasColumnType("decimal(12,2)");
 
+                    b.Property<decimal?>("ReceivedQty")
+                        .HasColumnType("decimal(12,2)");
+
                     b.Property<Guid>("StockTransferId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal>("UnitCostSnapshot")
+                        .HasColumnType("decimal(14,2)");
+
+                    b.Property<string>("VarianceNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("VarianceReasonCode")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.HasKey("Id");
 
@@ -6126,7 +6157,11 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.ToTable("stock_transfer_items", null, t =>
                         {
+                            t.HasCheckConstraint("CK_stock_transfer_items_Quantities", "\"Qty\" > 0 AND (\"ReceivedQty\" IS NULL OR (\"ReceivedQty\" >= 0 AND \"DifferenceQty\" = \"ReceivedQty\" - \"Qty\"))");
+
                             t.HasCheckConstraint("CK_stock_transfer_items_TrackingReference", "NOT (\"ProductBatchId\" IS NOT NULL AND \"ProductSerialId\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_stock_transfer_items_Variance", "\"ReceivedQty\" IS NULL OR (\"DifferenceQty\" = 0 AND \"VarianceReasonCode\" IS NULL) OR (\"DifferenceQty\" <> 0 AND \"VarianceReasonCode\" IS NOT NULL AND \"VarianceNote\" IS NOT NULL)");
                         });
                 });
 
