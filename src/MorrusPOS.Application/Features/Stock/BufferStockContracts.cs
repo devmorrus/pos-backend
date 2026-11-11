@@ -16,7 +16,11 @@ public record BufferStockListItemDto(
     bool IsEnabled,
     DateTime UpdatedAt,
     DateTime? BufferUpdatedAt
-);
+)
+{
+    public decimal QtyReserved { get; init; }
+    public decimal QtyAvailable { get; init; }
+}
 
 public record UpsertBufferStockRequest(
     Guid OutletId,
@@ -34,7 +38,11 @@ public record OnlineStockAvailabilityDto(
     decimal BufferQty,
     decimal AvailableOnlineQty,
     bool IsOnlineAvailable
-);
+)
+{
+    public decimal QtyReserved { get; init; }
+    public decimal QtyAvailable { get; init; }
+}
 
 public readonly record struct OnlineStockKey(
     Guid ProductId,
@@ -61,7 +69,7 @@ public interface IBufferStockService
 
 public interface IOnlineStockAvailabilityService
 {
-    decimal CalculateAvailableOnlineQty(decimal qtyOnHand, decimal bufferQty, bool isEnabled);
+    decimal CalculateAvailableOnlineQty(decimal qtyOnHand, decimal bufferQty, bool isEnabled, decimal qtyReserved = 0);
 
     Task<IReadOnlyDictionary<OnlineStockKey, decimal>> GetAvailableQuantitiesAsync(
         Guid outletId,

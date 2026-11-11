@@ -16,6 +16,13 @@ public static class StockIntegrityErrorCodes
     public const string TransferVarianceReasonRequired = "STOCK_TRANSFER_VARIANCE_REASON_REQUIRED";
     public const string TransferVarianceReasonInvalid = "STOCK_TRANSFER_VARIANCE_REASON_INVALID";
     public const string TransferSerialReceiptInvalid = "STOCK_TRANSFER_SERIAL_RECEIPT_INVALID";
+    public const string ReservationInsufficient = "STOCK_RESERVATION_INSUFFICIENT";
+    public const string ReservationExpired = "STOCK_RESERVATION_EXPIRED";
+    public const string ReservationNotActive = "STOCK_RESERVATION_NOT_ACTIVE";
+    public const string ReservationMismatch = "STOCK_RESERVATION_MISMATCH";
+    public const string ReservationIdReused = "STOCK_RESERVATION_ID_REUSED";
+    public const string ReservationSerialUnavailable = "STOCK_RESERVATION_SERIAL_UNAVAILABLE";
+    public const string ReservedStockConflict = "STOCK_RESERVED_STOCK_CONFLICT";
 }
 
 public sealed class StockIntegrityException : InvalidOperationException

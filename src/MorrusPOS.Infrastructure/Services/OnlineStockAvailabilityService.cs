@@ -8,21 +8,23 @@ namespace MorrusPOS.Infrastructure.Services;
 public class OnlineStockAvailabilityService : IOnlineStockAvailabilityService
 {
     private readonly AppDbContext _dbContext;
+    private readonly IStockAvailabilityService _stockAvailability;
 
-    public OnlineStockAvailabilityService(AppDbContext dbContext)
+    public OnlineStockAvailabilityService(AppDbContext dbContext, IStockAvailabilityService? stockAvailability = null)
     {
         _dbContext = dbContext;
+        _stockAvailability = stockAvailability ?? new StockAvailabilityService(dbContext);
     }
 
-    public decimal CalculateAvailableOnlineQty(decimal qtyOnHand, decimal bufferQty, bool isEnabled)
+    public decimal CalculateAvailableOnlineQty(decimal qtyOnHand, decimal bufferQty, bool isEnabled, decimal qtyReserved = 0)
     {
         if (!isEnabled)
         {
-            return Math.Max(0, qtyOnHand);
+            return Math.Max(0, qtyOnHand - qtyReserved);
         }
 
         var effectiveBuffer = bufferQty < 0 ? 0 : bufferQty;
-        return Math.Max(0, qtyOnHand - effectiveBuffer);
+        return Math.Max(0, qtyOnHand - qtyReserved - effectiveBuffer);
     }
 
     public async Task<IReadOnlyDictionary<OnlineStockKey, decimal>> GetAvailableQuantitiesAsync(
@@ -76,6 +78,7 @@ public class OnlineStockAvailabilityService : IOnlineStockAvailabilityService
                 p => p);
 
         var result = new Dictionary<OnlineStockKey, OnlineStockAvailabilityDto>();
+        var reserved = await _stockAvailability.GetReservedQuantitiesAsync(outletId, ct);
 
         foreach (var stock in stocks)
         {
@@ -103,7 +106,9 @@ public class OnlineStockAvailabilityService : IOnlineStockAvailabilityService
                 isEnabled = productPolicy.IsEnabled;
             }
 
-            var available = CalculateAvailableOnlineQty(stock.QtyOnHand, bufferQty, isEnabled);
+            var qtyReserved = reserved.GetValueOrDefault(new StockAvailabilityKey(stock.ProductId, stock.ProductVariantId));
+            var qtyAvailable = Math.Max(0, stock.QtyOnHand - qtyReserved);
+            var available = CalculateAvailableOnlineQty(stock.QtyOnHand, bufferQty, isEnabled, qtyReserved);
 
             result[key] = new OnlineStockAvailabilityDto(
                 outletId,
@@ -112,7 +117,11 @@ public class OnlineStockAvailabilityService : IOnlineStockAvailabilityService
                 stock.QtyOnHand,
                 isEnabled ? bufferQty : 0,
                 available,
-                available > 0);
+                available > 0)
+            {
+                QtyReserved = qtyReserved,
+                QtyAvailable = qtyAvailable
+            };
         }
 
         return result;

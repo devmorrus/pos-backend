@@ -20,6 +20,8 @@ public record ProductVariantDto(
 )
 {
     public decimal QtyOnHand { get; init; }
+    public decimal QtyReserved { get; init; }
+    public decimal QtyAvailable { get; init; }
 }
 
 public record ProductDto(
@@ -47,6 +49,8 @@ public record ProductDto(
 )
 {
     public IReadOnlyList<ProductRecipeDto>? Recipes { get; init; }
+    public decimal QtyReserved { get; init; }
+    public decimal QtyAvailable { get; init; }
 }
 
 public record ProductRecipeDto(
@@ -136,10 +140,23 @@ public interface IProductService
     Task<ProductTrackingOptionsDto> GetTrackingOptionsAsync(Guid productId, Guid outletId, Guid? productVariantId, string? search, int take, bool includeUnavailable = false, CancellationToken ct = default);
 }
 
-public record ProductBatchOptionDto(Guid Id, string BatchNumber, DateTime? ExpiryDate, decimal QtyRemaining);
-public record ProductSerialOptionDto(Guid Id, string SerialNumber);
+public record ProductBatchOptionDto(Guid Id, string BatchNumber, DateTime? ExpiryDate, decimal QtyRemaining)
+{
+    public decimal QtyReserved { get; init; }
+    public decimal QtyAvailable { get; init; }
+}
+public record ProductSerialOptionDto(
+    Guid Id,
+    string SerialNumber,
+    string Status = ProductSerialStatuses.Available,
+    Guid? ReservationId = null,
+    DateTime? ReservationExpiresAt = null);
 public record ProductTrackingOptionsDto(
     string TrackingMode,
     decimal QtyOnHand,
     IReadOnlyList<ProductBatchOptionDto> Batches,
-    IReadOnlyList<ProductSerialOptionDto> Serials);
+    IReadOnlyList<ProductSerialOptionDto> Serials)
+{
+    public decimal QtyReserved { get; init; }
+    public decimal QtyAvailable { get; init; }
+}

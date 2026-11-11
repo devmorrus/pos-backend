@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Capabilities;
 using MorrusPOS.Application.Features.Transactions;
+using MorrusPOS.Application.Features.Stock;
 using MorrusPOS.Application.Features.Accounting;
 using Microsoft.EntityFrameworkCore.Storage;
 using MorrusPOS.Domain.Entities;
@@ -16,19 +17,22 @@ public class CashierSessionService : ICashierSessionService
     private readonly ICapabilityEvaluator? _capabilities;
     private readonly IAccountingIntegrationService? _accountingIntegrationService;
     private readonly IPosDeviceContext? _posDeviceContext;
+    private readonly IStockReservationService? _stockReservations;
 
     public CashierSessionService(
         AppDbContext dbContext,
         ICurrentUserService currentUserService,
         ICapabilityEvaluator? capabilities = null,
         IAccountingIntegrationService? accountingIntegrationService = null,
-        IPosDeviceContext? posDeviceContext = null)
+        IPosDeviceContext? posDeviceContext = null,
+        IStockReservationService? stockReservations = null)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
         _capabilities = capabilities;
         _accountingIntegrationService = accountingIntegrationService;
         _posDeviceContext = posDeviceContext;
+        _stockReservations = stockReservations;
     }
 
     public async Task<CashierSessionDto> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -174,6 +178,15 @@ public class CashierSessionService : ICashierSessionService
         }
 
         await EnsureSalesPosAsync(session.OutletId, ct);
+
+        if (_stockReservations is not null)
+        {
+            var activeReservationIds = await _dbContext.StockReservations.AsNoTracking()
+                .Where(x => x.CashierSessionId == sessionId && x.Status == StockReservationStatus.Active)
+                .Select(x => x.Id).ToListAsync(ct);
+            foreach (var reservationId in activeReservationIds)
+                await _stockReservations.ReleaseAsync(reservationId, "Sesi kasir ditutup.", ct);
+        }
 
         var totalCashReceived = await _dbContext.Payments
             .Where(p => p.CashierSessionId == sessionId && p.Method == PaymentMethod.Cash)

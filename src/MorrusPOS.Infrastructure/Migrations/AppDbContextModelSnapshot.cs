@@ -2130,7 +2130,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.ToTable("idempotency_records", null, t =>
                         {
-                            t.HasCheckConstraint("CK_idempotency_records_Operation", "\"Operation\" IN ('checkout','refund','supplier_payment','stock_transfer_send','stock_transfer_receive')");
+                            t.HasCheckConstraint("CK_idempotency_records_Operation", "\"Operation\" IN ('checkout','refund','supplier_payment','stock_transfer_send','stock_transfer_receive','stock_reservation_create')");
 
                             t.HasCheckConstraint("CK_idempotency_records_RequestHash", "length(\"RequestHash\") = 64");
                         });
@@ -3656,7 +3656,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("BusinessId");
 
-                    b.ToTable("ModifierGroups", (string)null);
+                    b.ToTable("ModifierGroups");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ModifierGroupProduct", b =>
@@ -3707,7 +3707,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("ModifierGroupId");
 
-                    b.ToTable("ModifierOptions", (string)null);
+                    b.ToTable("ModifierOptions");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.OutboxMessage", b =>
@@ -4455,7 +4455,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("BusinessId");
 
-                    b.ToTable("ProductAttributes", (string)null);
+                    b.ToTable("ProductAttributes");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductAttributeValue", b =>
@@ -4485,7 +4485,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("ProductVariantId");
 
-                    b.ToTable("ProductAttributeValues", (string)null);
+                    b.ToTable("ProductAttributeValues");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductBatch", b =>
@@ -4778,7 +4778,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.ToTable("product_serials", null, t =>
                         {
-                            t.HasCheckConstraint("CK_product_serials_Status", "\"Status\" IN ('available','sold','in_transfer','returned_to_supplier','written_off')");
+                            t.HasCheckConstraint("CK_product_serials_Status", "\"Status\" IN ('available','reserved','sold','in_transfer','returned_to_supplier','written_off')");
                         });
                 });
 
@@ -4825,7 +4825,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("ProductId");
 
-                    b.ToTable("ProductVariants", (string)null);
+                    b.ToTable("ProductVariants");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.PromoCampaign", b =>
@@ -5084,7 +5084,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("ReceivedByUserId");
 
-                    b.ToTable("ReceivingNotes", (string)null);
+                    b.ToTable("ReceivingNotes");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ReceivingNoteItem", b =>
@@ -5124,7 +5124,7 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("ReceivingNoteId");
 
-                    b.ToTable("ReceivingNoteItems", (string)null);
+                    b.ToTable("ReceivingNoteItems");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.RefreshToken", b =>
@@ -6027,6 +6027,173 @@ namespace MorrusPOS.Infrastructure.Migrations
                             t.HasCheckConstraint("CK_stock_reconciliation_runs_Mode", "\"Mode\" IN ('preview','repair')");
 
                             t.HasCheckConstraint("CK_stock_reconciliation_runs_Status", "\"Status\" IN ('running','completed','failed','blocked')");
+                        });
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.StockReservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CashierSessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ConsumedByTransactionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("DeviceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RegisterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReleaseReason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .IsFixedLength();
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("StockLocationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CashierSessionId");
+
+                    b.HasIndex("ConsumedByTransactionId");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.HasIndex("DeviceId");
+
+                    b.HasIndex("RegisterId");
+
+                    b.HasIndex("StockLocationId");
+
+                    b.HasIndex("BusinessId", "CashierSessionId", "Status");
+
+                    b.HasIndex("BusinessId", "Status", "ExpiresAt");
+
+                    b.HasIndex("BusinessId", "StockLocationId", "Status", "ExpiresAt");
+
+                    b.ToTable("stock_reservations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_stock_reservations_Lifecycle", "(\"Status\" = 'active' AND \"ResolvedAt\" IS NULL AND \"ConsumedByTransactionId\" IS NULL) OR (\"Status\" = 'consumed' AND \"ResolvedAt\" IS NOT NULL AND \"ConsumedByTransactionId\" IS NOT NULL) OR (\"Status\" IN ('released','expired') AND \"ResolvedAt\" IS NOT NULL AND \"ConsumedByTransactionId\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_stock_reservations_Source", "\"SourceType\" IN ('pos','channel_order')");
+
+                            t.HasCheckConstraint("CK_stock_reservations_Status", "\"Status\" IN ('active','consumed','released','expired')");
+                        });
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.StockReservationItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ProductBatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ProductSerialId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ProductVariantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Qty")
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("StockLocationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("StockReservationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TrackingModeSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductBatchId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("ProductSerialId");
+
+                    b.HasIndex("ProductVariantId");
+
+                    b.HasIndex("StockLocationId");
+
+                    b.HasIndex("StockReservationId");
+
+                    b.HasIndex("BusinessId", "ProductBatchId", "Status");
+
+                    b.HasIndex("BusinessId", "ProductSerialId", "Status");
+
+                    b.HasIndex("BusinessId", "StockLocationId", "ProductId", "ProductVariantId", "Status");
+
+                    b.ToTable("stock_reservation_items", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_stock_reservation_items_Qty", "\"Qty\" > 0");
+
+                            t.HasCheckConstraint("CK_stock_reservation_items_Status", "\"Status\" IN ('active','consumed','released','expired')");
+
+                            t.HasCheckConstraint("CK_stock_reservation_items_TrackingMode", "\"TrackingModeSnapshot\" IN ('quantity','batch','serial')");
+
+                            t.HasCheckConstraint("CK_stock_reservation_items_TrackingReference", "(\"TrackingModeSnapshot\" = 'quantity' AND \"ProductBatchId\" IS NULL AND \"ProductSerialId\" IS NULL) OR (\"TrackingModeSnapshot\" = 'batch' AND \"ProductBatchId\" IS NOT NULL AND \"ProductSerialId\" IS NULL) OR (\"TrackingModeSnapshot\" = 'serial' AND \"ProductBatchId\" IS NULL AND \"ProductSerialId\" IS NOT NULL AND \"Qty\" = 1)");
                         });
                 });
 
@@ -8778,6 +8945,117 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("StockLocation");
                 });
 
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.StockReservation", b =>
+                {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.CashierSession", "CashierSession")
+                        .WithMany()
+                        .HasForeignKey("CashierSessionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MorrusPOS.Domain.Entities.Transaction", "ConsumedByTransaction")
+                        .WithMany()
+                        .HasForeignKey("ConsumedByTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MorrusPOS.Domain.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.PosDevice", "Device")
+                        .WithMany()
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MorrusPOS.Domain.Entities.PosRegister", "Register")
+                        .WithMany()
+                        .HasForeignKey("RegisterId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MorrusPOS.Domain.Entities.StockLocation", "StockLocation")
+                        .WithMany()
+                        .HasForeignKey("StockLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Business");
+
+                    b.Navigation("CashierSession");
+
+                    b.Navigation("ConsumedByTransaction");
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Device");
+
+                    b.Navigation("Register");
+
+                    b.Navigation("StockLocation");
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.StockReservationItem", b =>
+                {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.ProductBatch", "ProductBatch")
+                        .WithMany()
+                        .HasForeignKey("ProductBatchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MorrusPOS.Domain.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.ProductSerial", "ProductSerial")
+                        .WithMany()
+                        .HasForeignKey("ProductSerialId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MorrusPOS.Domain.Entities.ProductVariant", "ProductVariant")
+                        .WithMany()
+                        .HasForeignKey("ProductVariantId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MorrusPOS.Domain.Entities.StockLocation", "StockLocation")
+                        .WithMany()
+                        .HasForeignKey("StockLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.StockReservation", "StockReservation")
+                        .WithMany("Items")
+                        .HasForeignKey("StockReservationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Business");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("ProductBatch");
+
+                    b.Navigation("ProductSerial");
+
+                    b.Navigation("ProductVariant");
+
+                    b.Navigation("StockLocation");
+
+                    b.Navigation("StockReservation");
+                });
+
             modelBuilder.Entity("MorrusPOS.Domain.Entities.StockTransfer", b =>
                 {
                     b.HasOne("MorrusPOS.Domain.Entities.User", "ApprovedByUser")
@@ -9393,6 +9671,11 @@ namespace MorrusPOS.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.StockReconciliationRun", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.StockReservation", b =>
                 {
                     b.Navigation("Items");
                 });

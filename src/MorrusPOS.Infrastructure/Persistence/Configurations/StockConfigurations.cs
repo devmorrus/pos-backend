@@ -246,7 +246,7 @@ public class ProductSerialConfiguration : IEntityTypeConfiguration<ProductSerial
     public void Configure(EntityTypeBuilder<ProductSerial> builder)
     {
         builder.ToTable("product_serials", t => t.HasCheckConstraint(
-            "CK_product_serials_Status", "\"Status\" IN ('available','sold','in_transfer','returned_to_supplier','written_off')"));
+            "CK_product_serials_Status", "\"Status\" IN ('available','reserved','sold','in_transfer','returned_to_supplier','written_off')"));
         builder.HasKey(x => x.Id);
         builder.Property(x => x.SerialNumber).HasMaxLength(150).IsRequired();
         builder.Property(x => x.NormalizedSerialNumber).HasMaxLength(150).IsRequired();
@@ -257,6 +257,66 @@ public class ProductSerialConfiguration : IEntityTypeConfiguration<ProductSerial
         builder.HasOne(x => x.ProductVariant).WithMany().HasForeignKey(x => x.ProductVariantId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.StockLocation).WithMany().HasForeignKey(x => x.StockLocationId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.ReceivingNoteItem).WithMany().HasForeignKey(x => x.ReceivingNoteItemId).OnDelete(DeleteBehavior.SetNull);
+    }
+}
+
+public class StockReservationConfiguration : IEntityTypeConfiguration<StockReservation>
+{
+    public void Configure(EntityTypeBuilder<StockReservation> builder)
+    {
+        builder.ToTable("stock_reservations", t =>
+        {
+            t.HasCheckConstraint("CK_stock_reservations_Status", "\"Status\" IN ('active','consumed','released','expired')");
+            t.HasCheckConstraint("CK_stock_reservations_Source", "\"SourceType\" IN ('pos','channel_order')");
+            t.HasCheckConstraint("CK_stock_reservations_Lifecycle",
+                "(\"Status\" = 'active' AND \"ResolvedAt\" IS NULL AND \"ConsumedByTransactionId\" IS NULL) OR " +
+                "(\"Status\" = 'consumed' AND \"ResolvedAt\" IS NOT NULL AND \"ConsumedByTransactionId\" IS NOT NULL) OR " +
+                "(\"Status\" IN ('released','expired') AND \"ResolvedAt\" IS NOT NULL AND \"ConsumedByTransactionId\" IS NULL)");
+        });
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.SourceType).HasMaxLength(30).IsRequired();
+        builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.RequestHash).HasMaxLength(64).IsFixedLength().IsRequired();
+        builder.Property(x => x.ReleaseReason).HasMaxLength(200);
+        builder.HasIndex(x => new { x.BusinessId, x.Status, x.ExpiresAt });
+        builder.HasIndex(x => new { x.BusinessId, x.StockLocationId, x.Status, x.ExpiresAt });
+        builder.HasIndex(x => new { x.BusinessId, x.CashierSessionId, x.Status });
+        builder.HasOne(x => x.StockLocation).WithMany().HasForeignKey(x => x.StockLocationId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.CashierSession).WithMany().HasForeignKey(x => x.CashierSessionId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Register).WithMany().HasForeignKey(x => x.RegisterId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Device).WithMany().HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.CreatedByUser).WithMany().HasForeignKey(x => x.CreatedBy).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.ConsumedByTransaction).WithMany().HasForeignKey(x => x.ConsumedByTransactionId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class StockReservationItemConfiguration : IEntityTypeConfiguration<StockReservationItem>
+{
+    public void Configure(EntityTypeBuilder<StockReservationItem> builder)
+    {
+        builder.ToTable("stock_reservation_items", t =>
+        {
+            t.HasCheckConstraint("CK_stock_reservation_items_Status", "\"Status\" IN ('active','consumed','released','expired')");
+            t.HasCheckConstraint("CK_stock_reservation_items_Qty", "\"Qty\" > 0");
+            t.HasCheckConstraint("CK_stock_reservation_items_TrackingMode", "\"TrackingModeSnapshot\" IN ('quantity','batch','serial')");
+            t.HasCheckConstraint("CK_stock_reservation_items_TrackingReference",
+                "(\"TrackingModeSnapshot\" = 'quantity' AND \"ProductBatchId\" IS NULL AND \"ProductSerialId\" IS NULL) OR " +
+                "(\"TrackingModeSnapshot\" = 'batch' AND \"ProductBatchId\" IS NOT NULL AND \"ProductSerialId\" IS NULL) OR " +
+                "(\"TrackingModeSnapshot\" = 'serial' AND \"ProductBatchId\" IS NULL AND \"ProductSerialId\" IS NOT NULL AND \"Qty\" = 1)");
+        });
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Qty).HasColumnType("decimal(12,2)");
+        builder.Property(x => x.Status).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.TrackingModeSnapshot).HasMaxLength(20).IsRequired();
+        builder.HasIndex(x => new { x.BusinessId, x.StockLocationId, x.ProductId, x.ProductVariantId, x.Status });
+        builder.HasIndex(x => new { x.BusinessId, x.ProductBatchId, x.Status });
+        builder.HasIndex(x => new { x.BusinessId, x.ProductSerialId, x.Status });
+        builder.HasOne(x => x.StockReservation).WithMany(x => x.Items).HasForeignKey(x => x.StockReservationId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(x => x.StockLocation).WithMany().HasForeignKey(x => x.StockLocationId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.ProductVariant).WithMany().HasForeignKey(x => x.ProductVariantId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.ProductBatch).WithMany().HasForeignKey(x => x.ProductBatchId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.ProductSerial).WithMany().HasForeignKey(x => x.ProductSerialId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 

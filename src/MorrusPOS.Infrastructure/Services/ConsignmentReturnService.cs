@@ -5,7 +5,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
+using MorrusPOS.Application.Common.Exceptions;
 using MorrusPOS.Application.Features.Consignments;
+using MorrusPOS.Application.Features.Stock;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
 using MorrusPOS.Application.Common.Events;
@@ -18,17 +20,20 @@ public class ConsignmentReturnService : IConsignmentReturnService
     private readonly IStockService _stockService;
     private readonly IStockEventPublisher _stockEvents;
     private readonly ICurrentUserService _currentUser;
+    private readonly IStockAvailabilityService _availability;
 
     public ConsignmentReturnService(
         AppDbContext dbContext,
         IStockService stockService,
         IStockEventPublisher stockEvents,
-        ICurrentUserService currentUser)
+        ICurrentUserService currentUser,
+        IStockAvailabilityService? availability = null)
     {
         _dbContext = dbContext;
         _stockService = stockService;
         _stockEvents = stockEvents;
         _currentUser = currentUser;
+        _availability = availability ?? new StockAvailabilityService(dbContext);
     }
 
     public async Task<ConsignmentReturnDto> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -183,10 +188,13 @@ public class ConsignmentReturnService : IConsignmentReturnService
                     var inventory = await _dbContext.InventoryStocks
                         .FirstOrDefaultAsync(i => i.ProductId == item.ProductId && i.StockLocationId == consignmentReturn.OutletId, ct);
                     
-                    var currentStock = inventory?.QtyOnHand ?? 0;
+                    var reserved = await _availability.GetReservedQuantityAsync(
+                        consignmentReturn.OutletId, item.ProductId, null, null, ct);
+                    var currentStock = Math.Max(0, (inventory?.QtyOnHand ?? 0) - reserved);
                     if (currentStock < item.Qty)
                     {
-                        throw new InvalidOperationException($"Stok produk '{item.Product?.Name}' tidak mencukupi untuk diretur (Stok tersedia: {currentStock}, Retur: {item.Qty}).");
+                        throw new StockIntegrityException(StockIntegrityErrorCodes.ReservedStockConflict,
+                            $"Stok produk '{item.Product?.Name}' tidak mencukupi untuk diretur (Stok tersedia: {currentStock}, Retur: {item.Qty}).");
                     }
 
                     // Find all active received consignment items for this product, supplier, and outlet that have remaining quantity

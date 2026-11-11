@@ -57,6 +57,7 @@ public class BufferStockService : IBufferStockService
             .AsNoTracking()
             .Where(p => p.OutletId == outletId)
             .ToListAsync(ct);
+        var availabilityMap = await _availabilityService.GetAvailabilityMapAsync(outletId, ct);
 
         var variantPolicies = policies
             .Where(p => p.ProductVariantId.HasValue)
@@ -96,10 +97,8 @@ public class BufferStockService : IBufferStockService
             }
 
             var isEnabled = effectivePolicy?.IsEnabled ?? true;
-            var available = _availabilityService.CalculateAvailableOnlineQty(
-                stock.QtyOnHand,
-                effectivePolicy?.BufferQty ?? 0,
-                isEnabled);
+            var availability = availabilityMap.GetValueOrDefault(new OnlineStockKey(stock.ProductId, stock.ProductVariantId));
+            var available = availability?.AvailableOnlineQty ?? 0;
 
             var isVariantRow = stock.ProductVariantId.HasValue;
             var sku = isVariantRow && stock.ProductVariant != null
@@ -135,7 +134,11 @@ public class BufferStockService : IBufferStockService
                 available > 0,
                 isEnabled,
                 stock.UpdatedAt,
-                effectivePolicy?.UpdatedAt));
+                effectivePolicy?.UpdatedAt)
+            {
+                QtyReserved = availability?.QtyReserved ?? 0,
+                QtyAvailable = availability?.QtyAvailable ?? stock.QtyOnHand
+            });
         }
 
         return result;
@@ -179,7 +182,11 @@ public class BufferStockService : IBufferStockService
 
         var bufferQty = policy?.BufferQty ?? 0;
         var isEnabled = policy?.IsEnabled ?? true;
-        var available = _availabilityService.CalculateAvailableOnlineQty(qtyOnHand, bufferQty, isEnabled);
+        var availabilityMap = await _availabilityService.GetAvailabilityMapAsync(outletId, ct);
+        var summary = availabilityMap.GetValueOrDefault(new OnlineStockKey(productId, productVariantId));
+        var qtyReserved = summary?.QtyReserved ?? 0;
+        var qtyAvailable = Math.Max(0, qtyOnHand - qtyReserved);
+        var available = _availabilityService.CalculateAvailableOnlineQty(qtyOnHand, bufferQty, isEnabled, qtyReserved);
 
         return new OnlineStockAvailabilityDto(
             outletId,
@@ -188,7 +195,11 @@ public class BufferStockService : IBufferStockService
             qtyOnHand,
             isEnabled ? bufferQty : 0,
             available,
-            available > 0);
+            available > 0)
+        {
+            QtyReserved = qtyReserved,
+            QtyAvailable = qtyAvailable
+        };
     }
 
     public async Task<BufferStockListItemDto> UpsertAsync(
@@ -316,7 +327,11 @@ public class BufferStockService : IBufferStockService
             availability.IsOnlineAvailable,
             request.IsEnabled,
             now,
-            existing.UpdatedAt);
+            existing.UpdatedAt)
+        {
+            QtyReserved = availability.QtyReserved,
+            QtyAvailable = availability.QtyAvailable
+        };
     }
 
     private static bool IsUniqueViolation(DbUpdateException ex)

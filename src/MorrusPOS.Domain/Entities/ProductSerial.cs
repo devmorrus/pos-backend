@@ -5,6 +5,7 @@ namespace MorrusPOS.Domain.Entities;
 public static class ProductSerialStatuses
 {
     public const string Available = "available";
+    public const string Reserved = "reserved";
     public const string Sold = "sold";
     public const string InTransfer = "in_transfer";
     public const string ReturnedToSupplier = "returned_to_supplier";

@@ -5,6 +5,7 @@ using MorrusPOS.Application.Features.Accounting;
 using MorrusPOS.Application.Features.Customers;
 using MorrusPOS.Application.Features.Capabilities;
 using MorrusPOS.Application.Features.Transactions;
+using MorrusPOS.Application.Features.Stock;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
 using System.Security.Cryptography;
@@ -24,6 +25,7 @@ public class TransactionService : ITransactionService
     private readonly ICapabilityEvaluator? _capabilityEvaluator;
     private readonly IIdempotencyService? _idempotencyService;
     private readonly IPosDeviceContext? _posDeviceContext;
+    private readonly IStockAvailabilityService _stockAvailability;
 
     public TransactionService(
         AppDbContext dbContext,
@@ -32,7 +34,8 @@ public class TransactionService : ITransactionService
         IStockEventPublisher stockEvents,
         IAccountingIntegrationService? accountingIntegrationService = null,
         IIdempotencyService? idempotencyService = null,
-        IPosDeviceContext? posDeviceContext = null)
+        IPosDeviceContext? posDeviceContext = null,
+        IStockAvailabilityService? stockAvailability = null)
         : this(
             dbContext,
             stockService,
@@ -42,7 +45,8 @@ public class TransactionService : ITransactionService
             accountingIntegrationService,
             null,
             idempotencyService,
-            posDeviceContext)
+            posDeviceContext,
+            stockAvailability)
     {
     }
 
@@ -55,7 +59,8 @@ public class TransactionService : ITransactionService
         IAccountingIntegrationService? accountingIntegrationService = null,
         ICapabilityEvaluator? capabilityEvaluator = null,
         IIdempotencyService? idempotencyService = null,
-        IPosDeviceContext? posDeviceContext = null)
+        IPosDeviceContext? posDeviceContext = null,
+        IStockAvailabilityService? stockAvailability = null)
     {
         _dbContext = dbContext;
         _stockService = stockService;
@@ -66,6 +71,7 @@ public class TransactionService : ITransactionService
         _capabilityEvaluator = capabilityEvaluator;
         _idempotencyService = idempotencyService;
         _posDeviceContext = posDeviceContext;
+        _stockAvailability = stockAvailability ?? new StockAvailabilityService(dbContext);
     }
 
     public async Task<IReadOnlyList<TransactionListItemDto>> GetRecentByOutletAsync(
@@ -584,6 +590,21 @@ public class TransactionService : ITransactionService
             ?? session.Register?.StockLocationId
             ?? session.OutletId;
 
+        StockReservation? checkoutReservation = null;
+        if (await _dbContext.StockReservations.AnyAsync(x => x.Id == request.Id, ct))
+        {
+            if (_dbContext.Database.IsRelational())
+            {
+                await _dbContext.Database.SqlQuery<int>(
+                    $"SELECT 1 AS \"Value\" FROM stock_reservations WHERE \"Id\"={request.Id} FOR UPDATE")
+                    .SingleOrDefaultAsync(ct);
+            }
+            checkoutReservation = await _dbContext.StockReservations
+                .Include(x => x.Items)
+                .SingleAsync(x => x.Id == request.Id, ct);
+            ValidateCheckoutReservationScope(checkoutReservation, session, stockLocationId);
+        }
+
         if (_currentUserService.Role != "Owner")
         {
             if (_currentUserService.UserId != session.UserId || _currentUserService.OutletId != session.OutletId)
@@ -628,9 +649,15 @@ public class TransactionService : ITransactionService
                     .FirstOrDefaultAsync(s => s.ProductId == itemReq.ProductId &&
                         s.ProductVariantId == itemReq.ProductVariantId && s.StockLocationId == stockLocationId, ct);
 
-                if (product.TrackingMode != ProductTrackingModes.None && (stock == null || stock.QtyOnHand < itemReq.Qty))
+                var reserved = product.TrackingMode == ProductTrackingModes.None ? 0 :
+                    await _stockAvailability.GetReservedQuantityAsync(
+                        stockLocationId, itemReq.ProductId, itemReq.ProductVariantId,
+                        checkoutReservation?.Id, ct);
+                var available = Math.Max(0, (stock?.QtyOnHand ?? 0) - reserved);
+                if (product.TrackingMode != ProductTrackingModes.None && available < itemReq.Qty)
                 {
-                    throw new InvalidOperationException($"Stok tidak mencukupi untuk produk {product.Name}. Stok tersedia: {(stock != null ? stock.QtyOnHand : 0)}");
+                    throw new StockIntegrityException(StockIntegrityErrorCodes.ReservationInsufficient,
+                        $"Stok tidak mencukupi untuk produk {product.Name}. Stok tersedia: {available}");
                 }
 
                 var lineSubtotal = product.BasePrice * itemReq.Qty;
@@ -641,6 +668,9 @@ public class TransactionService : ITransactionService
 
                 validatedItems.Add(new ValidatedCheckoutItem(product, itemReq));
             }
+
+            if (checkoutReservation is not null)
+                ValidateCheckoutReservationItems(checkoutReservation, validatedItems);
 
             var pricingBreakdown = await _pricingService.CalculateAsync(new PricingPreviewRequest(
                 request.OutletId,
@@ -731,6 +761,22 @@ public class TransactionService : ITransactionService
             };
 
             _dbContext.Transactions.Add(newTrx);
+
+            if (checkoutReservation is not null)
+            {
+                var resolvedAt = DateTime.UtcNow;
+                checkoutReservation.Status = StockReservationStatus.Consumed;
+                checkoutReservation.ResolvedAt = resolvedAt;
+                checkoutReservation.ConsumedByTransactionId = newTrx.Id;
+                checkoutReservation.UpdatedAt = resolvedAt;
+                foreach (var reservedItem in checkoutReservation.Items)
+                {
+                    reservedItem.Status = StockReservationStatus.Consumed;
+                    reservedItem.ResolvedAt = resolvedAt;
+                }
+                // Flush before stock_ledger inserts so the reservation-aware trigger no longer counts this checkout's own hold.
+                await _dbContext.SaveChangesAsync(ct);
+            }
 
             foreach (var validated in validatedItems)
             {
@@ -871,7 +917,7 @@ public class TransactionService : ITransactionService
                 }
 
                 await DeductTrackedStockAsync(product, itemReq, stockLocationId,
-                    newTrx.Id, transactionItemId, $"Penjualan kasir {trxNumber}", ct);
+                    newTrx.Id, transactionItemId, $"Penjualan kasir {trxNumber}", checkoutReservation?.Id, ct);
             }
 
             if (request.Payments != null)
@@ -946,6 +992,7 @@ public class TransactionService : ITransactionService
         Guid transactionId,
         Guid transactionItemId,
         string note,
+        Guid? reservationId,
         CancellationToken ct)
     {
         if (product.TrackingMode == ProductTrackingModes.None) return;
@@ -971,12 +1018,14 @@ public class TransactionService : ITransactionService
             decimal remaining = request.Qty;
             foreach (var batch in batches)
             {
+                var batchReserved = await _stockAvailability.GetBatchReservedQuantityAsync(batch.Id, reservationId, ct);
+                var batchAvailable = Math.Max(0, batch.QtyRemaining - batchReserved);
                 var wanted = requested.Count > 0
                     ? requested.FirstOrDefault(x => x.ProductBatchId == batch.Id)?.Qty ?? 0
-                    : Math.Min(remaining, batch.QtyRemaining);
+                    : Math.Min(remaining, batchAvailable);
                 if (wanted <= 0) continue;
                 if (batch.ProductId != product.Id || batch.ProductVariantId != request.ProductVariantId ||
-                    batch.StockLocationId != outletId || batch.QtyRemaining < wanted ||
+                    batch.StockLocationId != outletId || batchAvailable < wanted ||
                     batch.ExpiryDate?.Date < DateTime.UtcNow.Date)
                     throw new TrackingValidationException(TrackingErrorCodes.BatchStockInsufficient,
                         $"Batch {batch.BatchNumber} tidak tersedia atau stoknya tidak cukup.");
@@ -1001,9 +1050,15 @@ public class TransactionService : ITransactionService
             throw new TrackingValidationException(TrackingErrorCodes.TrackingAllocationMismatch,
                 "Jumlah serial harus sama dengan qty dan qty serial harus bilangan bulat.");
         var serials = await _dbContext.ProductSerials.Where(x => ids.Contains(x.Id)).ToListAsync(ct);
+        var reservedSerialIds = reservationId.HasValue
+            ? await _dbContext.StockReservationItems.AsNoTracking()
+                .Where(x => x.StockReservationId == reservationId.Value && x.ProductSerialId.HasValue)
+                .Select(x => x.ProductSerialId!.Value).ToListAsync(ct)
+            : [];
         if (serials.Count != ids.Count || serials.Any(x => x.ProductId != product.Id ||
             x.ProductVariantId != request.ProductVariantId || x.StockLocationId != outletId ||
-            x.Status != ProductSerialStatuses.Available))
+            (x.Status != ProductSerialStatuses.Available &&
+             !(x.Status == ProductSerialStatuses.Reserved && reservedSerialIds.Contains(x.Id)))))
             throw new TrackingValidationException(TrackingErrorCodes.SerialNotAvailable,
                 "Satu atau lebih serial tidak tersedia untuk produk dan outlet ini.");
         foreach (var serial in serials)
@@ -1015,6 +1070,54 @@ public class TransactionService : ITransactionService
                 StockMovementType.Sale, "transaction", transactionId, note, ct,
                 request.ProductVariantId, productSerialId: serial.Id, documentItemId: transactionItemId);
         }
+    }
+
+    private void ValidateCheckoutReservationScope(
+        StockReservation reservation, CashierSession session, Guid stockLocationId)
+    {
+        if (reservation.Status != StockReservationStatus.Active)
+            throw new StockIntegrityException(StockIntegrityErrorCodes.ReservationNotActive,
+                "Reservasi checkout tidak lagi aktif.");
+        if (reservation.ExpiresAt <= DateTime.UtcNow)
+            throw new StockIntegrityException(StockIntegrityErrorCodes.ReservationExpired,
+                "Reservasi checkout sudah kedaluwarsa. Pilih ulang stok dari katalog.");
+        if (reservation.StockLocationId != stockLocationId || reservation.CashierSessionId != session.Id ||
+            reservation.CreatedBy != _currentUserService.UserId ||
+            (reservation.DeviceId.HasValue && reservation.DeviceId != _posDeviceContext?.DeviceId))
+            throw new StockIntegrityException(StockIntegrityErrorCodes.ReservationMismatch,
+                "Reservasi tidak cocok dengan sesi, lokasi, atau perangkat checkout.");
+
+    }
+
+    private static void ValidateCheckoutReservationItems(
+        StockReservation reservation, IReadOnlyCollection<ValidatedCheckoutItem> validatedItems)
+    {
+        var trackedRequests = validatedItems.Where(x => x.Product.TrackingMode != ProductTrackingModes.None)
+            .Select(x => x.Request).ToList();
+        var reservedProducts = reservation.Items.GroupBy(x => (x.ProductId, x.ProductVariantId))
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Qty));
+        var checkoutProducts = trackedRequests.GroupBy(x => (x.ProductId, x.ProductVariantId))
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Qty));
+        if (reservedProducts.Count != checkoutProducts.Count ||
+            reservedProducts.Any(x => !checkoutProducts.TryGetValue(x.Key, out var qty) || qty != x.Value))
+            throw new StockIntegrityException(StockIntegrityErrorCodes.ReservationMismatch,
+                "Produk atau qty checkout berbeda dari reservasi.");
+
+        var reservedBatches = reservation.Items.Where(x => x.ProductBatchId.HasValue)
+            .GroupBy(x => x.ProductBatchId!.Value).ToDictionary(g => g.Key, g => g.Sum(x => x.Qty));
+        var checkoutBatches = trackedRequests.SelectMany(x => x.BatchAllocations ?? [])
+            .GroupBy(x => x.ProductBatchId).ToDictionary(g => g.Key, g => g.Sum(x => x.Qty));
+        if (reservedBatches.Count != checkoutBatches.Count ||
+            reservedBatches.Any(x => !checkoutBatches.TryGetValue(x.Key, out var qty) || qty != x.Value))
+            throw new StockIntegrityException(StockIntegrityErrorCodes.ReservationMismatch,
+                "Alokasi batch checkout berbeda dari reservasi.");
+
+        var reservedSerials = reservation.Items.Where(x => x.ProductSerialId.HasValue)
+            .Select(x => x.ProductSerialId!.Value).Order().ToArray();
+        var checkoutSerials = trackedRequests.SelectMany(x => x.SerialIds ?? []).Distinct().Order().ToArray();
+        if (!reservedSerials.SequenceEqual(checkoutSerials))
+            throw new StockIntegrityException(StockIntegrityErrorCodes.ReservationMismatch,
+                "Alokasi serial checkout berbeda dari reservasi.");
     }
 
     private async Task RestoreTrackedStockAsync(
@@ -1501,4 +1604,4 @@ public class TransactionService : ITransactionService
     }
 }
 
-file sealed record ValidatedCheckoutItem(Product Product, CheckoutItemRequest Request);
+internal sealed record ValidatedCheckoutItem(Product Product, CheckoutItemRequest Request);

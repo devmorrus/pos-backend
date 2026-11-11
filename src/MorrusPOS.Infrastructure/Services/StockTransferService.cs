@@ -17,6 +17,7 @@ public class StockTransferService : IStockTransferService
     private readonly ICurrentUserService _currentUserService;
     private readonly ICapabilityEvaluator? _capabilityEvaluator;
     private readonly IIdempotencyService? _idempotencyService;
+    private readonly IStockAvailabilityService _availability;
 
     public StockTransferService(
         AppDbContext dbContext,
@@ -24,7 +25,8 @@ public class StockTransferService : IStockTransferService
         IStockEventPublisher stockEvents,
         ICurrentUserService currentUserService,
         ICapabilityEvaluator? capabilityEvaluator = null,
-        IIdempotencyService? idempotencyService = null)
+        IIdempotencyService? idempotencyService = null,
+        IStockAvailabilityService? availability = null)
     {
         _dbContext = dbContext;
         _stockService = stockService;
@@ -32,6 +34,7 @@ public class StockTransferService : IStockTransferService
         _currentUserService = currentUserService;
         _capabilityEvaluator = capabilityEvaluator;
         _idempotencyService = idempotencyService;
+        _availability = availability ?? new StockAvailabilityService(dbContext);
     }
 
     public async Task<StockTransferDto> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -405,9 +408,13 @@ public class StockTransferService : IStockTransferService
                 s.ProductVariantId == itemReq.ProductVariantId &&
                 s.StockLocationId == transfer.FromStockLocationId, ct);
 
-        if (stock == null || stock.QtyOnHand < itemReq.Qty)
+        var reserved = await _availability.GetReservedQuantityAsync(
+            transfer.FromStockLocationId, itemReq.ProductId, itemReq.ProductVariantId, null, ct);
+        var available = Math.Max(0, (stock?.QtyOnHand ?? 0) - reserved);
+        if (available < itemReq.Qty)
         {
-            throw new InvalidOperationException($"Stok tidak mencukupi di outlet asal untuk produk {product.Name}. (Stok tersedia: {stock?.QtyOnHand ?? 0}, Dibutuhkan: {itemReq.Qty})");
+            throw new StockIntegrityException(StockIntegrityErrorCodes.ReservedStockConflict,
+                $"Stok tidak mencukupi di lokasi asal untuk produk {product.Name}. (Stok tersedia: {available}, Dibutuhkan: {itemReq.Qty})");
         }
 
         var item = new StockTransferItem
@@ -455,10 +462,12 @@ public class StockTransferService : IStockTransferService
             ?? throw new TrackingValidationException(TrackingErrorCodes.BatchNotFound,
                 $"Batch untuk produk {product.Name} tidak ditemukan di outlet asal.");
 
-        if (batch.QtyRemaining < itemReq.Qty)
+        var batchReserved = await _availability.GetBatchReservedQuantityAsync(batch.Id, null, ct);
+        var batchAvailable = Math.Max(0, batch.QtyRemaining - batchReserved);
+        if (batchAvailable < itemReq.Qty)
         {
             throw new TrackingValidationException(TrackingErrorCodes.BatchStockInsufficient,
-                $"Stok batch {batch.BatchNumber} tidak mencukupi. (Tersedia: {batch.QtyRemaining}, Dibutuhkan: {itemReq.Qty})");
+                $"Stok batch {batch.BatchNumber} tidak mencukupi. (Tersedia: {batchAvailable}, Dibutuhkan: {itemReq.Qty})");
         }
 
         batch.QtyRemaining -= itemReq.Qty;

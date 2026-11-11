@@ -4,6 +4,7 @@ using MorrusPOS.Application.Common.Exceptions;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Products;
 using MorrusPOS.Application.Features.Capabilities;
+using MorrusPOS.Application.Features.Stock;
 using MorrusPOS.Domain.Entities;
 using MorrusPOS.Infrastructure.Persistence;
 
@@ -14,15 +15,18 @@ public class ProductService : IProductService
     private readonly AppDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
     private readonly ICapabilityEvaluator? _capabilities;
+    private readonly IStockAvailabilityService _availability;
 
     public ProductService(
         AppDbContext dbContext,
         ICurrentUserService currentUserService,
-        ICapabilityEvaluator? capabilities = null)
+        ICapabilityEvaluator? capabilities = null,
+        IStockAvailabilityService? availability = null)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
         _capabilities = capabilities;
+        _availability = availability ?? new StockAvailabilityService(dbContext);
     }
 
     public async Task<ProductDto> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -49,7 +53,10 @@ public class ProductService : IProductService
             ? product.InventoryStocks.Where(s => s.StockLocationId == outletId && s.ProductVariantId != null).Sum(s => s.QtyOnHand)
             : stock?.QtyOnHand ?? 0;
 
-        return MapToDto(product, qtyOnHand, outletId);
+        var availability = outletId.HasValue
+            ? await _availability.GetReservedQuantitiesAsync(outletId.Value, ct)
+            : new Dictionary<StockAvailabilityKey, decimal>();
+        return MapToDto(product, qtyOnHand, outletId, availability);
     }
 
     public async Task<IReadOnlyList<ProductDto>> GetByOutletAsync(Guid outletId, CancellationToken ct = default)
@@ -66,12 +73,13 @@ public class ProductService : IProductService
             .AsNoTracking()
             .ToListAsync(ct);
 
+        var availability = await _availability.GetReservedQuantitiesAsync(outletId, ct);
         return products.Select(p => {
             var stock = p.InventoryStocks.FirstOrDefault(s => s.StockLocationId == outletId && s.ProductVariantId == null);
             var qtyOnHand = p.HasVariants
                 ? p.InventoryStocks.Where(s => s.StockLocationId == outletId && s.ProductVariantId != null).Sum(s => s.QtyOnHand)
                 : stock?.QtyOnHand ?? 0;
-            return MapToDto(p, qtyOnHand, outletId);
+            return MapToDto(p, qtyOnHand, outletId, availability);
         }).ToList();
     }
 
@@ -648,8 +656,13 @@ public class ProductService : IProductService
             "Business belum memiliki outlet untuk mencatat audit produk.");
     }
 
-    private static ProductDto MapToDto(Product p, decimal qtyOnHand, Guid? outletId = null)
+    private static ProductDto MapToDto(
+        Product p, decimal qtyOnHand, Guid? outletId = null,
+        IReadOnlyDictionary<StockAvailabilityKey, decimal>? reservedByProduct = null)
     {
+        var qtyReserved = p.HasVariants
+            ? p.Variants.Sum(v => reservedByProduct?.GetValueOrDefault(new StockAvailabilityKey(p.Id, v.Id)) ?? 0)
+            : reservedByProduct?.GetValueOrDefault(new StockAvailabilityKey(p.Id, null)) ?? 0;
         return new ProductDto(
             p.Id,
             p.CategoryId,
@@ -674,13 +687,20 @@ public class ProductService : IProductService
             {
                 QtyOnHand = outletId.HasValue
                     ? p.InventoryStocks.FirstOrDefault(s => s.StockLocationId == outletId && s.ProductVariantId == v.Id)?.QtyOnHand ?? 0
-                    : 0
+                    : 0,
+                QtyReserved = reservedByProduct?.GetValueOrDefault(new StockAvailabilityKey(p.Id, v.Id)) ?? 0,
+                QtyAvailable = Math.Max(0,
+                    (outletId.HasValue
+                        ? p.InventoryStocks.FirstOrDefault(s => s.StockLocationId == outletId && s.ProductVariantId == v.Id)?.QtyOnHand ?? 0
+                        : 0) - (reservedByProduct?.GetValueOrDefault(new StockAvailabilityKey(p.Id, v.Id)) ?? 0))
             }).ToList(),
             p.TrackingMode,
             p.BrandId, p.Brand?.Name, p.ModelId, p.Model?.Name
         )
         {
-            Recipes = new List<ProductRecipeDto>()
+            Recipes = new List<ProductRecipeDto>(),
+            QtyReserved = qtyReserved,
+            QtyAvailable = Math.Max(0, qtyOnHand - qtyReserved)
         };
     }
 
@@ -693,6 +713,7 @@ public class ProductService : IProductService
         var stock = await _dbContext.InventoryStocks.AsNoTracking()
             .Where(x => x.ProductId == productId && x.ProductVariantId == productVariantId && x.StockLocationId == outletId)
             .Select(x => (decimal?)x.QtyOnHand).FirstOrDefaultAsync(ct) ?? 0;
+        var reserved = await _availability.GetReservedQuantityAsync(outletId, productId, productVariantId, null, ct);
         var safeTake = Math.Clamp(take, 1, 100);
         var term = search?.Trim();
 
@@ -707,15 +728,49 @@ public class ProductService : IProductService
                 .Select(x => new ProductBatchOptionDto(x.Id, x.BatchNumber, x.ExpiryDate, x.QtyRemaining))
                 .ToListAsync(ct)
             : [];
+        if (batches.Count > 0)
+        {
+            var batchIds = batches.Select(x => x.Id).ToArray();
+            var now = DateTime.UtcNow;
+            var batchReserved = await _dbContext.StockReservationItems.AsNoTracking()
+                .Where(x => x.ProductBatchId.HasValue && batchIds.Contains(x.ProductBatchId.Value) &&
+                            x.Status == StockReservationStatus.Active &&
+                            x.StockReservation.Status == StockReservationStatus.Active &&
+                            x.StockReservation.ExpiresAt > now)
+                .GroupBy(x => x.ProductBatchId!.Value)
+                .Select(g => new { Id = g.Key, Qty = g.Sum(x => x.Qty) }).ToDictionaryAsync(x => x.Id, x => x.Qty, ct);
+            batches = batches.Select(x => x with
+            {
+                QtyReserved = batchReserved.GetValueOrDefault(x.Id),
+                QtyAvailable = Math.Max(0, x.QtyRemaining - batchReserved.GetValueOrDefault(x.Id))
+            }).Where(x => includeUnavailable || x.QtyAvailable > 0).ToList();
+        }
         var serials = product.TrackingMode == ProductTrackingModes.Serial
             ? await _dbContext.ProductSerials.AsNoTracking()
                 .Where(x => x.ProductId == productId && x.ProductVariantId == productVariantId &&
-                            x.StockLocationId == outletId && x.Status == ProductSerialStatuses.Available &&
+                            x.StockLocationId == outletId && (includeUnavailable || x.Status == ProductSerialStatuses.Available) &&
                             (string.IsNullOrEmpty(term) || x.NormalizedSerialNumber.Contains(term!.ToUpper())))
                 .OrderBy(x => x.SerialNumber).Take(safeTake)
-                .Select(x => new ProductSerialOptionDto(x.Id, x.SerialNumber)).ToListAsync(ct)
+                .Select(x => new ProductSerialOptionDto(x.Id, x.SerialNumber, x.Status, null, null)).ToListAsync(ct)
             : [];
-        return new ProductTrackingOptionsDto(product.TrackingMode, stock, batches, serials);
+        if (includeUnavailable && serials.Any(x => x.Status == ProductSerialStatuses.Reserved))
+        {
+            var serialIds = serials.Where(x => x.Status == ProductSerialStatuses.Reserved).Select(x => x.Id).ToArray();
+            var now = DateTime.UtcNow;
+            var reservations = await _dbContext.StockReservationItems.AsNoTracking()
+                .Where(x => x.ProductSerialId.HasValue && serialIds.Contains(x.ProductSerialId.Value) &&
+                            x.Status == StockReservationStatus.Active && x.StockReservation.ExpiresAt > now)
+                .Select(x => new { SerialId = x.ProductSerialId!.Value, x.StockReservationId, x.StockReservation.ExpiresAt })
+                .ToDictionaryAsync(x => x.SerialId, ct);
+            serials = serials.Select(x => reservations.TryGetValue(x.Id, out var r)
+                ? x with { ReservationId = r.StockReservationId, ReservationExpiresAt = r.ExpiresAt }
+                : x).ToList();
+        }
+        return new ProductTrackingOptionsDto(product.TrackingMode, stock, batches, serials)
+        {
+            QtyReserved = reserved,
+            QtyAvailable = Math.Max(0, stock - reserved)
+        };
     }
 
     private static string? NormalizeBarcode(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

@@ -53,7 +53,11 @@ public class ExceptionHandlingMiddleware
         {
             var status = ex.Code is StockIntegrityErrorCodes.PostingConflict or
                 StockIntegrityErrorCodes.ReconciliationBlocked or StockIntegrityErrorCodes.LedgerImmutable or
-                StockIntegrityErrorCodes.TransferStatusInvalid or StockIntegrityErrorCodes.TransferAlreadyReceived
+                StockIntegrityErrorCodes.TransferStatusInvalid or StockIntegrityErrorCodes.TransferAlreadyReceived or
+                StockIntegrityErrorCodes.ReservationInsufficient or StockIntegrityErrorCodes.ReservationExpired or
+                StockIntegrityErrorCodes.ReservationNotActive or StockIntegrityErrorCodes.ReservationMismatch or
+                StockIntegrityErrorCodes.ReservationIdReused or StockIntegrityErrorCodes.ReservationSerialUnavailable or
+                StockIntegrityErrorCodes.ReservedStockConflict
                 ? HttpStatusCode.Conflict
                 : HttpStatusCode.BadRequest;
             await WriteError(context, status, ex.Message, ex.Code);
@@ -102,10 +106,19 @@ public class ExceptionHandlingMiddleware
         {
             var pg = (PostgresException)ex.InnerException!;
             var postingConflict = pg.ConstraintName == "IX_stock_ledger_BusinessId_PostingKey";
+            var reservedConflict = pg.MessageText.StartsWith("STOCK_RESERVED_STOCK_CONFLICT", StringComparison.Ordinal);
+            var reservationConflict = pg.MessageText.StartsWith("STOCK_RESERVATION_", StringComparison.Ordinal);
+            var reservationCode = reservationConflict ? pg.MessageText.Split(':', 2)[0] : null;
             await WriteError(context,
-                postingConflict ? HttpStatusCode.Conflict : HttpStatusCode.BadRequest,
-                postingConflict ? "Pergerakan stok ini sudah pernah diposting." : "Pergerakan stok ditolak karena akan membuat saldo atau ledger tidak valid.",
-                postingConflict ? StockIntegrityErrorCodes.PostingConflict : StockIntegrityErrorCodes.MovementInvalid);
+                postingConflict || reservedConflict || reservationConflict ? HttpStatusCode.Conflict : HttpStatusCode.BadRequest,
+                postingConflict ? "Pergerakan stok ini sudah pernah diposting."
+                    : reservedConflict ? "Stok tidak tersedia karena sedang dipesan."
+                    : reservationConflict ? pg.MessageText[(pg.MessageText.IndexOf(':') + 1)..].Trim()
+                    : "Pergerakan stok ditolak karena akan membuat saldo atau ledger tidak valid.",
+                postingConflict ? StockIntegrityErrorCodes.PostingConflict
+                    : reservedConflict ? StockIntegrityErrorCodes.ReservedStockConflict
+                    : reservationConflict ? reservationCode
+                    : StockIntegrityErrorCodes.MovementInvalid);
         }
         catch (InvalidOperationException ex) // dipakai untuk validasi bisnis, mis. stok tidak cukup
         {

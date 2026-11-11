@@ -74,6 +74,7 @@ builder.Services.AddScoped<IValidator<RefundTransactionRequest>, RefundTransacti
 builder.Services.AddScoped<IValidator<CreateStockOpnameRequest>, CreateStockOpnameRequestValidator>();
 builder.Services.AddScoped<IValidator<CreateStockTransferRequest>, CreateStockTransferRequestValidator>();
 builder.Services.AddScoped<IValidator<ReceiveStockTransferRequest>, ReceiveStockTransferRequestValidator>();
+builder.Services.AddScoped<IValidator<CreateStockReservationRequest>, CreateStockReservationRequestValidator>();
 builder.Services.AddScoped<IValidator<UpsertBufferStockRequest>, UpsertBufferStockRequestValidator>();
 builder.Services.AddScoped<IValidator<CreateSupplierRequest>, CreateSupplierRequestValidator>();
 builder.Services.AddScoped<IValidator<UpdateSupplierRequest>, UpdateSupplierRequestValidator>();
@@ -125,6 +126,7 @@ builder.Services.Configure<QueueMonitoringOptions>(
     builder.Configuration.GetSection(QueueMonitoringOptions.SectionName));
 builder.Services.AddSingleton<QueueMonitoringState>();
 builder.Services.AddHostedService<QueueMonitoringBackgroundService>();
+builder.Services.AddHostedService<MorrusPOS.Api.StockReservations.StockReservationExpiryBackgroundService>();
 builder.Services.AddHealthChecks()
     .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(), tags: ["live"])
     .AddCheck<DatabaseReadinessHealthCheck>("postgresql", tags: ["ready"])

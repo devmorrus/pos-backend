@@ -8,10 +8,12 @@ namespace MorrusPOS.Infrastructure.Services;
 public class InventoryService : IInventoryService
 {
     private readonly AppDbContext _dbContext;
+    private readonly IStockAvailabilityService _availability;
 
-    public InventoryService(AppDbContext dbContext)
+    public InventoryService(AppDbContext dbContext, IStockAvailabilityService availability)
     {
         _dbContext = dbContext;
+        _availability = availability;
     }
 
     public async Task<IReadOnlyList<InventoryListItemDto>> GetByStockLocationAsync(
@@ -31,16 +33,6 @@ public class InventoryService : IInventoryService
             // Untracked products never have a stock balance; drop legacy rows defensively.
             .Where(stock => stock.StockLocationId == stockLocationId && stock.Product.IsActive &&
                             stock.Product.TrackingMode != ProductTrackingModes.None);
-
-        if (!includeZeroStock)
-        {
-            query = query.Where(stock => stock.QtyOnHand > 0);
-        }
-
-        if (lowStockOnly)
-        {
-            query = query.Where(stock => stock.QtyOnHand <= stock.MinStockAlert);
-        }
 
         if (!string.IsNullOrWhiteSpace(normalizedSearch))
         {
@@ -65,8 +57,11 @@ public class InventoryService : IInventoryService
                 stock.Product.Unit,
                 stock.Product.IsConsignment,
                 stock.QtyOnHand,
+                0,
+                stock.QtyOnHand,
+                0,
                 stock.MinStockAlert,
-                stock.QtyOnHand <= stock.MinStockAlert,
+                false,
                 stock.Product.CostPrice,
                 stock.Product.BasePrice,
                 stock.UpdatedAt
@@ -97,14 +92,27 @@ public class InventoryService : IInventoryService
         var batchMap = batchCounts.ToDictionary(x => (x.ProductId, x.ProductVariantId), x => x.Count);
         var serialMap = serialCounts.ToDictionary(x => (x.ProductId, x.ProductVariantId), x => x.Count);
 
+        var reserved = await _availability.GetReservedQuantitiesAsync(stockLocationId, ct);
+        var sold = await _availability.GetSoldQuantitiesAsync(stockLocationId, ct);
         return rows.Select(row =>
         {
+            var key = new StockAvailabilityKey(row.ProductId, row.ProductVariantId);
+            var qtyReserved = reserved.GetValueOrDefault(key);
+            var qtyAvailable = Math.Max(0, row.QtyOnHand - qtyReserved);
             row.TrackedItemCount = row.TrackingMode == ProductTrackingModes.Batch
                 ? batchMap.GetValueOrDefault((row.ProductId, row.ProductVariantId))
                 : row.TrackingMode == ProductTrackingModes.Serial
                     ? serialMap.GetValueOrDefault((row.ProductId, row.ProductVariantId))
                     : 0;
-            return row;
-        }).ToList();
+            return row with
+            {
+                QtyReserved = qtyReserved,
+                QtyAvailable = qtyAvailable,
+                QtySold = sold.GetValueOrDefault(key),
+                IsLowStock = qtyAvailable <= row.MinStockAlert
+            };
+        }).Where(row => includeZeroStock || row.QtyAvailable > 0)
+          .Where(row => !lowStockOnly || row.IsLowStock)
+          .ToList();
     }
 }

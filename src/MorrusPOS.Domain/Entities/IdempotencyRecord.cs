@@ -9,10 +9,11 @@ public static class IdempotencyOperation
     public const string SupplierPayment = "supplier_payment";
     public const string StockTransferSend = "stock_transfer_send";
     public const string StockTransferReceive = "stock_transfer_receive";
+    public const string StockReservationCreate = "stock_reservation_create";
 
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
-        Checkout, Refund, SupplierPayment, StockTransferSend, StockTransferReceive
+        Checkout, Refund, SupplierPayment, StockTransferSend, StockTransferReceive, StockReservationCreate
     };
 }
 

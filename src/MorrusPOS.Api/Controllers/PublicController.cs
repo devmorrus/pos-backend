@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MorrusPOS.Application.Common.Interfaces;
 using MorrusPOS.Application.Features.Capabilities;
+using MorrusPOS.Application.Features.Stock;
 using MorrusPOS.Infrastructure.Persistence;
 using MorrusPOS.Domain.Entities;
 
@@ -22,17 +23,20 @@ public class PublicController : ControllerBase
     private readonly SystemDbContext _systemDb;
     private readonly ITenantContextSetter _tenantContext;
     private readonly ICapabilityEvaluator _capabilities;
+    private readonly IStockAvailabilityService _availability;
 
     public PublicController(
         AppDbContext db,
         SystemDbContext systemDb,
         ITenantContextSetter tenantContext,
-        ICapabilityEvaluator capabilities)
+        ICapabilityEvaluator capabilities,
+        IStockAvailabilityService availability)
     {
         _db = db;
         _systemDb = systemDb;
         _tenantContext = tenantContext;
         _capabilities = capabilities;
+        _availability = availability;
     }
 
     [HttpGet("industry-profiles")]
@@ -163,22 +167,32 @@ public class PublicController : ControllerBase
         if (!await _capabilities.IsEnabledAsync(CapabilityCodes.StorefrontPublic, outletId.Value, ct))
             return NotFound();
 
-        var products = await _db.InventoryStocks
+        var productRows = await _db.InventoryStocks
             .AsNoTracking()
             .Where(s => s.StockLocationId == outletId.Value && s.Product.IsActive &&
                         s.Product.TrackingMode != ProductTrackingModes.None)
             .OrderBy(s => s.Product.Category.Name)
             .ThenBy(s => s.Product.Name)
-            .Select(s => new PublicProductDto(
-                s.Product.Id,
-                s.Product.Name,
-                s.Product.Sku,
-                s.Product.BasePrice,
-                s.Product.Unit,
-                s.Product.Category.Name,
-                s.Product.Category.Id,
-                s.QtyOnHand))
+            .Select(s => new
+            {
+                s.Product.Id, s.Product.Name, s.Product.Sku, s.Product.BasePrice, s.Product.Unit,
+                CategoryName = s.Product.Category.Name, CategoryId = s.Product.Category.Id,
+                s.ProductVariantId, s.QtyOnHand
+            })
             .ToListAsync(ct);
+        var reserved = await _availability.GetReservedQuantitiesAsync(outletId.Value, ct);
+        var products = productRows.Select(row =>
+        {
+            var qtyReserved = reserved.GetValueOrDefault(new StockAvailabilityKey(row.Id, row.ProductVariantId));
+            var qtyAvailable = Math.Max(0, row.QtyOnHand - qtyReserved);
+            return new PublicProductDto(row.Id, row.Name, row.Sku, row.BasePrice, row.Unit,
+                row.CategoryName, row.CategoryId, qtyAvailable)
+            {
+                QtyPhysical = row.QtyOnHand,
+                QtyReserved = qtyReserved,
+                QtyAvailable = qtyAvailable
+            };
+        }).ToList();
 
         return Ok(products);
     }
@@ -234,6 +248,11 @@ public record PublicProductDto(
     string Unit,
     string? CategoryName,
     Guid? CategoryId,
-    decimal QtyOnHand);
+    decimal QtyOnHand)
+{
+    public decimal QtyPhysical { get; init; }
+    public decimal QtyReserved { get; init; }
+    public decimal QtyAvailable { get; init; }
+}
 
 public record PublicCategoryDto(Guid Id, string Name);

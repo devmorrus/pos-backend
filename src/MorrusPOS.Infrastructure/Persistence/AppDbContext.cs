@@ -77,6 +77,8 @@ public class AppDbContext : DbContext
     public DbSet<StockOpnameItem> StockOpnameItems => Set<StockOpnameItem>();
     public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
     public DbSet<StockTransferItem> StockTransferItems => Set<StockTransferItem>();
+    public DbSet<StockReservation> StockReservations => Set<StockReservation>();
+    public DbSet<StockReservationItem> StockReservationItems => Set<StockReservationItem>();
     public DbSet<ChannelStockPolicy> ChannelStockPolicies => Set<ChannelStockPolicy>();
 
     // Fase 3-4 — Supplier & Pembelian
@@ -197,6 +199,8 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<StockOpnameItem>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<StockTransfer>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<StockTransferItem>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<StockReservation>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<StockReservationItem>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<ChannelStockPolicy>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<ProductVariant>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<ProductRecipe>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));

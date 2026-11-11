@@ -11,7 +11,7 @@ public class IdempotencyRecordConfiguration : IEntityTypeConfiguration<Idempoten
         builder.ToTable("idempotency_records", t =>
         {
             t.HasCheckConstraint("CK_idempotency_records_Operation",
-                "\"Operation\" IN ('checkout','refund','supplier_payment','stock_transfer_send','stock_transfer_receive')");
+                "\"Operation\" IN ('checkout','refund','supplier_payment','stock_transfer_send','stock_transfer_receive','stock_reservation_create')");
             t.HasCheckConstraint("CK_idempotency_records_RequestHash",
                 "length(\"RequestHash\") = 64");
         });

@@ -192,6 +192,12 @@ public class OutletsController : ControllerBase
             {
                 return Conflict("Cabang tidak dapat dinonaktifkan karena masih memiliki transfer dalam perjalanan.");
             }
+            var hasActiveReservation = await _dbContext.StockReservations.AnyAsync(r =>
+                r.StockLocationId == id && r.Status == StockReservationStatus.Active && r.ExpiresAt > DateTime.UtcNow, ct);
+            if (hasActiveReservation)
+            {
+                return Conflict("Cabang tidak dapat dinonaktifkan karena masih memiliki stok yang dipesan.");
+            }
         }
 
         outlet.Code = normalized.Code;

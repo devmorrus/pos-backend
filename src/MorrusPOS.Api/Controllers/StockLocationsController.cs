@@ -170,6 +170,10 @@ public class StockLocationsController : ControllerBase
                 (x.Status == StockTransferStatus.InTransit || x.Status == StockTransferStatus.Pending), ct);
             if (hasTransferInTransit)
                 return Conflict("Gudang tidak dapat dinonaktifkan karena masih memiliki transfer dalam perjalanan.");
+            var hasActiveReservation = await _db.StockReservations.AnyAsync(x =>
+                x.StockLocationId == id && x.Status == StockReservationStatus.Active && x.ExpiresAt > DateTime.UtcNow, ct);
+            if (hasActiveReservation)
+                return Conflict("Gudang tidak dapat dinonaktifkan karena masih memiliki stok yang dipesan.");
         }
 
         location.Code = code;

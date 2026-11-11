@@ -390,7 +390,30 @@ public class DashboardService : IDashboardService
             stockQuery = stockQuery.Where(s => s.StockLocationId == outletId.Value);
         }
 
-        var lowStockAlertsCount = await stockQuery.CountAsync(s => s.QtyOnHand <= s.MinStockAlert, ct);
+        var stockRows = await stockQuery.Select(s => new
+        {
+            s.StockLocationId, s.ProductId, s.ProductVariantId, s.Product.Name, s.Product.Sku,
+            s.QtyOnHand, s.MinStockAlert
+        }).ToListAsync(ct);
+        var now = DateTime.UtcNow;
+        var reservationQuery = _dbContext.StockReservationItems.AsNoTracking()
+            .Where(x => x.Status == StockReservationStatus.Active &&
+                        x.StockReservation.Status == StockReservationStatus.Active &&
+                        x.StockReservation.ExpiresAt > now);
+        if (outletId.HasValue)
+            reservationQuery = reservationQuery.Where(x => x.StockLocationId == outletId.Value);
+        var reservationRows = await reservationQuery
+            .GroupBy(x => new { x.StockLocationId, x.ProductId, x.ProductVariantId })
+            .Select(g => new { g.Key.StockLocationId, g.Key.ProductId, g.Key.ProductVariantId, Qty = g.Sum(x => x.Qty) })
+            .ToListAsync(ct);
+        var reserved = reservationRows.ToDictionary(
+            x => (x.StockLocationId, x.ProductId, x.ProductVariantId), x => x.Qty);
+        var availabilityRows = stockRows.Select(x => new
+        {
+            Row = x,
+            Available = Math.Max(0, x.QtyOnHand - reserved.GetValueOrDefault((x.StockLocationId, x.ProductId, x.ProductVariantId)))
+        }).ToList();
+        var lowStockAlertsCount = availabilityRows.Count(x => x.Available <= x.Row.MinStockAlert);
 
         // 3. Pending PO receipts
         var poQuery = _dbContext.PurchaseOrders
@@ -429,18 +452,18 @@ public class DashboardService : IDashboardService
         var pendingStockTransfersCount = await transferQuery.CountAsync(ct);
 
         // 6. Low stock products list
-        var lowStockProducts = await stockQuery
-            .Where(s => s.QtyOnHand <= s.MinStockAlert)
-            .OrderBy(s => s.QtyOnHand)
+        var lowStockProducts = availabilityRows
+            .Where(x => x.Available <= x.Row.MinStockAlert)
+            .OrderBy(x => x.Available)
             .Take(10)
-            .Select(s => new LowStockProductDto(
-                s.ProductId,
-                s.Product.Name,
-                s.Product.Sku,
-                s.QtyOnHand,
-                s.MinStockAlert
+            .Select(x => new LowStockProductDto(
+                x.Row.ProductId,
+                x.Row.Name,
+                x.Row.Sku,
+                x.Available,
+                x.Row.MinStockAlert
             ))
-            .ToListAsync(ct);
+            .ToList();
 
         return new GudangDashboardDto(
             totalProducts,
