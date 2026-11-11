@@ -39,7 +39,11 @@ public record ProductDto(
     bool HasVariants = false,
     bool IsRawMaterial = false,
     IReadOnlyList<ProductVariantDto>? Variants = null,
-    string TrackingMode = ProductTrackingModes.Quantity
+    string TrackingMode = ProductTrackingModes.Quantity,
+    Guid? BrandId = null,
+    string? BrandName = null,
+    Guid? ModelId = null,
+    string? ModelName = null
 )
 {
     public IReadOnlyList<ProductRecipeDto>? Recipes { get; init; }
@@ -83,7 +87,9 @@ public record CreateProductRequest(
     bool HasVariants = false,
     bool IsRawMaterial = false,
     IReadOnlyList<CreateProductVariantRequest>? Variants = null,
-    string? TrackingMode = null
+    string? TrackingMode = null,
+    Guid? BrandId = null,
+    Guid? ModelId = null
 )
 {
     public IReadOnlyList<ProductRecipeRequest>? Recipes { get; init; }
@@ -111,7 +117,9 @@ public record UpdateProductRequest(
     bool HasVariants = false,
     bool IsRawMaterial = false,
     IReadOnlyList<CreateProductVariantRequest>? Variants = null,
-    string? TrackingMode = null
+    string? TrackingMode = null,
+    Guid? BrandId = null,
+    Guid? ModelId = null
 )
 {
     public IReadOnlyList<ProductRecipeRequest>? Recipes { get; init; }

@@ -110,6 +110,10 @@ public class ExceptionHandlingMiddleware
         {
             await WriteError(context, HttpStatusCode.BadRequest, ex.Message);
         }
+        catch (CatalogValidationException ex)
+        {
+            await WriteError(context, ex.Code.EndsWith("_DUPLICATE", StringComparison.Ordinal) ? HttpStatusCode.Conflict : HttpStatusCode.BadRequest, ex.Message, ex.Code);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unhandled exception");

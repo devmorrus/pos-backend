@@ -4338,6 +4338,9 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Property<decimal>("BasePrice")
                         .HasColumnType("decimal(14,2)");
 
+                    b.Property<Guid?>("BrandId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
@@ -4371,6 +4374,9 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.Property<bool?>("IsTaxable")
                         .HasColumnType("boolean");
+
+                    b.Property<Guid?>("ModelId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -4407,15 +4413,21 @@ namespace MorrusPOS.Infrastructure.Migrations
 
                     b.HasIndex("CategoryId");
 
+                    b.HasIndex("ModelId");
+
                     b.HasIndex("BusinessId", "Barcode")
                         .IsUnique()
                         .HasFilter("\"Barcode\" IS NOT NULL");
+
+                    b.HasIndex("BusinessId", "BrandId");
 
                     b.HasIndex("BusinessId", "Sku")
                         .IsUnique();
 
                     b.ToTable("products", null, t =>
                         {
+                            t.HasCheckConstraint("CK_products_ModelBrand", "\"ModelId\" IS NULL OR \"BrandId\" IS NOT NULL");
+
                             t.HasCheckConstraint("CK_products_TrackingMode", "\"TrackingMode\" IN ('none','quantity','batch','serial')");
                         });
                 });
@@ -4534,6 +4546,137 @@ namespace MorrusPOS.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_ProductBatches_Qty", "\"QtyProduction\" >= 0 AND \"QtyRemaining\" >= 0 AND \"QtyRemaining\" <= \"QtyProduction\"");
                         });
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductBrand", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BusinessId", "NormalizedName")
+                        .IsUnique();
+
+                    b.ToTable("product_brands", (string)null);
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductIdentifier", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("IdentifierType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("NormalizedValue")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ProductVariantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("ProductVariantId");
+
+                    b.HasIndex("BusinessId", "IdentifierType", "NormalizedValue")
+                        .IsUnique();
+
+                    b.HasIndex("BusinessId", "ProductId", "IdentifierType")
+                        .IsUnique()
+                        .HasFilter("\"ProductVariantId\" IS NULL");
+
+                    b.HasIndex("BusinessId", "ProductVariantId", "IdentifierType")
+                        .IsUnique()
+                        .HasFilter("\"ProductVariantId\" IS NOT NULL");
+
+                    b.ToTable("product_identifiers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_product_identifiers_Type", "\"IdentifierType\" IN ('sku','barcode')");
+                        });
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductModel", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BrandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("BusinessId", "BrandId", "Id");
+
+                    b.HasIndex("BusinessId", "BrandId", "NormalizedName")
+                        .IsUnique();
+
+                    b.ToTable("product_models", (string)null);
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductRecipe", b =>
@@ -7873,9 +8016,24 @@ namespace MorrusPOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("MorrusPOS.Domain.Entities.ProductModel", "Model")
+                        .WithMany()
+                        .HasForeignKey("ModelId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MorrusPOS.Domain.Entities.ProductBrand", "Brand")
+                        .WithMany()
+                        .HasForeignKey("BusinessId", "BrandId")
+                        .HasPrincipalKey("BusinessId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Brand");
+
                     b.Navigation("Business");
 
                     b.Navigation("Category");
+
+                    b.Navigation("Model");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductAttribute", b =>
@@ -7943,6 +8101,59 @@ namespace MorrusPOS.Infrastructure.Migrations
                     b.Navigation("ProductVariant");
 
                     b.Navigation("StockLocation");
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductBrand", b =>
+                {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Business");
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductIdentifier", b =>
+                {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.ProductVariant", null)
+                        .WithMany()
+                        .HasForeignKey("ProductVariantId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Business");
+                });
+
+            modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductModel", b =>
+                {
+                    b.HasOne("MorrusPOS.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MorrusPOS.Domain.Entities.ProductBrand", "Brand")
+                        .WithMany()
+                        .HasForeignKey("BusinessId", "BrandId")
+                        .HasPrincipalKey("BusinessId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Brand");
+
+                    b.Navigation("Business");
                 });
 
             modelBuilder.Entity("MorrusPOS.Domain.Entities.ProductRecipe", b =>

@@ -26,6 +26,11 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.ToTable("products");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Sku).HasMaxLength(50).IsRequired();
+        builder.HasOne(x => x.Brand).WithMany().HasForeignKey(x => new { x.BusinessId, x.BrandId })
+            .HasPrincipalKey(x => new { x.BusinessId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Model).WithMany().HasForeignKey(x => x.ModelId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.ToTable("products", t => t.HasCheckConstraint("CK_products_ModelBrand", "\"ModelId\" IS NULL OR \"BrandId\" IS NOT NULL"));
         builder.HasIndex(x => new { x.BusinessId, x.Sku }).IsUnique();
         builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Barcode).HasMaxLength(50);

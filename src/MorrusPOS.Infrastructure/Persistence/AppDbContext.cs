@@ -52,6 +52,9 @@ public class AppDbContext : DbContext
     // Fase 1 — Core POS
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<ProductBrand> ProductBrands => Set<ProductBrand>();
+    public DbSet<ProductModel> ProductModels => Set<ProductModel>();
+    public DbSet<ProductIdentifier> ProductIdentifiers => Set<ProductIdentifier>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<TransactionItem> TransactionItems => Set<TransactionItem>();
@@ -159,6 +162,9 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Outlet>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<User>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<Product>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ProductBrand>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ProductModel>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
+        modelBuilder.Entity<ProductIdentifier>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<Customer>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<Category>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));
         modelBuilder.Entity<Supplier>().HasQueryFilter(e => SystemContext || (CurrentBusinessId.HasValue && e.BusinessId == CurrentBusinessId));

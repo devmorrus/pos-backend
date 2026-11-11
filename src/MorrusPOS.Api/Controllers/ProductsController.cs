@@ -14,6 +14,11 @@ namespace MorrusPOS.Api.Controllers;
 [RequiresCapability(CapabilityCodes.CatalogProducts)]
 public class ProductsController : ControllerBase
 {
+    [HttpPost("generate-barcode")]
+    [HasPermission("product.manage")]
+    public async Task<IActionResult> GenerateBarcode([FromServices] IProductCatalogMasterService masters, CancellationToken ct)
+        => Ok(new { barcode = await masters.GenerateBarcodeAsync(ct) });
+
     private readonly IProductService _productService;
     private readonly ICurrentUserService _currentUser;
     private readonly Microsoft.AspNetCore.Hosting.IWebHostEnvironment _env;

@@ -14,6 +14,10 @@ public static class ProductTrackingModes
 
 public class Product : AuditableEntity
 {
+    public Guid? BrandId { get; set; }
+    public ProductBrand? Brand { get; set; }
+    public Guid? ModelId { get; set; }
+    public ProductModel? Model { get; set; }
     public Guid BusinessId { get; set; }
     public Business Business { get; set; } = default!;
 
